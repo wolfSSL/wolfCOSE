@@ -3567,6 +3567,10 @@ int wc_CoseSign1_Verify(WOLFCOSE_KEY* key,
         ret = wc_CBOR_DecodeBstr(&ctx, &sigData, &sigDataLen);
     }
 
+    if ((ret == WOLFCOSE_SUCCESS) && (ctx.idx != ctx.bufSz)) {
+        ret = WOLFCOSE_E_CBOR_MALFORMED;
+    }
+
     if (ret == WOLFCOSE_SUCCESS) {
         alg = hdr->alg;
     }
