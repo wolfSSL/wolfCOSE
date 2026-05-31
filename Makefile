@@ -17,10 +17,12 @@
 CC       ?= gcc
 AR       ?= ar
 CFLAGS    = -std=c11 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion
+CFLAGS   += $(shell pkg-config --cflags wolfssl 2>/dev/null || echo "-I/usr/local/include")
 CFLAGS   += -fstack-usage
 CFLAGS   += -I./include -I/usr/local/include
 CFLAGS   += $(EXTRA_CFLAGS)
 LDFLAGS   = -L/usr/local/lib -lwolfssl
+LDFLAGS   += $(shell pkg-config --libs wolfssl 2>/dev/null || echo "-L/usr/local/lib -lwolfssl") 
 
 # Core library sources (only these go into .a/.so)
 SRC       = src/wolfcose_cbor.c src/wolfcose.c
