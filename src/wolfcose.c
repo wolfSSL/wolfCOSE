@@ -210,6 +210,32 @@ int wolfCose_AlgToHashType(int32_t alg, enum wc_HashType* hashType)
     return ret;
 }
 
+/* Guarded to match its only call sites, which are all in Sign1, so a build
+ * without them does not carry an unused function. */
+#if (defined(WOLFCOSE_SIGN1_SIGN) || defined(WOLFCOSE_SIGN1_VERIFY)) && \
+    defined(WOLFCOSE_HAVE_ECDSA)
+/* Each ECDSA alg is bound to one curve. Shared so sign and verify cannot
+ * disagree about which pairings are legal. */
+static int wolfCose_EccAlgCrv(int32_t alg, int32_t* crv)
+{
+    int ret = WOLFCOSE_SUCCESS;
+
+    if (alg == WOLFCOSE_ALG_ES256) {
+        *crv = WOLFCOSE_CRV_P256;
+    }
+    else if (alg == WOLFCOSE_ALG_ES384) {
+        *crv = WOLFCOSE_CRV_P384;
+    }
+    else if (alg == WOLFCOSE_ALG_ES512) {
+        *crv = WOLFCOSE_CRV_P521;
+    }
+    else {
+        ret = WOLFCOSE_E_COSE_BAD_ALG;
+    }
+    return ret;
+}
+#endif
+
 WOLFCOSE_LOCAL int wolfCose_SigSize(int32_t alg, size_t* sigSz)
 {
     int ret = WOLFCOSE_SUCCESS;
@@ -3966,6 +3992,21 @@ int wc_CoseSign1_Sign(WOLFCOSE_KEY* key, int32_t alg,
     uint8_t* out, size_t outSz, size_t* outLen,
     WC_RNG* rng)
 {
+    return wc_CoseSign1_Sign_ex(key, alg, kid, kidLen, payload, payloadLen,
+                                detachedPayload, detachedLen, extAad,
+                                extAadLen, scratch, scratchSz, out, outSz,
+                                outLen, rng, 0);
+}
+
+int wc_CoseSign1_Sign_ex(WOLFCOSE_KEY* key, int32_t alg,
+    const uint8_t* kid, size_t kidLen,
+    const uint8_t* payload, size_t payloadLen,
+    const uint8_t* detachedPayload, size_t detachedLen,
+    const uint8_t* extAad, size_t extAadLen,
+    uint8_t* scratch, size_t scratchSz,
+    uint8_t* out, size_t outSz, size_t* outLen,
+    WC_RNG* rng, uint32_t flags)
+{
     int ret = WOLFCOSE_SUCCESS;
     uint8_t protectedBuf[WOLFCOSE_PROTECTED_HDR_MAX];
     size_t protectedLen = 0;
@@ -4008,6 +4049,12 @@ int wc_CoseSign1_Sign(WOLFCOSE_KEY* key, int32_t alg,
         ret = WOLFCOSE_E_INVALID_ARG;
     }
 #endif
+    /* Reject bits this build does not define rather than ignoring them, so a
+     * caller compiled against a newer header fails loudly. */
+    if ((ret == WOLFCOSE_SUCCESS) &&
+        ((flags & ~(uint32_t)WOLFCOSE_SIGN1_UNTAGGED) != 0u)) {
+        ret = WOLFCOSE_E_INVALID_ARG;
+    }
 #ifdef WOLFCOSE_CHECK_WORD32_LEN
     if ((ret == WOLFCOSE_SUCCESS) &&
         ((wolfCose_LenFitsWord32(payloadLen) == 0) ||
@@ -4150,19 +4197,10 @@ int wc_CoseSign1_Sign(WOLFCOSE_KEY* key, int32_t alg,
             ret = WOLFCOSE_E_COSE_KEY_TYPE;
         }
 
-        /* Each ECDSA alg is bound to one curve. */
         if (ret == WOLFCOSE_SUCCESS) {
-            int32_t expectedCrv;
-            if (alg == WOLFCOSE_ALG_ES256) {
-                expectedCrv = WOLFCOSE_CRV_P256;
-            }
-            else if (alg == WOLFCOSE_ALG_ES384) {
-                expectedCrv = WOLFCOSE_CRV_P384;
-            }
-            else {
-                expectedCrv = WOLFCOSE_CRV_P521;
-            }
-            if (key->crv != expectedCrv) {
+            int32_t expectedCrv = 0;
+            ret = wolfCose_EccAlgCrv(alg, &expectedCrv);
+            if ((ret == WOLFCOSE_SUCCESS) && (key->crv != expectedCrv)) {
                 ret = WOLFCOSE_E_COSE_BAD_ALG;
             }
         }
@@ -4309,11 +4347,13 @@ int wc_CoseSign1_Sign(WOLFCOSE_KEY* key, int32_t alg,
      * Tag(18) [protected_bstr, unprotected_map, payload_bstr, signature_bstr]
      */
     outCtx.buf = out;
+    outCtx.cbuf = NULL;
     outCtx.bufSz = outSz;
     outCtx.idx = 0;
 
     /* Encode COSE_Sign1 output */
-    if (ret == WOLFCOSE_SUCCESS) {
+    if ((ret == WOLFCOSE_SUCCESS) &&
+        ((flags & WOLFCOSE_SIGN1_UNTAGGED) == 0u)) {
         ret = wc_CBOR_EncodeTag(&outCtx, WOLFCOSE_TAG_SIGN1);
     }
 
@@ -4351,8 +4391,9 @@ int wc_CoseSign1_Sign(WOLFCOSE_KEY* key, int32_t alg,
         ret = wc_CBOR_EncodeBstr(&outCtx, sigPtr, sigSz);
     }
 
-    if ((ret == WOLFCOSE_SUCCESS) && (outLen != NULL)) {
-        *outLen = outCtx.idx;
+    if (outLen != NULL) {
+        /* Report 0 rather than leaving a stale length behind on failure. */
+        *outLen = (ret == WOLFCOSE_SUCCESS) ? outCtx.idx : 0u;
     }
 
     /* Cleanup: always executed */
@@ -4577,19 +4618,10 @@ int wc_CoseSign1_Verify(const WOLFCOSE_KEY* key,
         if (key->kty != WOLFCOSE_KTY_EC2) {
             ret = WOLFCOSE_E_COSE_KEY_TYPE;
         }
-        /* Each ECDSA alg is bound to one curve. */
         if (ret == WOLFCOSE_SUCCESS) {
-            int32_t expectedCrv;
-            if (alg == WOLFCOSE_ALG_ES256) {
-                expectedCrv = WOLFCOSE_CRV_P256;
-            }
-            else if (alg == WOLFCOSE_ALG_ES384) {
-                expectedCrv = WOLFCOSE_CRV_P384;
-            }
-            else {
-                expectedCrv = WOLFCOSE_CRV_P521;
-            }
-            if (key->crv != expectedCrv) {
+            int32_t expectedCrv = 0;
+            ret = wolfCose_EccAlgCrv(alg, &expectedCrv);
+            if ((ret == WOLFCOSE_SUCCESS) && (key->crv != expectedCrv)) {
                 ret = WOLFCOSE_E_COSE_BAD_ALG;
             }
         }

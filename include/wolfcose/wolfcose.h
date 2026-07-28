@@ -122,6 +122,9 @@ extern "C" {
 
 /* ----- COSE constants (RFC 9052) ----- */
 
+/* Output options for wc_CoseSign1_Sign_ex() */
+#define WOLFCOSE_SIGN1_UNTAGGED 0x0001u  /* Omit the tag 18 prefix */
+
 /* Tags (RFC 9052) */
 #define WOLFCOSE_TAG_SIGN1      18u
 #define WOLFCOSE_TAG_ENCRYPT0   16u
@@ -759,6 +762,25 @@ WOLFCOSE_API int wc_CoseSign1_Sign(WOLFCOSE_KEY* key, int32_t alg,
     uint8_t* scratch, size_t scratchSz,
     uint8_t* out, size_t outSz, size_t* outLen,
     WC_RNG* rng);
+
+/**
+ * \brief Sign a payload producing a COSE_Sign1 message, with output options.
+ *
+ * Identical to wc_CoseSign1_Sign() with the addition of \p flags, which is a
+ * bitmask of WOLFCOSE_SIGN1_* values. Passing 0 is equivalent to calling
+ * wc_CoseSign1_Sign().
+ *
+ * \param flags  Bitmask of WOLFCOSE_SIGN1_* output options.
+ * \return WOLFCOSE_SUCCESS or negative error code.
+ */
+WOLFCOSE_API int wc_CoseSign1_Sign_ex(WOLFCOSE_KEY* key, int32_t alg,
+    const uint8_t* kid, size_t kidLen,
+    const uint8_t* payload, size_t payloadLen,
+    const uint8_t* detachedPayload, size_t detachedLen,
+    const uint8_t* extAad, size_t extAadLen,
+    uint8_t* scratch, size_t scratchSz,
+    uint8_t* out, size_t outSz, size_t* outLen,
+    WC_RNG* rng, uint32_t flags);
 #endif /* WOLFCOSE_SIGN1_SIGN */
 
 #if defined(WOLFCOSE_SIGN1_VERIFY)

@@ -18441,12 +18441,104 @@ static void test_sign_verify_bad_array_count(void)
 #endif
 
 /* ----- Entry point ----- */
+#if defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_SIGN1_SIGN)
+static void test_cose_sign1_untagged(void)
+{
+    static const uint8_t payload[] = "untagged payload";
+    WC_RNG rng;
+    ecc_key eccKey;
+    WOLFCOSE_KEY signKey;
+    uint8_t scratch[512];
+    uint8_t tagged[512];
+    uint8_t untagged[512];
+    size_t taggedLen = 0;
+    size_t untaggedLen = 0;
+    const uint8_t* decPayload = NULL;
+    size_t decPayloadLen = 0;
+    WOLFCOSE_HDR hdr;
+    int ret;
+
+    TEST_LOG("  [Sign1 untagged output]\n");
+
+    ret = wc_InitRng(&rng);
+    TEST_ASSERT(ret == 0, "untagged rng init");
+    if (ret != 0) {
+        return;
+    }
+    ret = wc_ecc_init(&eccKey);
+    TEST_ASSERT(ret == 0, "untagged ecc init");
+    if (ret != 0) {
+        /* eccKey was never initialized, so it must not be freed below. */
+        wc_FreeRng(&rng);
+        return;
+    }
+    ret = wc_ecc_make_key(&rng, 32, &eccKey);
+    TEST_ASSERT(ret == 0, "untagged ecc keygen");
+    if (ret != 0) {
+        wc_ecc_free(&eccKey);
+        wc_FreeRng(&rng);
+        return;
+    }
+    ret = wc_CoseKey_Init(&signKey);
+    TEST_ASSERT(ret == 0, "untagged key init");
+    if (ret != 0) {
+        wc_ecc_free(&eccKey);
+        wc_FreeRng(&rng);
+        return;
+    }
+    if (ret == 0) {
+        ret = wc_CoseKey_SetEcc(&signKey, WOLFCOSE_CRV_P256, &eccKey);
+        TEST_ASSERT(ret == 0, "untagged key set ecc");
+    }
+
+    if (ret == 0) {
+        ret = wc_CoseSign1_Sign_ex(&signKey, WOLFCOSE_ALG_ES256, NULL, 0,
+            payload, sizeof(payload) - 1, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch),
+            tagged, sizeof(tagged), &taggedLen, &rng, 0);
+        TEST_ASSERT(ret == 0, "flags=0 signs");
+        TEST_ASSERT(taggedLen > 0u && tagged[0] == 0xD2u,
+                    "flags=0 emits tag 18 (0xD2)");
+    }
+
+    if (ret == 0) {
+        ret = wc_CoseSign1_Sign_ex(&signKey, WOLFCOSE_ALG_ES256, NULL, 0,
+            payload, sizeof(payload) - 1, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch),
+            untagged, sizeof(untagged), &untaggedLen, &rng,
+            WOLFCOSE_SIGN1_UNTAGGED);
+        TEST_ASSERT(ret == 0, "untagged signs");
+        TEST_ASSERT(untaggedLen > 0u && untagged[0] == 0x84u,
+                    "untagged starts with 4-array (0x84)");
+        TEST_ASSERT(untaggedLen == (taggedLen - 1u),
+                    "untagged is exactly one byte shorter");
+    }
+
+    /* The verify path treats the tag as optional, so both forms round-trip. */
+    if (ret == 0) {
+        ret = wc_CoseSign1_Verify(&signKey, untagged, untaggedLen,
+            NULL, 0, NULL, 0, scratch, sizeof(scratch),
+            &hdr, &decPayload, &decPayloadLen);
+        TEST_ASSERT(ret == 0, "untagged verifies");
+        TEST_ASSERT(decPayloadLen == (sizeof(payload) - 1),
+                    "untagged payload length round-trips");
+    }
+
+    wc_CoseKey_Free(&signKey);
+    wc_ecc_free(&eccKey);
+    wc_FreeRng(&rng);
+}
+#endif /* WOLFCOSE_HAVE_ES256 */
+
 int test_cose(void)
 {
     g_failures = 0;
 
     /* Internal helper tests */
     test_wolfcose_force_zero();
+#if defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_SIGN1_SIGN)
+    test_cose_sign1_untagged();
+#endif
 
     /* Key tests */
     test_cose_key_init();

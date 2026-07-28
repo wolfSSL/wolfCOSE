@@ -374,6 +374,41 @@ Create a COSE_Sign1 message (single signer).
 
 ---
 
+### wc_CoseSign1_Sign_ex
+
+```c
+int wc_CoseSign1_Sign_ex(
+    WOLFCOSE_KEY* key,
+    int32_t alg,
+    const uint8_t* kid, size_t kidLen,
+    const uint8_t* payload, size_t payloadLen,
+    const uint8_t* detachedPayload, size_t detachedPayloadLen,
+    const uint8_t* extAad, size_t extAadLen,
+    uint8_t* scratch, size_t scratchSz,
+    uint8_t* out, size_t outSz, size_t* outLen,
+    WC_RNG* rng, uint32_t flags
+);
+```
+
+As `wc_CoseSign1_Sign()`, plus output options. `wc_CoseSign1_Sign()` is this
+function called with `flags = 0`.
+
+**Flags:**
+| Flag | Effect |
+|------|--------|
+| `WOLFCOSE_SIGN1_UNTAGGED` | Omit the CBOR tag 18 prefix, so output starts with the 4-element array (`0x84`). Verification accepts either form. |
+
+The tag is not covered by the signature. `Sig_structure` is
+`["Signature1", protected, external_aad, payload]` (RFC 9052 Section 4.4), so the
+tagged and untagged forms of the same message carry an identical signature and
+either can be converted to the other without detection. That is a property of
+COSE, not of this flag, but a caller emitting untagged output should establish
+the message type out of band.
+
+**Returns:** `WOLFCOSE_SUCCESS` or error code
+
+---
+
 ### wc_CoseSign1_Verify
 
 ```c
