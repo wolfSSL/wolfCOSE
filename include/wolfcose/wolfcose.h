@@ -122,7 +122,8 @@ extern "C" {
 
 /* ----- COSE constants (RFC 9052) ----- */
 
-/* Output options for wc_CoseSign1_Sign_ex() */
+/* Output options for wc_CoseSign1_Sign_ex() and
+ * wc_CoseSign1_SignSize_ex(). */
 #define WOLFCOSE_SIGN1_UNTAGGED 0x0001u  /* Omit the tag 18 prefix */
 
 /* Tags (RFC 9052) */
@@ -781,6 +782,27 @@ WOLFCOSE_API int wc_CoseSign1_Sign_ex(WOLFCOSE_KEY* key, int32_t alg,
     uint8_t* scratch, size_t scratchSz,
     uint8_t* out, size_t outSz, size_t* outLen,
     WC_RNG* rng, uint32_t flags);
+
+/**
+ * \brief Compute the exact encoded size wc_CoseSign1_Sign_ex() would produce.
+ *
+ * This function does not sign, use an RNG, or invoke an external signer.
+ * Only the lengths of the key identifier and payload affect framing.
+ *
+ * \param key         Key whose type determines the signature length. May be
+ *                    NULL when \p alg determines the exact length. Required
+ *                    for RSA-PSS and when both Ed25519 and Ed448 are enabled.
+ * \param alg         Algorithm identifier (WOLFCOSE_ALG_ES256, etc).
+ * \param kidLen      Key ID length (0 if none).
+ * \param payloadLen  Attached payload length (0 if detached).
+ * \param detachedLen Detached payload length (0 if attached).
+ * \param flags       WOLFCOSE_SIGN1_* output options.
+ * \param outLen      Output: exact encoded size in bytes.
+ * \return WOLFCOSE_SUCCESS or negative error code.
+ */
+WOLFCOSE_API int wc_CoseSign1_SignSize_ex(const WOLFCOSE_KEY* key,
+    int32_t alg, size_t kidLen, size_t payloadLen, size_t detachedLen,
+    uint32_t flags, size_t* outLen);
 #endif /* WOLFCOSE_SIGN1_SIGN */
 
 #if defined(WOLFCOSE_SIGN1_VERIFY)

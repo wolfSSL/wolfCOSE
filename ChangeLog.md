@@ -13,6 +13,9 @@ MAC, and key distribution, and standardized post-quantum ML-DSA signatures
 
 ## New Feature Additions
 
+* `wc_CoseSign1_Sign_ex()` can emit untagged COSE_Sign1 messages, and
+  `wc_CoseSign1_SignSize_ex()` reports their exact encoded size without
+  signing or invoking an external signer.
 * CBOR engine implementing RFC 8949 encode/decode with no external dependency,
   enforcing deterministic/preferred-encoding rules and rejecting non-preferred
   or trailing input on decode.

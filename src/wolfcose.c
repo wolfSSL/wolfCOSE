@@ -210,32 +210,6 @@ int wolfCose_AlgToHashType(int32_t alg, enum wc_HashType* hashType)
     return ret;
 }
 
-/* Guarded to match its only call sites, which are all in Sign1, so a build
- * without them does not carry an unused function. */
-#if (defined(WOLFCOSE_SIGN1_SIGN) || defined(WOLFCOSE_SIGN1_VERIFY)) && \
-    defined(WOLFCOSE_HAVE_ECDSA)
-/* Each ECDSA alg is bound to one curve. Shared so sign and verify cannot
- * disagree about which pairings are legal. */
-static int wolfCose_EccAlgCrv(int32_t alg, int32_t* crv)
-{
-    int ret = WOLFCOSE_SUCCESS;
-
-    if (alg == WOLFCOSE_ALG_ES256) {
-        *crv = WOLFCOSE_CRV_P256;
-    }
-    else if (alg == WOLFCOSE_ALG_ES384) {
-        *crv = WOLFCOSE_CRV_P384;
-    }
-    else if (alg == WOLFCOSE_ALG_ES512) {
-        *crv = WOLFCOSE_CRV_P521;
-    }
-    else {
-        ret = WOLFCOSE_E_COSE_BAD_ALG;
-    }
-    return ret;
-}
-#endif
-
 WOLFCOSE_LOCAL int wolfCose_SigSize(int32_t alg, size_t* sigSz)
 {
     int ret = WOLFCOSE_SUCCESS;
@@ -3699,16 +3673,12 @@ static int wolfCose_MlDsaCheckKey(const WOLFCOSE_KEY* key, int32_t alg)
 }
 #endif /* WOLFCOSE_HAVE_MLDSA */
 
-/* Delegated signing is reachable from COSE_Sign1 and COSE_Sign alike,
- * so these live outside the WOLFCOSE_SIGN1 region below. */
-#if defined(WOLFCOSE_EXT_SIGN)
-/* Reject algorithms this build lacks; report whether alg pre-hashes. */
+#if defined(WOLFCOSE_SIGN1_SIGN) || defined(WOLFCOSE_EXT_SIGN)
 /* Exact signature length for this key and algorithm. wolfCose_SigSize() alone
- * cannot serve the delegated path: it reports EdDSA's worst case rather than
- * the key's curve, and has no RSA case at all, so a guard built on it silently
- * skips both. Fails closed when the length cannot be determined. */
-static int wolfCose_ExtSignSigLen(const WOLFCOSE_KEY* key, int32_t alg,
-                                  size_t* expSigLen)
+ * reports EdDSA's worst case rather than the key's curve, and has no RSA case.
+ * Fails closed when the exact length cannot be determined. */
+static int wolfCose_SignSigLen(const WOLFCOSE_KEY* key, int32_t alg,
+                               size_t* expSigLen)
 {
     int ret;
 
@@ -3717,7 +3687,18 @@ static int wolfCose_ExtSignSigLen(const WOLFCOSE_KEY* key, int32_t alg,
     switch (alg) {
 #if defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)
         case WOLFCOSE_ALG_EDDSA:
-            if (key->kty != WOLFCOSE_KTY_OKP) {
+            if (key == NULL) {
+#if defined(WOLFCOSE_HAVE_EDDSA) && defined(WOLFCOSE_HAVE_ED448)
+                ret = WOLFCOSE_E_INVALID_ARG;
+#elif defined(WOLFCOSE_HAVE_EDDSA)
+                *expSigLen = 64;
+                ret = WOLFCOSE_SUCCESS;
+#else
+                *expSigLen = 114;
+                ret = WOLFCOSE_SUCCESS;
+#endif
+            }
+            else if (key->kty != WOLFCOSE_KTY_OKP) {
                 ret = WOLFCOSE_E_COSE_KEY_TYPE;
             }
 #ifdef WOLFCOSE_HAVE_EDDSA
@@ -3748,10 +3729,15 @@ static int wolfCose_ExtSignSigLen(const WOLFCOSE_KEY* key, int32_t alg,
         case WOLFCOSE_ALG_PS512:
 #endif
         {
-            if ((key->kty != WOLFCOSE_KTY_RSA) ||
+            if ((key == NULL) || (key->kty != WOLFCOSE_KTY_RSA) ||
                 (key->attachedType != WOLFCOSE_ATT_RSA) ||
                 (key->key.rsa == NULL)) {
-                ret = WOLFCOSE_E_COSE_KEY_TYPE;
+                if (key == NULL) {
+                    ret = WOLFCOSE_E_INVALID_ARG;
+                }
+                else {
+                    ret = WOLFCOSE_E_COSE_KEY_TYPE;
+                }
             }
             else {
                 int modSz = wc_RsaEncryptSize(key->key.rsa);
@@ -3790,7 +3776,7 @@ static int wolfCose_ExtSignSigLen(const WOLFCOSE_KEY* key, int32_t alg,
                 /* expectedCrv stays 0 for non-ECDSA, which this arm does not
                  * bind. A declared kty or crv is honoured for ES* the way the
                  * local path does; 0 means the caller declared none. */
-                if (expectedCrv != 0) {
+                if ((key != NULL) && (expectedCrv != 0)) {
                     if ((key->kty != 0) && (key->kty != WOLFCOSE_KTY_EC2)) {
                         ret = WOLFCOSE_E_COSE_KEY_TYPE;
                     }
@@ -3807,7 +3793,12 @@ static int wolfCose_ExtSignSigLen(const WOLFCOSE_KEY* key, int32_t alg,
     }
     return ret;
 }
+#endif
 
+/* Delegated signing is reachable from COSE_Sign1 and COSE_Sign alike,
+ * so these live outside the WOLFCOSE_SIGN1 region below. */
+#if defined(WOLFCOSE_EXT_SIGN)
+/* Reject algorithms this build lacks; report whether alg pre-hashes. */
 static int wolfCose_ExtSignAlg(int32_t alg, int* preHashes)
 {
     int ret = WOLFCOSE_SUCCESS;
@@ -3914,7 +3905,7 @@ int wolfCose_ExtSign(const WOLFCOSE_KEY* key, int32_t alg,
      * accepts has a determinable length, so an error here is fatal rather
      * than a reason to skip the check. */
     if (ret == WOLFCOSE_SUCCESS) {
-        ret = wolfCose_ExtSignSigLen(key, alg, &expSigLen);
+        ret = wolfCose_SignSigLen(key, alg, &expSigLen);
         if ((ret == WOLFCOSE_SUCCESS) && (sigSz < expSigLen)) {
             ret = WOLFCOSE_E_BUFFER_TOO_SMALL;
         }
@@ -3983,6 +3974,147 @@ static int wolfCose_BuildSigStructure(const uint8_t* protectedHdr,
 
 
 #if defined(WOLFCOSE_SIGN1_SIGN)
+static int wolfCose_SizeAdd(size_t* total, size_t add)
+{
+    int ret = WOLFCOSE_SUCCESS;
+
+    if ((total == NULL) || (add > ((size_t)-1 - *total))) {
+        ret = WOLFCOSE_E_INVALID_ARG;
+    }
+    else {
+        *total += add;
+    }
+    return ret;
+}
+
+static size_t wolfCose_CborHeadSize(uint64_t val)
+{
+    size_t len;
+
+    if (val <= 23u) {
+        len = 1u;
+    }
+    else if (val <= 0xFFu) {
+        len = 2u;
+    }
+    else if (val <= 0xFFFFu) {
+        len = 3u;
+    }
+    else if (val <= 0xFFFFFFFFu) {
+        len = 5u;
+    }
+    else {
+        len = 9u;
+    }
+    return len;
+}
+
+static int wolfCose_CborStringSize(size_t len, size_t* encodedLen)
+{
+    size_t total = wolfCose_CborHeadSize((uint64_t)len);
+    int ret;
+
+    ret = wolfCose_SizeAdd(&total, len);
+    if (ret == WOLFCOSE_SUCCESS) {
+        *encodedLen = total;
+    }
+    return ret;
+}
+
+int wc_CoseSign1_SignSize_ex(const WOLFCOSE_KEY* key, int32_t alg,
+    size_t kidLen, size_t payloadLen, size_t detachedLen,
+    uint32_t flags, size_t* outLen)
+{
+    uint8_t protectedBuf[WOLFCOSE_PROTECTED_HDR_MAX];
+    size_t protectedLen = 0u;
+    size_t sigLen = 0u;
+    size_t itemLen = 0u;
+    size_t total = 0u;
+    int ret = WOLFCOSE_SUCCESS;
+
+    if (outLen == NULL) {
+        ret = WOLFCOSE_E_INVALID_ARG;
+    }
+    else {
+        *outLen = 0u;
+    }
+    if ((ret == WOLFCOSE_SUCCESS) &&
+        ((flags & ~(uint32_t)WOLFCOSE_SIGN1_UNTAGGED) != 0u)) {
+        ret = WOLFCOSE_E_INVALID_ARG;
+    }
+    if ((ret == WOLFCOSE_SUCCESS) && (payloadLen != 0u) &&
+        (detachedLen != 0u)) {
+        ret = WOLFCOSE_E_INVALID_ARG;
+    }
+#ifdef WOLFCOSE_CHECK_WORD32_LEN
+    if ((ret == WOLFCOSE_SUCCESS) &&
+        ((wolfCose_LenFitsWord32(payloadLen) == 0) ||
+         (wolfCose_LenFitsWord32(detachedLen) == 0))) {
+        ret = WOLFCOSE_E_INVALID_ARG;
+    }
+#endif
+    if ((ret == WOLFCOSE_SUCCESS) && (key != NULL) &&
+        (key->alg != WOLFCOSE_ALG_UNSET) && (key->alg != alg)) {
+        ret = WOLFCOSE_E_COSE_BAD_ALG;
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wolfCose_SignSigLen(key, alg, &sigLen);
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wolfCose_EncodeProtectedHdr(alg, protectedBuf,
+                                          sizeof(protectedBuf),
+                                          &protectedLen);
+    }
+
+    if ((ret == WOLFCOSE_SUCCESS) &&
+        ((flags & WOLFCOSE_SIGN1_UNTAGGED) == 0u)) {
+        ret = wolfCose_SizeAdd(&total, 1u); /* tag 18 */
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wolfCose_SizeAdd(&total, 1u); /* array(4) */
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wolfCose_CborStringSize(protectedLen, &itemLen);
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wolfCose_SizeAdd(&total, itemLen);
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wolfCose_SizeAdd(&total, 1u); /* map(0) or map(1) */
+    }
+    if ((ret == WOLFCOSE_SUCCESS) && (kidLen != 0u)) {
+        ret = wolfCose_SizeAdd(&total, 1u); /* kid label 4 */
+        if (ret == WOLFCOSE_SUCCESS) {
+            ret = wolfCose_CborStringSize(kidLen, &itemLen);
+        }
+        if (ret == WOLFCOSE_SUCCESS) {
+            ret = wolfCose_SizeAdd(&total, itemLen);
+        }
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        if (detachedLen != 0u) {
+            ret = wolfCose_SizeAdd(&total, 1u); /* null payload */
+        }
+        else {
+            ret = wolfCose_CborStringSize(payloadLen, &itemLen);
+            if (ret == WOLFCOSE_SUCCESS) {
+                ret = wolfCose_SizeAdd(&total, itemLen);
+            }
+        }
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wolfCose_CborStringSize(sigLen, &itemLen);
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wolfCose_SizeAdd(&total, itemLen);
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        *outLen = total;
+    }
+
+    return ret;
+}
+
 int wc_CoseSign1_Sign(WOLFCOSE_KEY* key, int32_t alg,
     const uint8_t* kid, size_t kidLen,
     const uint8_t* payload, size_t payloadLen,
@@ -3995,7 +4127,7 @@ int wc_CoseSign1_Sign(WOLFCOSE_KEY* key, int32_t alg,
     return wc_CoseSign1_Sign_ex(key, alg, kid, kidLen, payload, payloadLen,
                                 detachedPayload, detachedLen, extAad,
                                 extAadLen, scratch, scratchSz, out, outSz,
-                                outLen, rng, 0);
+                                outLen, rng, 0u);
 }
 
 int wc_CoseSign1_Sign_ex(WOLFCOSE_KEY* key, int32_t alg,
@@ -4049,8 +4181,6 @@ int wc_CoseSign1_Sign_ex(WOLFCOSE_KEY* key, int32_t alg,
         ret = WOLFCOSE_E_INVALID_ARG;
     }
 #endif
-    /* Reject bits this build does not define rather than ignoring them, so a
-     * caller compiled against a newer header fails loudly. */
     if ((ret == WOLFCOSE_SUCCESS) &&
         ((flags & ~(uint32_t)WOLFCOSE_SIGN1_UNTAGGED) != 0u)) {
         ret = WOLFCOSE_E_INVALID_ARG;
@@ -4197,10 +4327,19 @@ int wc_CoseSign1_Sign_ex(WOLFCOSE_KEY* key, int32_t alg,
             ret = WOLFCOSE_E_COSE_KEY_TYPE;
         }
 
+        /* Each ECDSA alg is bound to one curve. */
         if (ret == WOLFCOSE_SUCCESS) {
-            int32_t expectedCrv = 0;
-            ret = wolfCose_EccAlgCrv(alg, &expectedCrv);
-            if ((ret == WOLFCOSE_SUCCESS) && (key->crv != expectedCrv)) {
+            int32_t expectedCrv;
+            if (alg == WOLFCOSE_ALG_ES256) {
+                expectedCrv = WOLFCOSE_CRV_P256;
+            }
+            else if (alg == WOLFCOSE_ALG_ES384) {
+                expectedCrv = WOLFCOSE_CRV_P384;
+            }
+            else {
+                expectedCrv = WOLFCOSE_CRV_P521;
+            }
+            if (key->crv != expectedCrv) {
                 ret = WOLFCOSE_E_COSE_BAD_ALG;
             }
         }
@@ -4343,9 +4482,7 @@ int wc_CoseSign1_Sign_ex(WOLFCOSE_KEY* key, int32_t alg,
         /* No action required */
     }
 
-    /* Encode COSE_Sign1 output:
-     * Tag(18) [protected_bstr, unprotected_map, payload_bstr, signature_bstr]
-     */
+    /* Encode an optional tag 18 followed by the four Sign1 fields. */
     outCtx.buf = out;
     outCtx.cbuf = NULL;
     outCtx.bufSz = outSz;
@@ -4391,9 +4528,8 @@ int wc_CoseSign1_Sign_ex(WOLFCOSE_KEY* key, int32_t alg,
         ret = wc_CBOR_EncodeBstr(&outCtx, sigPtr, sigSz);
     }
 
-    if (outLen != NULL) {
-        /* Report 0 rather than leaving a stale length behind on failure. */
-        *outLen = (ret == WOLFCOSE_SUCCESS) ? outCtx.idx : 0u;
+    if ((ret == WOLFCOSE_SUCCESS) && (outLen != NULL)) {
+        *outLen = outCtx.idx;
     }
 
     /* Cleanup: always executed */
@@ -4618,10 +4754,19 @@ int wc_CoseSign1_Verify(const WOLFCOSE_KEY* key,
         if (key->kty != WOLFCOSE_KTY_EC2) {
             ret = WOLFCOSE_E_COSE_KEY_TYPE;
         }
+        /* Each ECDSA alg is bound to one curve. */
         if (ret == WOLFCOSE_SUCCESS) {
-            int32_t expectedCrv = 0;
-            ret = wolfCose_EccAlgCrv(alg, &expectedCrv);
-            if ((ret == WOLFCOSE_SUCCESS) && (key->crv != expectedCrv)) {
+            int32_t expectedCrv;
+            if (alg == WOLFCOSE_ALG_ES256) {
+                expectedCrv = WOLFCOSE_CRV_P256;
+            }
+            else if (alg == WOLFCOSE_ALG_ES384) {
+                expectedCrv = WOLFCOSE_CRV_P384;
+            }
+            else {
+                expectedCrv = WOLFCOSE_CRV_P521;
+            }
+            if (key->crv != expectedCrv) {
                 ret = WOLFCOSE_E_COSE_BAD_ALG;
             }
         }

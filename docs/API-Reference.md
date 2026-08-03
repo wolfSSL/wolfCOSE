@@ -390,20 +390,41 @@ int wc_CoseSign1_Sign_ex(
 );
 ```
 
-As `wc_CoseSign1_Sign()`, plus output options. `wc_CoseSign1_Sign()` is this
-function called with `flags = 0`.
+As `wc_CoseSign1_Sign()`, plus output options. Passing `flags = 0` is
+equivalent to calling `wc_CoseSign1_Sign()`.
 
-**Flags:**
 | Flag | Effect |
 |------|--------|
-| `WOLFCOSE_SIGN1_UNTAGGED` | Omit the CBOR tag 18 prefix, so output starts with the 4-element array (`0x84`). Verification accepts either form. |
+| `WOLFCOSE_SIGN1_UNTAGGED` | Omit the CBOR tag 18 prefix, so output starts with the four-element array (`0x84`). |
 
-The tag is not covered by the signature. `Sig_structure` is
-`["Signature1", protected, external_aad, payload]` (RFC 9052 Section 4.4), so the
-tagged and untagged forms of the same message carry an identical signature and
-either can be converted to the other without detection. That is a property of
-COSE, not of this flag, but a caller emitting untagged output should establish
-the message type out of band.
+The tag is not covered by the signature. A caller emitting untagged output
+must establish the message type out of band.
+
+**Returns:** `WOLFCOSE_SUCCESS` or error code
+
+---
+
+### wc_CoseSign1_SignSize_ex
+
+```c
+int wc_CoseSign1_SignSize_ex(
+    const WOLFCOSE_KEY* key,
+    int32_t alg,
+    size_t kidLen,
+    size_t payloadLen,
+    size_t detachedLen,
+    uint32_t flags,
+    size_t* outLen
+);
+```
+
+Computes the exact encoded size that `wc_CoseSign1_Sign_ex()` would produce
+without signing. It does not use an RNG, private key operation, or external
+signer callback. The data itself is not required because only `kidLen`,
+`payloadLen`, and `detachedLen` affect the framing.
+
+`key` may be `NULL` when the algorithm fixes the signature length. It is
+required for RSA-PSS and for EdDSA when both Ed25519 and Ed448 are enabled.
 
 **Returns:** `WOLFCOSE_SUCCESS` or error code
 

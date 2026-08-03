@@ -399,6 +399,7 @@ static void test_cose_sign1_ecc(const char* label, int32_t alg, int32_t crv,
     uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
     uint8_t out[512];
     size_t outLen = 0;
+    size_t sizedLen = 0;
     const uint8_t* decPayload = NULL;
     size_t decPayloadLen = 0;
     WOLFCOSE_HDR hdr;
@@ -429,6 +430,12 @@ static void test_cose_sign1_ecc(const char* label, int32_t alg, int32_t crv,
             TEST_ASSERT(ret == 0, "sign key set ecc");
         }
 
+        if (ret == 0) {
+            ret = wc_CoseSign1_SignSize_ex(&signKey, alg,
+                sizeof(kid) - 1u, sizeof(payload) - 1u, 0u, 0u, &sizedLen);
+            TEST_ASSERT(ret == 0, "sign1 ecc size");
+        }
+
         /* Sign */
         if (ret == 0) {
             ret = wc_CoseSign1_Sign(&signKey, alg,
@@ -439,6 +446,7 @@ static void test_cose_sign1_ecc(const char* label, int32_t alg, int32_t crv,
                 scratch, sizeof(scratch),
                 out, sizeof(out), &outLen, &rng);
             TEST_ASSERT(ret == 0 && outLen > 0, "sign1 ecc sign");
+            TEST_ASSERT(outLen == sizedLen, "sign1 ecc exact size");
         }
     }
 
@@ -1588,6 +1596,7 @@ static void test_cose_sign1_eddsa(void)
     uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
     uint8_t out[512];
     size_t outLen = 0;
+    size_t sizedLen = 0;
     const uint8_t* decPayload = NULL;
     size_t decPayloadLen = 0;
     WOLFCOSE_HDR hdr;
@@ -1611,15 +1620,31 @@ static void test_cose_sign1_eddsa(void)
         (void)wc_CoseKey_Init(&signKey);
         (void)wc_CoseKey_SetEd25519(&signKey, &edKey);
 
+#if defined(WOLFCOSE_HAVE_EDDSA) && defined(WOLFCOSE_HAVE_ED448)
+        TEST_ASSERT(wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_EDDSA,
+            0u, sizeof(payload) - 1u, 0u, 0u, &sizedLen) ==
+            WOLFCOSE_E_INVALID_ARG, "sign1 eddsa ambiguous size needs key");
+#else
+        TEST_ASSERT(wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_EDDSA,
+            0u, sizeof(payload) - 1u, 0u, 0u, &sizedLen) == 0,
+            "sign1 eddsa size without key");
+#endif
+        ret = wc_CoseSign1_SignSize_ex(&signKey, WOLFCOSE_ALG_EDDSA,
+            0u, sizeof(payload) - 1u, 0u, 0u, &sizedLen);
+        TEST_ASSERT(ret == 0, "sign1 eddsa size");
+
         /* Sign */
-        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_EDDSA,
-            NULL, 0,
-            payload, sizeof(payload) - 1,
-            NULL, 0, /* detachedPayload, detachedLen */
-            NULL, 0, /* extAad, extAadLen */
-            scratch, sizeof(scratch),
-            out, sizeof(out), &outLen, &rng);
-        TEST_ASSERT(ret == 0 && outLen > 0, "sign1 eddsa sign");
+        if (ret == 0) {
+            ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_EDDSA,
+                NULL, 0,
+                payload, sizeof(payload) - 1,
+                NULL, 0, /* detachedPayload, detachedLen */
+                NULL, 0, /* extAad, extAadLen */
+                scratch, sizeof(scratch),
+                out, sizeof(out), &outLen, &rng);
+            TEST_ASSERT(ret == 0 && outLen > 0, "sign1 eddsa sign");
+            TEST_ASSERT(outLen == sizedLen, "sign1 eddsa exact size");
+        }
     }
 
     if (ret == 0) {
@@ -1675,6 +1700,7 @@ static void test_cose_sign1_ed448(void)
     uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
     uint8_t out[512];
     size_t outLen = 0;
+    size_t sizedLen = 0;
     const uint8_t* decPayload = NULL;
     size_t decPayloadLen = 0;
     WOLFCOSE_HDR hdr;
@@ -1698,15 +1724,22 @@ static void test_cose_sign1_ed448(void)
         (void)wc_CoseKey_Init(&signKey);
         (void)wc_CoseKey_SetEd448(&signKey, &edKey);
 
+        ret = wc_CoseSign1_SignSize_ex(&signKey, WOLFCOSE_ALG_EDDSA,
+            0u, sizeof(payload) - 1u, 0u, 0u, &sizedLen);
+        TEST_ASSERT(ret == 0, "sign1 ed448 size");
+
         /* Sign */
-        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_EDDSA,
-            NULL, 0,
-            payload, sizeof(payload) - 1,
-            NULL, 0, /* detachedPayload, detachedLen */
-            NULL, 0, /* extAad, extAadLen */
-            scratch, sizeof(scratch),
-            out, sizeof(out), &outLen, &rng);
-        TEST_ASSERT(ret == 0 && outLen > 0, "sign1 ed448 sign");
+        if (ret == 0) {
+            ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_EDDSA,
+                NULL, 0,
+                payload, sizeof(payload) - 1,
+                NULL, 0, /* detachedPayload, detachedLen */
+                NULL, 0, /* extAad, extAadLen */
+                scratch, sizeof(scratch),
+                out, sizeof(out), &outLen, &rng);
+            TEST_ASSERT(ret == 0 && outLen > 0, "sign1 ed448 sign");
+            TEST_ASSERT(outLen == sizedLen, "sign1 ed448 exact size");
+        }
     }
 
     if (ret == 0) {
@@ -2452,6 +2485,7 @@ static void test_cose_sign1_pss(const char* label, int32_t alg)
     uint8_t scratch[1024];
     uint8_t out[1024];
     size_t outLen = 0;
+    size_t sizedLen = 0;
     const uint8_t* decPayload = NULL;
     size_t decPayloadLen = 0;
     WOLFCOSE_HDR hdr;
@@ -2482,15 +2516,25 @@ static void test_cose_sign1_pss(const char* label, int32_t alg)
         (void)wc_CoseKey_Init(&signKey);
         (void)wc_CoseKey_SetRsa(&signKey, &rsaKey);
 
+        TEST_ASSERT(wc_CoseSign1_SignSize_ex(NULL, alg, 0u,
+            sizeof(payload) - 1u, 0u, 0u, &sizedLen) ==
+            WOLFCOSE_E_INVALID_ARG, "sign1 pss size needs key");
+        ret = wc_CoseSign1_SignSize_ex(&signKey, alg, 0u,
+            sizeof(payload) - 1u, 0u, 0u, &sizedLen);
+        TEST_ASSERT(ret == 0, "sign1 pss size");
+
         /* Sign */
-        ret = wc_CoseSign1_Sign(&signKey, alg,
-            NULL, 0,
-            payload, sizeof(payload) - 1,
-            NULL, 0, /* detachedPayload, detachedLen */
-            NULL, 0, /* extAad, extAadLen */
-            scratch, sizeof(scratch),
-            out, sizeof(out), &outLen, &rng);
-        TEST_ASSERT(ret == 0 && outLen > 0, "sign1 pss sign");
+        if (ret == 0) {
+            ret = wc_CoseSign1_Sign(&signKey, alg,
+                NULL, 0,
+                payload, sizeof(payload) - 1,
+                NULL, 0, /* detachedPayload, detachedLen */
+                NULL, 0, /* extAad, extAadLen */
+                scratch, sizeof(scratch),
+                out, sizeof(out), &outLen, &rng);
+            TEST_ASSERT(ret == 0 && outLen > 0, "sign1 pss sign");
+            TEST_ASSERT(outLen == sizedLen, "sign1 pss exact size");
+        }
     }
 
     if (ret == 0) {
@@ -2551,6 +2595,7 @@ static void test_cose_sign1_ml_dsa(const char* label, int32_t alg, byte level)
     uint8_t scratch[8192];
     uint8_t out[8192];
     size_t outLen = 0;
+    size_t sizedLen = 0;
     const uint8_t* decPayload = NULL;
     size_t decPayloadLen = 0;
     WOLFCOSE_HDR hdr;
@@ -2586,15 +2631,22 @@ static void test_cose_sign1_ml_dsa(const char* label, int32_t alg, byte level)
         (void)wc_CoseKey_Init(&signKey);
         (void)wc_CoseKey_SetMlDsa(&signKey, alg, &dlKey);
 
+        ret = wc_CoseSign1_SignSize_ex(NULL, alg, 0u,
+            sizeof(payload) - 1u, 0u, 0u, &sizedLen);
+        TEST_ASSERT(ret == 0, "sign1 ml-dsa size");
+
         /* Sign */
-        ret = wc_CoseSign1_Sign(&signKey, alg,
-            NULL, 0,
-            payload, sizeof(payload) - 1,
-            NULL, 0, /* detachedPayload, detachedLen */
-            NULL, 0, /* extAad, extAadLen */
-            scratch, sizeof(scratch),
-            out, sizeof(out), &outLen, &rng);
-        TEST_ASSERT(ret == 0 && outLen > 0, "sign1 ml-dsa sign");
+        if (ret == 0) {
+            ret = wc_CoseSign1_Sign(&signKey, alg,
+                NULL, 0,
+                payload, sizeof(payload) - 1,
+                NULL, 0, /* detachedPayload, detachedLen */
+                NULL, 0, /* extAad, extAadLen */
+                scratch, sizeof(scratch),
+                out, sizeof(out), &outLen, &rng);
+            TEST_ASSERT(ret == 0 && outLen > 0, "sign1 ml-dsa sign");
+            TEST_ASSERT(outLen == sizedLen, "sign1 ml-dsa exact size");
+        }
     }
 
     if (ret == 0) {
@@ -18442,93 +18494,164 @@ static void test_sign_verify_bad_array_count(void)
 
 /* ----- Entry point ----- */
 #if defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_SIGN1_SIGN)
-static void test_cose_sign1_untagged(void)
+static void test_cose_sign1_size_and_untagged(void)
 {
-    static const uint8_t payload[] = "untagged payload";
-    WC_RNG rng;
-    ecc_key eccKey;
-    WOLFCOSE_KEY signKey;
+    static const uint8_t kid[] = "size-key";
+    static const size_t boundaryLen[] = {
+        23u, 24u, 255u, 256u, 65535u, 65536u
+    };
+    static const size_t payloadExpected[] = {
+        97u, 99u, 330u, 332u, 65611u, 65614u
+    };
+    static const size_t kidExpected[] = {
+        99u, 101u, 332u, 334u, 65613u, 65616u
+    };
+    uint8_t payload[32];
+    uint8_t detached[48];
     uint8_t scratch[512];
     uint8_t tagged[512];
     uint8_t untagged[512];
-    size_t taggedLen = 0;
-    size_t untaggedLen = 0;
-    const uint8_t* decPayload = NULL;
-    size_t decPayloadLen = 0;
+    WOLFCOSE_KEY key;
     WOLFCOSE_HDR hdr;
+    ecc_key eccKey;
+    WC_RNG rng;
+    const uint8_t* decoded = NULL;
+    size_t decodedLen = 0u;
+    size_t taggedLen = 0u;
+    size_t untaggedLen = 0u;
+    size_t sizedLen = 0u;
+    size_t i;
+    int rngInited = 0;
+    int eccInited = 0;
+    int keyInited = 0;
+    int sizeRet;
     int ret;
 
-    TEST_LOG("  [Sign1 untagged output]\n");
+    TEST_LOG("  [Sign1 size and untagged output]\n");
+    memset(payload, 0xA5, sizeof(payload));
+    memset(detached, 0x5A, sizeof(detached));
 
     ret = wc_InitRng(&rng);
-    TEST_ASSERT(ret == 0, "untagged rng init");
-    if (ret != 0) {
-        return;
-    }
-    ret = wc_ecc_init(&eccKey);
-    TEST_ASSERT(ret == 0, "untagged ecc init");
-    if (ret != 0) {
-        /* eccKey was never initialized, so it must not be freed below. */
-        wc_FreeRng(&rng);
-        return;
-    }
-    ret = wc_ecc_make_key(&rng, 32, &eccKey);
-    TEST_ASSERT(ret == 0, "untagged ecc keygen");
-    if (ret != 0) {
-        wc_ecc_free(&eccKey);
-        wc_FreeRng(&rng);
-        return;
-    }
-    ret = wc_CoseKey_Init(&signKey);
-    TEST_ASSERT(ret == 0, "untagged key init");
-    if (ret != 0) {
-        wc_ecc_free(&eccKey);
-        wc_FreeRng(&rng);
-        return;
+    if (ret == 0) {
+        rngInited = 1;
+        ret = wc_ecc_init(&eccKey);
     }
     if (ret == 0) {
-        ret = wc_CoseKey_SetEcc(&signKey, WOLFCOSE_CRV_P256, &eccKey);
-        TEST_ASSERT(ret == 0, "untagged key set ecc");
+        eccInited = 1;
+        ret = wc_ecc_make_key(&rng, 32, &eccKey);
+    }
+    if (ret == 0) {
+        ret = wc_CoseKey_Init(&key);
+    }
+    if (ret == 0) {
+        keyInited = 1;
+        ret = wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
+    }
+    TEST_ASSERT(ret == 0, "size test key setup");
+
+    for (i = 0u; i < (sizeof(boundaryLen) / sizeof(boundaryLen[0])); i++) {
+        sizeRet = wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_ES256, 0u,
+            boundaryLen[i], 0u, 0u, &sizedLen);
+        TEST_ASSERT(sizeRet == 0 && sizedLen == payloadExpected[i],
+                    "payload size boundary");
+        sizeRet = wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_ES256,
+            boundaryLen[i], 0u, 0u, 0u, &sizedLen);
+        TEST_ASSERT(sizeRet == 0 && sizedLen == kidExpected[i],
+                    "kid size boundary");
     }
 
     if (ret == 0) {
-        ret = wc_CoseSign1_Sign_ex(&signKey, WOLFCOSE_ALG_ES256, NULL, 0,
-            payload, sizeof(payload) - 1, NULL, 0, NULL, 0,
-            scratch, sizeof(scratch),
-            tagged, sizeof(tagged), &taggedLen, &rng, 0);
-        TEST_ASSERT(ret == 0, "flags=0 signs");
-        TEST_ASSERT(taggedLen > 0u && tagged[0] == 0xD2u,
-                    "flags=0 emits tag 18 (0xD2)");
+        ret = wc_CoseSign1_Sign_ex(&key, WOLFCOSE_ALG_ES256,
+            kid, sizeof(kid) - 1u, payload, sizeof(payload),
+            NULL, 0u, NULL, 0u, scratch, sizeof(scratch),
+            tagged, sizeof(tagged), &taggedLen, &rng, 0u);
+        TEST_ASSERT(ret == 0, "tagged sign");
     }
-
     if (ret == 0) {
-        ret = wc_CoseSign1_Sign_ex(&signKey, WOLFCOSE_ALG_ES256, NULL, 0,
-            payload, sizeof(payload) - 1, NULL, 0, NULL, 0,
-            scratch, sizeof(scratch),
+        ret = wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_ES256,
+            sizeof(kid) - 1u, sizeof(payload), 0u, 0u, &sizedLen);
+        TEST_ASSERT(ret == 0 && sizedLen == taggedLen,
+                    "tagged size equals signed size");
+    }
+    if (ret == 0) {
+        ret = wc_CoseSign1_Sign_ex(&key, WOLFCOSE_ALG_ES256,
+            kid, sizeof(kid) - 1u, payload, sizeof(payload),
+            NULL, 0u, NULL, 0u, scratch, sizeof(scratch),
             untagged, sizeof(untagged), &untaggedLen, &rng,
             WOLFCOSE_SIGN1_UNTAGGED);
-        TEST_ASSERT(ret == 0, "untagged signs");
-        TEST_ASSERT(untaggedLen > 0u && untagged[0] == 0x84u,
-                    "untagged starts with 4-array (0x84)");
-        TEST_ASSERT(untaggedLen == (taggedLen - 1u),
-                    "untagged is exactly one byte shorter");
+        TEST_ASSERT(ret == 0 && untagged[0] == 0x84u,
+                    "untagged starts with array(4)");
     }
-
-    /* The verify path treats the tag as optional, so both forms round-trip. */
     if (ret == 0) {
-        ret = wc_CoseSign1_Verify(&signKey, untagged, untaggedLen,
-            NULL, 0, NULL, 0, scratch, sizeof(scratch),
-            &hdr, &decPayload, &decPayloadLen);
-        TEST_ASSERT(ret == 0, "untagged verifies");
-        TEST_ASSERT(decPayloadLen == (sizeof(payload) - 1),
-                    "untagged payload length round-trips");
+        ret = wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_ES256,
+            sizeof(kid) - 1u, sizeof(payload), 0u,
+            WOLFCOSE_SIGN1_UNTAGGED, &sizedLen);
+        TEST_ASSERT(ret == 0 && sizedLen == untaggedLen,
+                    "untagged size equals signed size");
+        TEST_ASSERT(untaggedLen + 1u == taggedLen,
+                    "untagged omits exactly tag 18");
+    }
+    if (ret == 0) {
+        ret = wc_CoseSign1_Verify(&key, untagged, untaggedLen,
+            NULL, 0u, NULL, 0u, scratch, sizeof(scratch), &hdr,
+            &decoded, &decodedLen);
+        TEST_ASSERT(ret == 0 && decodedLen == sizeof(payload) &&
+                    memcmp(decoded, payload, sizeof(payload)) == 0,
+                    "untagged output verifies");
+    }
+    if (ret == 0) {
+        ret = wc_CoseSign1_Sign_ex(&key, WOLFCOSE_ALG_ES256,
+            NULL, 0u, NULL, 0u, detached, sizeof(detached),
+            NULL, 0u, scratch, sizeof(scratch),
+            tagged, sizeof(tagged), &taggedLen, &rng, 0u);
+        TEST_ASSERT(ret == 0, "detached sign");
+    }
+    if (ret == 0) {
+        ret = wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_ES256,
+            0u, 0u, sizeof(detached), 0u, &sizedLen);
+        TEST_ASSERT(ret == 0 && sizedLen == taggedLen,
+                    "detached size equals signed size");
     }
 
-    wc_CoseKey_Free(&signKey);
-    wc_ecc_free(&eccKey);
-    wc_FreeRng(&rng);
+    TEST_ASSERT(wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_ES256,
+        0u, 1u, 1u, 0u, &sizedLen) == WOLFCOSE_E_INVALID_ARG,
+        "attached and detached lengths rejected");
+    TEST_ASSERT(wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_ES256,
+        0u, 1u, 0u, 0x80000000u, &sizedLen) == WOLFCOSE_E_INVALID_ARG,
+        "unknown size flags rejected");
+    TEST_ASSERT(wc_CoseSign1_SignSize_ex(NULL, 12345,
+        0u, 1u, 0u, 0u, &sizedLen) == WOLFCOSE_E_COSE_BAD_ALG,
+        "unknown size algorithm rejected");
+
+#if defined(WOLFCOSE_EXT_SIGN)
+    if (ret == 0) {
+        WOLFCOSE_KEY delegatedKey;
+        test_ext_ctx extCtx;
+
+        memset(&extCtx, 0, sizeof(extCtx));
+        (void)wc_CoseKey_Init(&delegatedKey);
+        delegatedKey.kty = WOLFCOSE_KTY_EC2;
+        delegatedKey.crv = WOLFCOSE_CRV_P256;
+        (void)wc_CoseKey_SetExtSigner(&delegatedKey, test_ext_sign_cb, &extCtx);
+        ret = wc_CoseSign1_SignSize_ex(&delegatedKey,
+            WOLFCOSE_ALG_ES256, 0u, sizeof(payload), 0u, 0u, &sizedLen);
+        TEST_ASSERT(ret == 0 && extCtx.called == 0,
+                    "size query does not invoke delegated signer");
+        wc_CoseKey_Free(&delegatedKey);
+    }
+#endif
+
+    if (keyInited != 0) {
+        wc_CoseKey_Free(&key);
+    }
+    if (eccInited != 0) {
+        (void)wc_ecc_free(&eccKey);
+    }
+    if (rngInited != 0) {
+        (void)wc_FreeRng(&rng);
+    }
 }
-#endif /* WOLFCOSE_HAVE_ES256 */
+#endif
 
 int test_cose(void)
 {
@@ -18537,7 +18660,7 @@ int test_cose(void)
     /* Internal helper tests */
     test_wolfcose_force_zero();
 #if defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_SIGN1_SIGN)
-    test_cose_sign1_untagged();
+    test_cose_sign1_size_and_untagged();
 #endif
 
     /* Key tests */
