@@ -13,8 +13,14 @@ tests/test_wolfcose
 tools/wolfcose_tool
 examples/lifecycle_demo
 tests/interop/t_cose/interop_tcose
+tests/interop/go_cose/interop_go_cose
+tests/interop/go_cose/go_cose_oracle
+tests/interop/python_cwt/interop_python_cwt
+tests/interop/rust_coset/interop_rust_coset
+tests/interop/rust_coset/target/
 tests/interop/t_cose/QCBOR/
 tests/interop/t_cose/t_cose/
+tests/interop/python_cwt/__pycache__/
 examples/sign1_verify_lean
 examples/sign1_mldsa
 examples/ext_sign_demo

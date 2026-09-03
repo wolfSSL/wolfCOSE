@@ -72,7 +72,9 @@ BUILD_CONFIG_CHANGED := FORCE
 endif
 
 # Tests (mirrors two-layer lib architecture)
-TEST_SRC  = tests/test_cbor.c tests/test_cose.c tests/test_interop.c tests/test_main.c
+TEST_SRC  = tests/test_cbor.c tests/test_cose.c tests/test_interop.c \
+            tests/test_cose_examples.c tests/test_psa_attestation.c \
+            tests/test_main.c
 TEST_BIN  = tests/test_wolfcose
 
 # Tools (compiled separately, never in core lib)
@@ -103,7 +105,7 @@ SCEN_IOTFLEET    = examples/scenarios/iot_fleet_config
 SCEN_SENSOR      = examples/scenarios/sensor_attestation
 SCEN_BROADCAST   = examples/scenarios/group_broadcast_mac
 
-.PHONY: all shared test pkg-config-test ecdsa-policy-test rsapss-policy-test zero-alloc-check zeroize-test ecc-import-policy-test ext-sign-test ext-sign-demo ext-sign-force-failure coverage tool tool-test cmdline-test demo demos lean-verify mldsa-demo mldsa-verify comprehensive scenarios interop-tcose c99-check experimental-check clean FORCE
+.PHONY: all shared test pkg-config-test ecdsa-policy-test rsapss-policy-test zero-alloc-check zeroize-test ecc-import-policy-test ext-sign-test ext-sign-demo ext-sign-force-failure coverage tool tool-test cmdline-test demo demos lean-verify mldsa-demo mldsa-verify comprehensive scenarios interop-tcose tcose-upstream interop-go-cose interop-python-cwt interop-rust-coset c99-check experimental-check clean FORCE
 
 # --- Core library ---
 all: $(LIB_A)
@@ -470,6 +472,90 @@ interop-tcose: $(LIB_A)
 	      $(TCOSE_CRYPTO_LIB) $(LDFLAGS) $(LDLIBS) -lm
 	./$(INTEROP_BIN)
 
+# Run the complete upstream t_cose suite at the same pinned checkout used for
+# wire interop. This tests t_cose and its QCBOR/OpenSSL configuration; the
+# separate interop-tcose target is the wolfCOSE compatibility test.
+tcose-upstream:
+	$(MAKE) -C $(TCOSE_DIR) -f Makefile.ossl t_cose_test \
+	        QCBOR_INC="-I $(QCBOR_DIR)/inc" \
+	        QCBOR_LIB="$(QCBOR_DIR)/libqcbor.a -lm"
+	$(TCOSE_DIR)/t_cose_test
+
+# --- go-cose wire-interop (Veraison go-cose; version pinned in go.mod) ---
+GO              ?= go
+GO_COSE_DIR      = tests/interop/go_cose
+GO_COSE_BIN      = $(GO_COSE_DIR)/interop_go_cose
+GO_COSE_ORACLE   = $(GO_COSE_DIR)/go_cose_oracle
+GO_COSE_C_SRC    = $(GO_COSE_DIR)/interop_go_cose.c
+GO_COSE_CASES   ?= es256 es384 es512 ps256 ps384 ps512 ed25519 es256-aad es256-untagged
+
+interop-go-cose: $(LIB_A)
+	$(CC) $(CFLAGS) -std=c99 -o $(GO_COSE_BIN) \
+	      $(GO_COSE_DIR)/interop_go_cose.c $(LIB_A) $(LDFLAGS) $(LDLIBS)
+	$(GO) -C $(GO_COSE_DIR) build -o go_cose_oracle main.go
+	@for test_case in $(GO_COSE_CASES); do \
+	    bash -o pipefail -c '$(GO_COSE_BIN) sign "$$1" | $(GO_COSE_ORACLE) verify "$$1"' \
+	        bash "$$test_case" || exit $$?; \
+	    echo "PASS: go-cose verified wolfCOSE COSE_Sign1 ($$test_case)"; \
+	    bash -o pipefail -c '$(GO_COSE_ORACLE) sign "$$1" | $(GO_COSE_BIN) verify "$$1"' \
+	        bash "$$test_case" || exit $$?; \
+	    echo "PASS: wolfCOSE verified go-cose COSE_Sign1 ($$test_case)"; \
+	done
+	@$(GO_COSE_ORACLE) psa
+	@echo "PASS: go-cose and Go CBOR decoded the RFC 9783 PSA token"
+
+# --- python-cwt wire-interop (python-cwt version pinned in requirements.txt) ---
+PYTHON                  ?= python3
+PYTHON_CWT_DIR           = tests/interop/python_cwt
+PYTHON_CWT_BIN           = $(PYTHON_CWT_DIR)/interop_python_cwt
+PYTHON_CWT_ORACLE        = $(PYTHON) $(PYTHON_CWT_DIR)/main.py
+PYTHON_CWT_C_SRC         = $(PYTHON_CWT_DIR)/interop_python_cwt.c
+# python-cwt 3.3.0 rejects the protected recipient algorithm emitted by
+# wolfCOSE for A128KW. Keep its producer path live without weakening the
+# standards-compliant wolfCOSE encoder; the fixed COSE WG vector covers it.
+PYTHON_CWT_CASES        ?= encrypt-direct encrypt-ecdh-es mac-direct
+PYTHON_CWT_TO_WOLFCOSE_CASES ?= encrypt-a128kw
+
+interop-python-cwt: $(LIB_A)
+	$(CC) $(CFLAGS) -std=c99 -o $(PYTHON_CWT_BIN) \
+	      $(PYTHON_CWT_C_SRC) $(LIB_A) $(LDFLAGS) $(LDLIBS)
+	@for test_case in $(PYTHON_CWT_CASES); do \
+	    bash -o pipefail -c '$(PYTHON_CWT_BIN) sign "$$1" | $(PYTHON_CWT_ORACLE) verify "$$1"' \
+	        bash "$$test_case" || exit $$?; \
+	    echo "PASS: python-cwt verified wolfCOSE recipient COSE ($$test_case)"; \
+	    bash -o pipefail -c '$(PYTHON_CWT_ORACLE) sign "$$1" | $(PYTHON_CWT_BIN) verify "$$1"' \
+	        bash "$$test_case" || exit $$?; \
+	    echo "PASS: wolfCOSE verified python-cwt recipient COSE ($$test_case)"; \
+	done
+	@for test_case in $(PYTHON_CWT_TO_WOLFCOSE_CASES); do \
+	    bash -o pipefail -c '$(PYTHON_CWT_ORACLE) sign "$$1" | $(PYTHON_CWT_BIN) verify "$$1"' \
+	        bash "$$test_case" || exit $$?; \
+	    echo "PASS: wolfCOSE verified python-cwt recipient COSE ($$test_case)"; \
+	done
+	@$(PYTHON_CWT_ORACLE) psa
+	@echo "PASS: python-cwt and CBOR decoded the RFC 9783 PSA token"
+
+# --- Rust COSE_Sign1 wire-interop (coset version pinned in Cargo.lock) ---
+CARGO                  ?= cargo
+RUST_COSET_DIR          = tests/interop/rust_coset
+RUST_COSET_BIN          = $(RUST_COSET_DIR)/target/debug/coset_oracle
+RUST_COSET_C_BIN        = $(RUST_COSET_DIR)/interop_rust_coset
+RUST_COSET_C_SRC        = $(RUST_COSET_DIR)/interop_rust_coset.c
+RUST_COSET_CASES       ?= es256 ed25519 es256-aad es256-untagged es256-detached
+
+interop-rust-coset: $(LIB_A)
+	$(CC) $(CFLAGS) -std=c99 -o $(RUST_COSET_C_BIN) \
+	      $(RUST_COSET_C_SRC) $(LIB_A) $(LDFLAGS) $(LDLIBS)
+	$(CARGO) build --manifest-path $(RUST_COSET_DIR)/Cargo.toml --locked
+	@for test_case in $(RUST_COSET_CASES); do \
+	    bash -o pipefail -c '$(RUST_COSET_C_BIN) sign "$$1" | $(RUST_COSET_BIN) verify "$$1"' \
+	        bash "$$test_case" || exit $$?; \
+	    echo "PASS: Rust coset verified wolfCOSE COSE_Sign1 ($$test_case)"; \
+	    bash -o pipefail -c '$(RUST_COSET_BIN) sign "$$1" | $(RUST_COSET_C_BIN) verify "$$1"' \
+	        bash "$$test_case" || exit $$?; \
+	    echo "PASS: wolfCOSE verified Rust coset COSE_Sign1 ($$test_case)"; \
+	done
+
 # --- C99 conformance gate ---
 # Compiles every translation unit (core, tests, tool, examples) under strict
 # ISO C99 with -pedantic-errors -Werror so any non-C99 construct fails the
@@ -484,7 +570,8 @@ C99_SRC   = $(SRC) $(TEST_SRC) $(TOOL_SRC) $(DEMO_SRC) \
             $(ENC_DEMO).c $(MAC_DEMO).c $(SIGN1_DEMO).c \
             $(COMP_SIGN).c $(COMP_ENCRYPT).c $(COMP_MAC).c $(COMP_ERRORS).c \
             $(SCEN_FIRMWARE).c $(SCEN_MULTIPARTY).c $(SCEN_IOTFLEET).c \
-            $(SCEN_SENSOR).c $(SCEN_BROADCAST).c $(EXTSIGN_DEMO).c
+            $(SCEN_SENSOR).c $(SCEN_BROADCAST).c $(EXTSIGN_DEMO).c \
+            $(GO_COSE_C_SRC) $(PYTHON_CWT_C_SRC) $(RUST_COSET_C_SRC)
 # Default features plus the opt-in paths (WOLFCOSE_FLOAT, delegated signing,
 # and delegated signing without EdDSA), so the gate judges every
 # conditionally-compiled translation unit, not just the default subset.
@@ -539,7 +626,11 @@ clean:
 	    $(EXTSIGN_DEMO) $(SIGN1_DEMO) $(COMP_SIGN) $(COMP_ENCRYPT) $(COMP_MAC) $(COMP_ERRORS) \
 	    $(SCEN_FIRMWARE) $(SCEN_MULTIPARTY) $(SCEN_IOTFLEET) $(SCEN_SENSOR) $(SCEN_BROADCAST) \
 	    $(INTEROP_DIR)/*.o $(INTEROP_DIR)/*.su $(INTEROP_BIN) \
+	    $(GO_COSE_BIN) $(GO_COSE_ORACLE) \
+	    $(PYTHON_CWT_BIN) \
+	    $(RUST_COSET_C_BIN) $(RUST_COSET_BIN) \
 	    $(LIB_A) $(LIB_SO) $(BUILD_CONFIG) $(BUILD_CONFIG).tmp src/*.su tests/*.su examples/*.su examples/comprehensive/*.su examples/scenarios/*.su \
 	    src/*.gcno src/*.gcda tests/*.gcno tests/*.gcda *.gcov experimental-check.err
 	rm -rf tests/*.dSYM tools/*.dSYM examples/*.dSYM \
-	    examples/comprehensive/*.dSYM examples/scenarios/*.dSYM
+	    examples/comprehensive/*.dSYM examples/scenarios/*.dSYM \
+	    $(RUST_COSET_DIR)/target

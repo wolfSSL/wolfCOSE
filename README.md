@@ -48,41 +48,7 @@ wolfCOSE has implemented all RFC 9052 messages both single-actor and multi-actor
 wolfCOSE requires [wolfSSL](https://www.wolfssl.com/) as its crypto backend.
 **Minimum supported version: v5.8.0-stable**. Some optional algorithms require
 newer releases; see [Getting Started](docs/Getting-Started.md#prerequisites) for
-feature-specific dependency floors.
-
-### System-installed wolfSSL
-
-The Makefile uses `pkg-config` to obtain wolfSSL compiler and linker flags when
-the metadata is available. This avoids assuming `/usr/local`, so a Homebrew
-installation works on both supported macOS architectures:
-
-```bash
-brew install wolfssl pkgconf
-make
-```
-
-If `wolfssl.pc` is outside the default search path, set `PKG_CONFIG_PATH`:
-
-```bash
-PKG_CONFIG_PATH="$(brew --prefix wolfssl)/lib/pkgconfig" make
-```
-
-For cross-compilation or an installation without a `.pc` file, override the
-flags explicitly:
-
-```bash
-make WOLFSSL_CFLAGS="-isystem /path/to/wolfssl/include" \
-     WOLFSSL_LIBS="-L/path/to/wolfssl/lib -lwolfssl"
-```
-
-`PKG_CONFIG` selects the metadata tool, and `WOLFSSL_PACKAGE` selects its
-module name. When metadata is unavailable, `WOLFSSL_PREFIX` controls the
-compatible include and library fallback:
-
-```bash
-make WOLFSSL_PACKAGE=wolfssl-custom
-make WOLFSSL_PREFIX=/path/to/wolfssl
-```
+feature-specific dependency floors and build instructions.
 
 Choose a build configuration based on the algorithms you need.
 
@@ -170,7 +136,6 @@ make demo
 | `make all` | Build `libwolfcose.a` (core library only) |
 | `make shared` | Build `libwolfcose.so` |
 | `make test` | Build + run CBOR and COSE unit tests |
-| `make pkg-config-test` | Verify wolfSSL package discovery and overrides |
 | `make tool` | Build CLI tool (`tools/wolfcose_tool`) |
 | `make tool-test` | Round-trip self-test for all 17 algorithms |
 | `make demo` | Build + run lifecycle demo (11 algorithms) |

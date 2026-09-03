@@ -1,0 +1,15 @@
+[package]
+name = "wolfcose-coset-interop"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.81"
+publish = false
+
+[[bin]]
+name = "coset_oracle"
+path = "src/main.rs"
+
+[dependencies]
+coset = "0.4.2"
+ed25519-dalek = { version = "2.1.1", features = ["pkcs8"] }
+p256 = { version = "0.13.2", features = ["ecdsa", "pkcs8"] }

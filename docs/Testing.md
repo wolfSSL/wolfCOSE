@@ -70,6 +70,90 @@ t_cose and QCBOR are BSD-3-Clause and are not vendored; the
 [Interop CI job](../.github/workflows/interop.yml) fetches them at pinned
 SHAs. See `tests/interop/t_cose/README.md` for the fixed test-key provenance.
 
+### Complete upstream t_cose suite
+
+```bash
+make tcose-upstream \
+  TCOSE_DIR=/path/to/t_cose QCBOR_DIR=/path/to/QCBOR
+```
+
+This runs the entire pinned upstream t_cose suite, including its API-level and
+QCBOR-adapter tests. At the current pinned revision it runs 43 tests. It is a
+dependency-health gate, not wolfCOSE API coverage: t_cose's internal API tests
+cannot be redirected to wolfCOSE. Use `interop-tcose` for wolfCOSE wire-format
+compatibility.
+
+### Interoperability (go-cose)
+
+```bash
+make interop-go-cose
+```
+
+This runs live, bidirectional `COSE_Sign1` interop against
+[Veraison go-cose](https://github.com/veraison/go-cose), pinned at v1.3.0 in
+`tests/interop/go_cose/go.mod`. The matrix covers ES256, ES384, ES512, PS256,
+PS384, PS512, Ed25519, ES256 with external AAD, and untagged ES256. Each
+implementation signs a message the other verifies, validates the payload, and
+rejects a modified signature. Go 1.21 or later is required. go-cose requires
+an embedded payload for Sign1 verification, so detached Sign1 remains covered
+by the wolfCOSE tests and `interop-tcose`. go-cose's scope makes it a Sign and
+Sign1 oracle; `interop-tcose` remains the broader Mac0 and Encrypt0 wire
+suite. The target also verifies RFC 9783's ES256 PSA token and decodes its
+standard EAT claims with Go CBOR.
+
+### Interoperability (python-cwt)
+
+```bash
+python3 -m pip install -r tests/interop/python_cwt/requirements.txt
+make interop-python-cwt
+```
+
+This runs live recipient-message interop against
+[python-cwt](https://github.com/ritou/cwt), pinned at 3.3.0 with all Python
+dependencies locked in `requirements.txt`. It exchanges A128GCM direct
+`COSE_Encrypt`, ECDH-ES plus HKDF-SHA-256 `COSE_Encrypt`, and HMAC-256 direct
+`COSE_Mac` messages in both directions. Each message carries external AAD,
+checks its payload, and must reject a modified authenticated byte. The target
+also verifies RFC 9783's ES256 PSA token and decodes selected EAT claims with
+python-cwt and `cbor2`.
+
+python-cwt's A128KW producer is verified by wolfCOSE. Its 3.3.0 decoder rejects
+the standards-compliant protected recipient algorithm that wolfCOSE emits for
+A128KW, so the reverse direction is deliberately kept in the fixed COSE WG
+Examples vector suite instead of changing wolfCOSE's output.
+
+### Interoperability (Rust coset)
+
+```bash
+make interop-rust-coset
+```
+
+This runs live, bidirectional `COSE_Sign1` interop against
+[Google coset](https://github.com/google/coset), pinned at 0.4.2 in
+`tests/interop/rust_coset/Cargo.lock`, using RustCrypto for signature
+operations. It covers ES256, Ed25519, ES256 with external AAD, untagged ES256,
+and detached ES256. Both peers validate the protected algorithm and payload
+semantics, then reject a modified signature. Rust 1.81 or later is required.
+
+### COSE WG Examples vectors
+
+`make test` includes a curated, fixed subset from the
+[COSE WG Examples repository](https://github.com/cose-wg/Examples), pinned at
+commit `53c9d634333bb4f529d78f5980fffa2667ee2c12`. It verifies ES256
+`COSE_Sign1` and `COSE_Sign`, HMAC-256 `COSE_Mac0`, A128GCM `COSE_Encrypt0`,
+and multi-recipient A128GCM direct, A128KW, and ECDH-ES `COSE_Encrypt` vectors.
+Every selected vector checks its cleartext and rejects a modified authentication
+value. The selected Mac0 vectors carry `alg` only in an unprotected header, so
+the test pins the expected algorithm on the local key instead of accepting an
+unconstrained algorithm from the message.
+
+### PSA attestation-token acceptance
+
+`make test` includes fixed acceptance vectors from RFC 9783 Appendix A. The
+tests verify ES256 `COSE_Sign1` and HMAC-256 `COSE_Mac0` PSA attestation tokens,
+reject a modified authentication value, and decode the EAT/PSA claim payload
+with wolfCOSE CBOR APIs.
+
 ---
 
 ## Code Coverage
@@ -139,6 +223,11 @@ wolfCOSE runs the following CI checks on every push and pull request:
 3. **Comprehensive Tests**: ~240 algorithm combination tests
 4. **Scenario Examples**: Real-world workflow tests
 5. **Tool Tests**: CLI round-trip tests (17 algorithms)
+
+The Interop workflow intentionally keeps t_cose, go-cose, python-cwt, Rust
+coset, and the complete upstream t_cose suite in one matrix job per wolfSSL
+version. They share the same wolfSSL build; separate jobs would only duplicate
+that setup without providing useful parallelism.
 
 ### Memory and Stack Bounds
 

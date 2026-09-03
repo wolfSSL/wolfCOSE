@@ -41,6 +41,12 @@ int main(void)
     printf("\n--- Interoperability Tests ---\n");
     failures += test_interop();
 
+    printf("\n--- COSE WG Example Tests ---\n");
+    failures += test_cose_examples();
+
+    printf("\n--- PSA Attestation Token Tests ---\n");
+    failures += test_psa_attestation();
+
     printf("\n=== Results: %s ===\n",
            (failures == 0) ? "ALL PASSED" : "FAILURES");
 

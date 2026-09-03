@@ -26,5 +26,7 @@
 int test_cbor(void);
 int test_cose(void);
 int test_interop(void);
+int test_cose_examples(void);
+int test_psa_attestation(void);
 
 #endif /* WOLFCOSE_TEST_SUITE_H */

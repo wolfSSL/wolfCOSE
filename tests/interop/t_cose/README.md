@@ -58,6 +58,21 @@ make interop-tcose \
   TCOSE_CRYPTO_LIB="-lcrypto"
 ```
 
+## Complete upstream t_cose suite
+
+The same pinned checkouts can run all of t_cose's own tests:
+
+```bash
+make tcose-upstream \
+  TCOSE_DIR=$PWD/tests/interop/t_cose/t_cose \
+  QCBOR_DIR=$PWD/tests/interop/t_cose/QCBOR
+```
+
+This is deliberately a separate gate. It validates t_cose, QCBOR, and the
+OpenSSL adapter at the pinned revisions; its API-level tests do not call
+wolfCOSE. `interop-tcose` is the compatibility test that validates wolfCOSE
+against t_cose over COSE bytes.
+
 ## Files
 
 | File                  | Role                                                          |
