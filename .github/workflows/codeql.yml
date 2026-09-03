@@ -62,7 +62,10 @@ jobs:
       - name: Build wolfCOSE
         run: |
           export WOLFSSL_DIR=$HOME/wolfssl-install
+          export LD_LIBRARY_PATH=$WOLFSSL_DIR/lib
           make CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -I./include -isystem $WOLFSSL_DIR/include" \
+               LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
+          make eat-psa-test CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -I./include -isystem $WOLFSSL_DIR/include" \
                LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
 
       - name: Perform CodeQL Analysis

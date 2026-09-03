@@ -11,7 +11,7 @@
  * t_cose and QCBOR are fetched at pinned SHAs by CI (BSD-3-Clause, not vendored).
  */
 
-#include <wolfcose/wolfcose.h>
+#include <wolfcose/eat_psa.h>
 #include <wolfssl/wolfcrypt/ecc.h>
 #include <wolfssl/wolfcrypt/rsa.h>
 #include <wolfssl/wolfcrypt/ed25519.h>
@@ -49,6 +49,40 @@ static int g_fail = 0;
 
 static const unsigned char g_payload[] = "wolfCOSE<->t_cose interop payload";
 static const size_t        g_payloadLen = sizeof(g_payload) - 1u;
+
+/* A small, valid RFC 9783 current-profile payload. It is deliberately built
+ * by wolfCOSE and signed by both implementations below, so this test covers
+ * the profile claims as well as the COSE envelope wire format. */
+static const unsigned char g_psa_nonce[32] = { 0xA1 };
+static const unsigned char g_psa_ueid[33] = { 0x01, 0xA2 };
+static const unsigned char g_psa_implementation_id[32] = { 0xA3 };
+static const unsigned char g_psa_measurement[32] = { 0xA4 };
+static const unsigned char g_psa_signer_id[32] = { 0xA5 };
+
+static void psa_claims(WOLFCOSE_EAT_PSA_CLAIMS* claims,
+                       WOLFCOSE_EAT_PSA_COMPONENT* component)
+{
+    static const unsigned char type[] = "PRoT";
+
+    memset(claims, 0, sizeof(*claims));
+    memset(component, 0, sizeof(*component));
+    component->measurementType.data = type;
+    component->measurementType.len = sizeof(type) - 1u;
+    component->measurementValue.data = g_psa_measurement;
+    component->measurementValue.len = sizeof(g_psa_measurement);
+    component->signerId.data = g_psa_signer_id;
+    component->signerId.len = sizeof(g_psa_signer_id);
+    claims->nonce.data = g_psa_nonce;
+    claims->nonce.len = sizeof(g_psa_nonce);
+    claims->ueid.data = g_psa_ueid;
+    claims->ueid.len = sizeof(g_psa_ueid);
+    claims->implementationId.data = g_psa_implementation_id;
+    claims->implementationId.len = sizeof(g_psa_implementation_id);
+    claims->clientId = -1;
+    claims->lifecycle = 0x3000u;
+    claims->components = component;
+    claims->componentCount = 1u;
+}
 
 /* ---- wolfCrypt key set (owns the underlying wolfCrypt key for cleanup) ---- */
 typedef struct {
@@ -273,6 +307,170 @@ static void mac0_case(const char* name, int32_t wc_alg, int32_t tc_alg, size_t k
     wc_CoseKey_Free(&ck);
 }
 
+/* ---- RFC 9783 current-profile COSE_Sign1, both directions. ---- */
+static void psa_sign1_case(void)
+{
+    wc_keyset ks;
+    struct t_cose_key tk;
+    struct t_cose_sign1_sign_ctx sctx;
+    WOLFCOSE_EAT_PSA_CLAIMS claims;
+    WOLFCOSE_EAT_PSA_COMPONENT component;
+    WOLFCOSE_EAT_PSA_TOKEN token;
+    uint8_t claimsBuf[512];
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    uint8_t wbuf[1024];
+    size_t claimsLen = 0u;
+    size_t wlen = 0u;
+    Q_USEFUL_BUF_MAKE_STACK_UB(tbuf, 1024);
+    struct q_useful_buf_c payload;
+    struct q_useful_buf_c tmsg = { NULL, 0 };
+    enum t_cose_err_t terr;
+    WC_RNG rng;
+    int rc;
+
+    printf("  [RFC 9783 PSA/EAT Sign1]\n");
+    psa_claims(&claims, &component);
+    rc = wc_EatPsaToken_EncodeClaims(&claims, claimsBuf, sizeof(claimsBuf),
+        &claimsLen);
+    OK(rc == 0 && claimsLen > 0, "wolfCOSE encoded RFC 9783 claims");
+    if (rc != 0) return;
+    payload.ptr = claimsBuf;
+    payload.len = claimsLen;
+    if (wc_load(&ks, IT_KEY_P256) != 0) { OK(0, "wolfCrypt key load"); return; }
+    tk = interop_tcose_load(IT_KEY_P256);
+    if (tk.key.ptr == NULL) {
+        OK(0, "t_cose key load");
+        wc_free(&ks);
+        return;
+    }
+    if (wc_InitRng(&rng) != 0) {
+        OK(0, "rng");
+        interop_tcose_free(tk);
+        wc_free(&ks);
+        return;
+    }
+
+    /* wolfCOSE issues a PSA token, t_cose verifies the COSE envelope. */
+    rc = wc_EatPsaToken_CreateSign1(&ks.ck, WOLFCOSE_ALG_ES256, &claims,
+        claimsBuf, sizeof(claimsBuf), scratch, sizeof(scratch), wbuf,
+        sizeof(wbuf), &wlen, &rng);
+    OK(rc == 0 && wlen > 0, "wolfCOSE issued PSA COSE_Sign1 (w->t)");
+    if (rc == 0) {
+        struct t_cose_sign1_verify_ctx vctx;
+        struct q_useful_buf_c sign1 = { wbuf, wlen };
+        struct q_useful_buf_c verifiedPayload = { NULL, 0 };
+
+        t_cose_sign1_verify_init(&vctx, 0);
+        t_cose_sign1_set_verification_key(&vctx, tk);
+        terr = t_cose_sign1_verify(&vctx, sign1, &verifiedPayload, NULL);
+        OK(terr == T_COSE_SUCCESS,
+            "t_cose verified wolfCOSE PSA token (w->t)");
+        OK(terr == T_COSE_SUCCESS && verifiedPayload.len == claimsLen &&
+           memcmp(verifiedPayload.ptr, claimsBuf, claimsLen) == 0,
+           "PSA claim payload matches (w->t)");
+    }
+
+    /* t_cose issues the same claims, wolfCOSE verifies both layers. */
+    t_cose_sign1_sign_init(&sctx, 0, T_COSE_ALGORITHM_ES256);
+    t_cose_sign1_set_signing_key(&sctx, tk, NULL_Q_USEFUL_BUF_C);
+    terr = t_cose_sign1_sign(&sctx, payload, tbuf, &tmsg);
+    OK(terr == T_COSE_SUCCESS && tmsg.len > 0,
+        "t_cose issued PSA COSE_Sign1 (t->w)");
+    if (terr == T_COSE_SUCCESS) {
+        rc = wc_EatPsaToken_Verify(&ks.ck, tmsg.ptr, tmsg.len, g_psa_nonce,
+            sizeof(g_psa_nonce), scratch, sizeof(scratch), &token);
+        OK(rc == 0 && token.profile == WOLFCOSE_EAT_PSA_PROFILE_CURRENT &&
+           token.protection == WOLFCOSE_EAT_PSA_PROTECTION_SIGN1,
+           "wolfCOSE verified t_cose PSA token (t->w)");
+    }
+
+    wc_FreeRng(&rng);
+    interop_tcose_free(tk);
+    wc_free(&ks);
+}
+
+/* ---- RFC 9783 current-profile COSE_Mac0, both directions. ---- */
+static void psa_mac0_case(void)
+{
+    WOLFCOSE_KEY ck;
+    struct t_cose_key tk;
+    struct t_cose_mac_calculate_ctx cctx;
+    WOLFCOSE_EAT_PSA_CLAIMS claims;
+    WOLFCOSE_EAT_PSA_COMPONENT component;
+    WOLFCOSE_EAT_PSA_TOKEN token;
+    struct q_useful_buf_c keyb = { sym_key_64, 32 };
+    struct q_useful_buf_c payload;
+    struct q_useful_buf_c tmsg = { NULL, 0 };
+    uint8_t claimsBuf[512];
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    uint8_t wbuf[1024];
+    size_t claimsLen = 0u;
+    size_t wlen = 0u;
+    Q_USEFUL_BUF_MAKE_STACK_UB(tbuf, 1024);
+    enum t_cose_err_t terr;
+    int rc;
+
+    printf("  [RFC 9783 PSA/EAT Mac0]\n");
+    psa_claims(&claims, &component);
+    rc = wc_EatPsaToken_EncodeClaims(&claims, claimsBuf, sizeof(claimsBuf),
+        &claimsLen);
+    OK(rc == 0 && claimsLen > 0, "wolfCOSE encoded RFC 9783 claims");
+    if (rc != 0) return;
+    payload.ptr = claimsBuf;
+    payload.len = claimsLen;
+    if (wc_CoseKey_Init(&ck) != 0) { OK(0, "wolfCOSE key"); return; }
+    if (wc_CoseKey_SetSymmetric(&ck, sym_key_64, 32) != 0) {
+        OK(0, "wolfCOSE key");
+        wc_CoseKey_Free(&ck);
+        return;
+    }
+    if (t_cose_key_init_symmetric(T_COSE_ALGORITHM_HMAC256, keyb, &tk) !=
+        T_COSE_SUCCESS) {
+        OK(0, "t_cose key");
+        wc_CoseKey_Free(&ck);
+        return;
+    }
+
+    rc = wc_EatPsaToken_CreateMac0(&ck, WOLFCOSE_ALG_HMAC_256_256,
+        &claims, claimsBuf, sizeof(claimsBuf), scratch, sizeof(scratch),
+        wbuf, sizeof(wbuf), &wlen);
+    OK(rc == 0 && wlen > 0, "wolfCOSE issued PSA COSE_Mac0 (w->t)");
+    if (rc == 0) {
+        struct t_cose_mac_validate_ctx vctx;
+        struct q_useful_buf_c msg = { wbuf, wlen };
+        struct q_useful_buf_c verifiedPayload = { NULL, 0 };
+        uint64_t tags[T_COSE_MAX_TAGS_TO_RETURN];
+
+        t_cose_mac_validate_init(&vctx, T_COSE_OPT_MESSAGE_TYPE_MAC0);
+        t_cose_mac_set_validate_key(&vctx, tk);
+        terr = t_cose_mac_validate_msg(&vctx, msg, NULL_Q_USEFUL_BUF_C,
+            &verifiedPayload, NULL, tags);
+        OK(terr == T_COSE_SUCCESS,
+            "t_cose validated wolfCOSE PSA token (w->t)");
+        OK(terr == T_COSE_SUCCESS && verifiedPayload.len == claimsLen &&
+           memcmp(verifiedPayload.ptr, claimsBuf, claimsLen) == 0,
+           "PSA claim payload matches (w->t)");
+    }
+
+    t_cose_mac_compute_init(&cctx, T_COSE_OPT_MESSAGE_TYPE_MAC0,
+        T_COSE_ALGORITHM_HMAC256);
+    t_cose_mac_set_computing_key(&cctx, tk, NULL_Q_USEFUL_BUF_C);
+    terr = t_cose_mac_compute(&cctx, NULL_Q_USEFUL_BUF_C, payload, tbuf,
+        &tmsg);
+    OK(terr == T_COSE_SUCCESS && tmsg.len > 0,
+        "t_cose issued PSA COSE_Mac0 (t->w)");
+    if (terr == T_COSE_SUCCESS) {
+        rc = wc_EatPsaToken_Verify(&ck, tmsg.ptr, tmsg.len, g_psa_nonce,
+            sizeof(g_psa_nonce), scratch, sizeof(scratch), &token);
+        OK(rc == 0 && token.profile == WOLFCOSE_EAT_PSA_PROFILE_CURRENT &&
+           token.protection == WOLFCOSE_EAT_PSA_PROTECTION_MAC0,
+           "wolfCOSE verified t_cose PSA token (t->w)");
+    }
+
+    t_cose_key_free_symmetric(tk);
+    wc_CoseKey_Free(&ck);
+}
+
 /* ---- COSE_Encrypt0 (AES-GCM) round-trip. IV travels in the message. ---- */
 static void enc0_case(const char* name, int32_t wc_alg, int32_t tc_alg, size_t keyLen)
 {
@@ -382,6 +580,9 @@ int main(void)
     mac0_case("HMAC256", WOLFCOSE_ALG_HMAC_256_256, T_COSE_ALGORITHM_HMAC256, 32);
     mac0_case("HMAC384", WOLFCOSE_ALG_HMAC_384_384, T_COSE_ALGORITHM_HMAC384, 48);
     mac0_case("HMAC512", WOLFCOSE_ALG_HMAC_512_512, T_COSE_ALGORITHM_HMAC512, 64);
+
+    psa_sign1_case();
+    psa_mac0_case();
 
     enc0_case("A128GCM", WOLFCOSE_ALG_A128GCM, T_COSE_ALGORITHM_A128GCM, 16);
     enc0_case("A192GCM", WOLFCOSE_ALG_A192GCM, T_COSE_ALGORITHM_A192GCM, 24);

@@ -79,12 +79,12 @@ static int encode_sensor_payload(uint8_t* payload, size_t payloadSz,
     int ret;
     WOLFCOSE_CBOR_CTX cbor;
 
-    cbor.buf = payload;
-    cbor.bufSz = payloadSz;
-    cbor.idx = 0;
+    ret = wc_CBOR_EncoderInit(&cbor, payload, payloadSz);
 
     /* {"temp": 22, "humidity": 45} */
-    ret = wc_CBOR_EncodeMapStart(&cbor, 2);
+    if (ret == 0) {
+        ret = wc_CBOR_EncodeMapStart(&cbor, 2);
+    }
     if (ret == 0) {
         ret = wc_CBOR_EncodeTstr(&cbor, (const uint8_t*)"temp", 4);
     }

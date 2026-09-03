@@ -31,6 +31,125 @@
 #include "wolfcose_internal.h"
 #include <string.h>  /* memcpy */
 
+#if defined(WOLFCOSE_CBOR_DECODE)
+static int wolfCose_CBOR_AllowsNonpreferred(uint32_t decodeFlags)
+{
+#if defined(WOLFCOSE_EAT_PSA_VERIFY)
+    return ((decodeFlags & WOLFCOSE_COSE_DECODE_ALLOW_NONPREFERRED) != 0u) ?
+        1 : 0;
+#else
+    (void)decodeFlags;
+    return 0;
+#endif
+}
+#endif
+
+#if defined(WOLFCOSE_CBOR_ENCODE)
+static int wolfCose_CBOR_IsEncodeContext(const WOLFCOSE_CBOR_CTX* ctx)
+{
+    /* buf has always selected encoder mode. Do not inspect cbuf here because
+     * existing callers may initialize only the original encoder fields. */
+    return ((ctx != NULL) && (ctx->buf != NULL)) ? 1 : 0;
+}
+#endif
+
+#if defined(WOLFCOSE_CBOR_ENCODE) || defined(WOLFCOSE_CBOR_DECODE)
+/* RFC 8949 Section 3.3 defines a text string as a sequence of Unicode code
+ * points encoded in UTF-8. Keep this bounded and allocation-free so it is
+ * usable for ordinary text values, labels, and values skipped by a profile
+ * parser. */
+static int wolfCose_CBOR_IsUtf8(const uint8_t* data, size_t len)
+{
+    size_t i = 0u;
+    int ret = 1;
+
+    if ((data == NULL) && (len > 0u)) {
+        ret = 0;
+    }
+    while ((i < len) && (ret != 0)) {
+        uint8_t first = data[i];
+
+        i++;
+
+        if (first <= 0x7Fu) {
+            /* Single-byte ASCII code point. */
+        }
+        else if ((first >= 0xC2u) && (first <= 0xDFu)) {
+            if (((len - i) < 1u) || ((data[i] & 0xC0u) != 0x80u)) {
+                ret = 0;
+            }
+            else {
+                i++;
+            }
+        }
+        else if (first == 0xE0u) {
+            if (((len - i) < 2u) || (data[i] < 0xA0u) ||
+                (data[i] > 0xBFu) || ((data[i + 1u] & 0xC0u) != 0x80u)) {
+                ret = 0;
+            }
+            else {
+                i += 2u;
+            }
+        }
+        else if (first == 0xEDu) {
+            if (((len - i) < 2u) || (data[i] < 0x80u) ||
+                (data[i] > 0x9Fu) || ((data[i + 1u] & 0xC0u) != 0x80u)) {
+                ret = 0;
+            }
+            else {
+                i += 2u;
+            }
+        }
+        else if (((first >= 0xE1u) && (first <= 0xECu)) ||
+                 ((first >= 0xEEu) && (first <= 0xEFu))) {
+            if (((len - i) < 2u) || ((data[i] & 0xC0u) != 0x80u) ||
+                ((data[i + 1u] & 0xC0u) != 0x80u)) {
+                ret = 0;
+            }
+            else {
+                i += 2u;
+            }
+        }
+        else if (first == 0xF0u) {
+            if (((len - i) < 3u) || (data[i] < 0x90u) ||
+                (data[i] > 0xBFu) || ((data[i + 1u] & 0xC0u) != 0x80u) ||
+                ((data[i + 2u] & 0xC0u) != 0x80u)) {
+                ret = 0;
+            }
+            else {
+                i += 3u;
+            }
+        }
+        else if (first == 0xF4u) {
+            if (((len - i) < 3u) || (data[i] < 0x80u) ||
+                (data[i] > 0x8Fu) || ((data[i + 1u] & 0xC0u) != 0x80u) ||
+                ((data[i + 2u] & 0xC0u) != 0x80u)) {
+                ret = 0;
+            }
+            else {
+                i += 3u;
+            }
+        }
+        else if ((first >= 0xF1u) && (first <= 0xF3u)) {
+            if (((len - i) < 3u) || ((data[i] & 0xC0u) != 0x80u) ||
+                ((data[i + 1u] & 0xC0u) != 0x80u) ||
+                ((data[i + 2u] & 0xC0u) != 0x80u)) {
+                ret = 0;
+            }
+            else {
+                i += 3u;
+            }
+        }
+        else {
+            ret = 0;
+        }
+    }
+
+    return ret;
+}
+#endif
+
+#if defined(WOLFCOSE_CBOR_ENCODE)
 /* WOLFCOSE_CBOR_CTX is public, so a caller can pass a context whose idx has
  * been advanced past bufSz. Subtraction-based capacity check that cannot wrap
  * in that case. Returns 1 when at least need bytes remain, 0 otherwise. */
@@ -39,7 +158,9 @@ static int wolfCose_CBOR_HasRoom(const WOLFCOSE_CBOR_CTX* ctx, size_t need)
     return ((ctx->idx <= ctx->bufSz) &&
             (need <= (ctx->bufSz - ctx->idx))) ? 1 : 0;
 }
+#endif
 
+#if defined(WOLFCOSE_CBOR_ENCODE)
 /* -----
  * Internal: CBOR head encoder
  *
@@ -56,7 +177,7 @@ int wolfCose_CBOR_EncodeHead(WOLFCOSE_CBOR_CTX* ctx, uint8_t majorType,
 {
     int ret;
 
-    if ((ctx == NULL) || (ctx->buf == NULL)) {
+    if (wolfCose_CBOR_IsEncodeContext(ctx) == 0) {
         ret = WOLFCOSE_E_INVALID_ARG;
     }
     else {
@@ -125,7 +246,9 @@ int wolfCose_CBOR_EncodeHead(WOLFCOSE_CBOR_CTX* ctx, uint8_t majorType,
     }
     return ret;
 }
+#endif /* WOLFCOSE_CBOR_ENCODE */
 
+#if defined(WOLFCOSE_CBOR_DECODE)
 /* -----
  * Internal: CBOR head decoder
  *
@@ -136,13 +259,15 @@ int wolfCose_CBOR_EncodeHead(WOLFCOSE_CBOR_CTX* ctx, uint8_t majorType,
  *
  * For bstr/tstr: advances past the data and sets item->data/dataLen.
  * ----- */
-int wolfCose_CBOR_DecodeHead(WOLFCOSE_CBOR_CTX* ctx, WOLFCOSE_CBOR_ITEM* item)
+int wolfCose_CBOR_DecodeHead_ex(WOLFCOSE_CBOR_CTX* ctx,
+    WOLFCOSE_CBOR_ITEM* item, uint32_t decodeFlags)
 {
     int ret;
     uint8_t ib;
     uint8_t ai;
 
-    if ((ctx == NULL) || (ctx->cbuf == NULL) || (item == NULL)) {
+    if ((ctx == NULL) || (ctx->cbuf == NULL) || (item == NULL) ||
+        (WOLFCOSE_COSE_DECODE_FLAGS_VALID(decodeFlags) == 0)) {
         ret = WOLFCOSE_E_INVALID_ARG;
     }
     else if (ctx->idx >= ctx->bufSz) {
@@ -218,11 +343,10 @@ int wolfCose_CBOR_DecodeHead(WOLFCOSE_CBOR_CTX* ctx, WOLFCOSE_CBOR_ITEM* item)
             ret = WOLFCOSE_E_CBOR_MALFORMED;
         }
 
-        /* RFC 8949 Section 4.2.1 (deterministic encoding, required for COSE):
-         * the argument must use the shortest additional-info form. This applies
-         * to every major type except simple/float (where AI 25/26/27 select
-         * float16/32/64 rather than encode an integer). */
+        /* COSE defaults to preferred serialization. Some profiles, including
+         * PSA attestation, explicitly require a variation-tolerant receiver. */
         if ((ret == WOLFCOSE_SUCCESS) &&
+            (wolfCose_CBOR_AllowsNonpreferred(decodeFlags) == 0) &&
             (item->majorType != WOLFCOSE_CBOR_SIMPLE)) {
             if (((ai == WOLFCOSE_CBOR_AI_1BYTE) && (item->val < 24u)) ||
                 ((ai == WOLFCOSE_CBOR_AI_2BYTE) && (item->val < 256u)) ||
@@ -244,12 +368,18 @@ int wolfCose_CBOR_DecodeHead(WOLFCOSE_CBOR_CTX* ctx, WOLFCOSE_CBOR_ITEM* item)
                     item->data = &ctx->cbuf[ctx->idx];
                     item->dataLen = (size_t)item->val;
                     ctx->idx += (size_t)item->val;
+                    if ((item->majorType == WOLFCOSE_CBOR_TSTR) &&
+                        (wolfCose_CBOR_IsUtf8(item->data, item->dataLen) ==
+                         0)) {
+                        ret = WOLFCOSE_E_CBOR_MALFORMED;
+                    }
                 }
             }
         }
     }
     return ret;
 }
+#endif /* WOLFCOSE_CBOR_DECODE */
 
 /* -----
  * Public Encode API
@@ -321,7 +451,20 @@ int wc_CBOR_EncodeBstr(WOLFCOSE_CBOR_CTX* ctx, const uint8_t* data,
 int wc_CBOR_EncodeTstr(WOLFCOSE_CBOR_CTX* ctx, const uint8_t* str,
                         size_t len)
 {
-    return wolfCose_CBOR_EncodeBytes(ctx, WOLFCOSE_CBOR_TSTR, str, len);
+    int ret;
+
+    if ((wolfCose_CBOR_IsEncodeContext(ctx) == 0) ||
+        ((str == NULL) && (len > 0u))) {
+        ret = WOLFCOSE_E_INVALID_ARG;
+    }
+    else if (wolfCose_CBOR_IsUtf8(str, len) == 0) {
+        ret = WOLFCOSE_E_CBOR_MALFORMED;
+    }
+    else {
+        ret = wolfCose_CBOR_EncodeBytes(ctx, WOLFCOSE_CBOR_TSTR, str, len);
+    }
+
+    return ret;
 }
 
 int wc_CBOR_EncodeArrayStart(WOLFCOSE_CBOR_CTX* ctx, size_t count)
@@ -346,7 +489,7 @@ static int wolfCose_CBOR_EncodeSimpleVal(WOLFCOSE_CBOR_CTX* ctx, uint8_t val)
 {
     int ret;
 
-    if ((ctx == NULL) || (ctx->buf == NULL)) {
+    if (wolfCose_CBOR_IsEncodeContext(ctx) == 0) {
         ret = WOLFCOSE_E_INVALID_ARG;
     }
     else if (wolfCose_CBOR_HasRoom(ctx, 1u) == 0) {
@@ -381,7 +524,7 @@ int wc_CBOR_EncodeFloat(WOLFCOSE_CBOR_CTX* ctx, float val)
     int ret;
     uint32_t bits;
 
-    if ((ctx == NULL) || (ctx->buf == NULL)) {
+    if (wolfCose_CBOR_IsEncodeContext(ctx) == 0) {
         ret = WOLFCOSE_E_INVALID_ARG;
     }
     else if (wolfCose_CBOR_HasRoom(ctx, 5u) == 0) {
@@ -403,7 +546,7 @@ int wc_CBOR_EncodeDouble(WOLFCOSE_CBOR_CTX* ctx, double val)
     int ret;
     uint64_t bits;
 
-    if ((ctx == NULL) || (ctx->buf == NULL)) {
+    if (wolfCose_CBOR_IsEncodeContext(ctx) == 0) {
         ret = WOLFCOSE_E_INVALID_ARG;
     }
     else if (wolfCose_CBOR_HasRoom(ctx, 9u) == 0) {
@@ -433,10 +576,11 @@ int wc_CBOR_EncodeDouble(WOLFCOSE_CBOR_CTX* ctx, double val)
 
 int wc_CBOR_DecodeHead(WOLFCOSE_CBOR_CTX* ctx, WOLFCOSE_CBOR_ITEM* item)
 {
-    return wolfCose_CBOR_DecodeHead(ctx, item);
+    return wolfCose_CBOR_DecodeHead_ex(ctx, item, 0u);
 }
 
-int wc_CBOR_DecodeUint(WOLFCOSE_CBOR_CTX* ctx, uint64_t* val)
+int wolfCose_CBOR_DecodeUint_ex(WOLFCOSE_CBOR_CTX* ctx, uint64_t* val,
+    uint32_t decodeFlags)
 {
     int ret;
     WOLFCOSE_CBOR_ITEM item;
@@ -445,7 +589,7 @@ int wc_CBOR_DecodeUint(WOLFCOSE_CBOR_CTX* ctx, uint64_t* val)
         ret = WOLFCOSE_E_INVALID_ARG;
     }
     else {
-        ret = wolfCose_CBOR_DecodeHead(ctx, &item);
+        ret = wolfCose_CBOR_DecodeHead_ex(ctx, &item, decodeFlags);
         if (ret == WOLFCOSE_SUCCESS) {
             if (item.majorType != WOLFCOSE_CBOR_UINT) {
                 ret = WOLFCOSE_E_CBOR_TYPE;
@@ -458,7 +602,13 @@ int wc_CBOR_DecodeUint(WOLFCOSE_CBOR_CTX* ctx, uint64_t* val)
     return ret;
 }
 
-int wc_CBOR_DecodeInt(WOLFCOSE_CBOR_CTX* ctx, int64_t* val)
+int wc_CBOR_DecodeUint(WOLFCOSE_CBOR_CTX* ctx, uint64_t* val)
+{
+    return wolfCose_CBOR_DecodeUint_ex(ctx, val, 0u);
+}
+
+int wolfCose_CBOR_DecodeInt_ex(WOLFCOSE_CBOR_CTX* ctx, int64_t* val,
+    uint32_t decodeFlags)
 {
     int ret;
     WOLFCOSE_CBOR_ITEM item;
@@ -467,7 +617,7 @@ int wc_CBOR_DecodeInt(WOLFCOSE_CBOR_CTX* ctx, int64_t* val)
         ret = WOLFCOSE_E_INVALID_ARG;
     }
     else {
-        ret = wolfCose_CBOR_DecodeHead(ctx, &item);
+        ret = wolfCose_CBOR_DecodeHead_ex(ctx, &item, decodeFlags);
         if (ret == WOLFCOSE_SUCCESS) {
             if (item.majorType == WOLFCOSE_CBOR_UINT) {
                 if (item.val > (uint64_t)INT64_MAX) {
@@ -494,10 +644,15 @@ int wc_CBOR_DecodeInt(WOLFCOSE_CBOR_CTX* ctx, int64_t* val)
     return ret;
 }
 
+int wc_CBOR_DecodeInt(WOLFCOSE_CBOR_CTX* ctx, int64_t* val)
+{
+    return wolfCose_CBOR_DecodeInt_ex(ctx, val, 0u);
+}
+
 /* Shared decode for bstr (major type 2) and tstr (major type 3) */
-static int wolfCose_CBOR_DecodeBytes(WOLFCOSE_CBOR_CTX* ctx,
-                                       uint8_t majorType,
-                                       const uint8_t** data, size_t* dataLen)
+static int wolfCose_CBOR_DecodeBytes_ex(WOLFCOSE_CBOR_CTX* ctx,
+    uint8_t majorType, const uint8_t** data, size_t* dataLen,
+    uint32_t decodeFlags)
 {
     int ret;
     WOLFCOSE_CBOR_ITEM item;
@@ -506,7 +661,7 @@ static int wolfCose_CBOR_DecodeBytes(WOLFCOSE_CBOR_CTX* ctx,
         ret = WOLFCOSE_E_INVALID_ARG;
     }
     else {
-        ret = wolfCose_CBOR_DecodeHead(ctx, &item);
+        ret = wolfCose_CBOR_DecodeHead_ex(ctx, &item, decodeFlags);
         if (ret == WOLFCOSE_SUCCESS) {
             if (item.majorType != majorType) {
                 ret = WOLFCOSE_E_CBOR_TYPE;
@@ -520,22 +675,35 @@ static int wolfCose_CBOR_DecodeBytes(WOLFCOSE_CBOR_CTX* ctx,
     return ret;
 }
 
-int wc_CBOR_DecodeBstr(WOLFCOSE_CBOR_CTX* ctx, const uint8_t** data,
-                        size_t* dataLen)
+int wolfCose_CBOR_DecodeBstr_ex(WOLFCOSE_CBOR_CTX* ctx,
+    const uint8_t** data, size_t* dataLen, uint32_t decodeFlags)
 {
-    return wolfCose_CBOR_DecodeBytes(ctx, WOLFCOSE_CBOR_BSTR, data, dataLen);
+    return wolfCose_CBOR_DecodeBytes_ex(ctx, WOLFCOSE_CBOR_BSTR, data,
+        dataLen, decodeFlags);
+}
+
+int wc_CBOR_DecodeBstr(WOLFCOSE_CBOR_CTX* ctx, const uint8_t** data,
+    size_t* dataLen)
+{
+    return wolfCose_CBOR_DecodeBstr_ex(ctx, data, dataLen, 0u);
+}
+
+int wolfCose_CBOR_DecodeTstr_ex(WOLFCOSE_CBOR_CTX* ctx,
+    const uint8_t** str, size_t* strLen, uint32_t decodeFlags)
+{
+    return wolfCose_CBOR_DecodeBytes_ex(ctx, WOLFCOSE_CBOR_TSTR, str,
+        strLen, decodeFlags);
 }
 
 int wc_CBOR_DecodeTstr(WOLFCOSE_CBOR_CTX* ctx, const uint8_t** str,
-                        size_t* strLen)
+    size_t* strLen)
 {
-    return wolfCose_CBOR_DecodeBytes(ctx, WOLFCOSE_CBOR_TSTR, str, strLen);
+    return wolfCose_CBOR_DecodeTstr_ex(ctx, str, strLen, 0u);
 }
 
 /* Shared decode for array (major type 4) and map (major type 5) */
-static int wolfCose_CBOR_DecodeContainerStart(WOLFCOSE_CBOR_CTX* ctx,
-                                                uint8_t majorType,
-                                                size_t* count)
+static int wolfCose_CBOR_DecodeContainerStart_ex(WOLFCOSE_CBOR_CTX* ctx,
+    uint8_t majorType, size_t* count, uint32_t decodeFlags)
 {
     int ret;
     WOLFCOSE_CBOR_ITEM item;
@@ -544,7 +712,7 @@ static int wolfCose_CBOR_DecodeContainerStart(WOLFCOSE_CBOR_CTX* ctx,
         ret = WOLFCOSE_E_INVALID_ARG;
     }
     else {
-        ret = wolfCose_CBOR_DecodeHead(ctx, &item);
+        ret = wolfCose_CBOR_DecodeHead_ex(ctx, &item, decodeFlags);
         if (ret == WOLFCOSE_SUCCESS) {
             if (item.majorType != majorType) {
                 ret = WOLFCOSE_E_CBOR_TYPE;
@@ -563,17 +731,32 @@ static int wolfCose_CBOR_DecodeContainerStart(WOLFCOSE_CBOR_CTX* ctx,
     return ret;
 }
 
+int wolfCose_CBOR_DecodeArrayStart_ex(WOLFCOSE_CBOR_CTX* ctx,
+    size_t* count, uint32_t decodeFlags)
+{
+    return wolfCose_CBOR_DecodeContainerStart_ex(ctx, WOLFCOSE_CBOR_ARRAY,
+        count, decodeFlags);
+}
+
 int wc_CBOR_DecodeArrayStart(WOLFCOSE_CBOR_CTX* ctx, size_t* count)
 {
-    return wolfCose_CBOR_DecodeContainerStart(ctx, WOLFCOSE_CBOR_ARRAY, count);
+    return wolfCose_CBOR_DecodeArrayStart_ex(ctx, count, 0u);
+}
+
+int wolfCose_CBOR_DecodeMapStart_ex(WOLFCOSE_CBOR_CTX* ctx,
+    size_t* count, uint32_t decodeFlags)
+{
+    return wolfCose_CBOR_DecodeContainerStart_ex(ctx, WOLFCOSE_CBOR_MAP,
+        count, decodeFlags);
 }
 
 int wc_CBOR_DecodeMapStart(WOLFCOSE_CBOR_CTX* ctx, size_t* count)
 {
-    return wolfCose_CBOR_DecodeContainerStart(ctx, WOLFCOSE_CBOR_MAP, count);
+    return wolfCose_CBOR_DecodeMapStart_ex(ctx, count, 0u);
 }
 
-int wc_CBOR_DecodeTag(WOLFCOSE_CBOR_CTX* ctx, uint64_t* tag)
+int wolfCose_CBOR_DecodeTag_ex(WOLFCOSE_CBOR_CTX* ctx, uint64_t* tag,
+    uint32_t decodeFlags)
 {
     int ret;
     WOLFCOSE_CBOR_ITEM item;
@@ -582,7 +765,7 @@ int wc_CBOR_DecodeTag(WOLFCOSE_CBOR_CTX* ctx, uint64_t* tag)
         ret = WOLFCOSE_E_INVALID_ARG;
     }
     else {
-        ret = wolfCose_CBOR_DecodeHead(ctx, &item);
+        ret = wolfCose_CBOR_DecodeHead_ex(ctx, &item, decodeFlags);
         if (ret == WOLFCOSE_SUCCESS) {
             if (item.majorType != WOLFCOSE_CBOR_TAG) {
                 ret = WOLFCOSE_E_CBOR_TYPE;
@@ -595,11 +778,16 @@ int wc_CBOR_DecodeTag(WOLFCOSE_CBOR_CTX* ctx, uint64_t* tag)
     return ret;
 }
 
+int wc_CBOR_DecodeTag(WOLFCOSE_CBOR_CTX* ctx, uint64_t* tag)
+{
+    return wolfCose_CBOR_DecodeTag_ex(ctx, tag, 0u);
+}
+
 /* -----
  * wc_CBOR_Skip: iterative traversal to skip a complete CBOR item.
  * Uses a bounded stack (no recursion, MISRA Rule 17.2 compliant).
  * ----- */
-int wc_CBOR_Skip(WOLFCOSE_CBOR_CTX* ctx)
+int wolfCose_CBOR_Skip_ex(WOLFCOSE_CBOR_CTX* ctx, uint32_t decodeFlags)
 {
     int ret;
     WOLFCOSE_CBOR_ITEM item;
@@ -615,7 +803,7 @@ int wc_CBOR_Skip(WOLFCOSE_CBOR_CTX* ctx)
         ret = WOLFCOSE_SUCCESS;
 
         while ((remaining > 0u) && (ret == WOLFCOSE_SUCCESS)) {
-            ret = wolfCose_CBOR_DecodeHead(ctx, &item);
+            ret = wolfCose_CBOR_DecodeHead_ex(ctx, &item, decodeFlags);
             if (ret != WOLFCOSE_SUCCESS) {
                 break;
             }
@@ -677,6 +865,11 @@ int wc_CBOR_Skip(WOLFCOSE_CBOR_CTX* ctx)
     return ret;
 }
 
+int wc_CBOR_Skip(WOLFCOSE_CBOR_CTX* ctx)
+{
+    return wolfCose_CBOR_Skip_ex(ctx, 0u);
+}
+
 int wc_CBOR_SkipItem(WOLFCOSE_CBOR_CTX* ctx, const uint8_t** data,
                       size_t* dataLen)
 {
@@ -689,7 +882,7 @@ int wc_CBOR_SkipItem(WOLFCOSE_CBOR_CTX* ctx, const uint8_t** data,
     else {
         size_t start = ctx->idx;
 
-        ret = wc_CBOR_Skip(ctx);
+        ret = wolfCose_CBOR_Skip_ex(ctx, 0u);
         if (ret == WOLFCOSE_SUCCESS) {
             /* wc_CBOR_Skip only ever advances idx, and never past bufSz. */
             *data = &ctx->cbuf[start];
@@ -699,7 +892,8 @@ int wc_CBOR_SkipItem(WOLFCOSE_CBOR_CTX* ctx, const uint8_t** data,
     return ret;
 }
 
-int wc_CBOR_DecodeLabel(WOLFCOSE_CBOR_CTX* ctx, WOLFCOSE_CBOR_LABEL* label)
+int wolfCose_CBOR_DecodeLabel_ex(WOLFCOSE_CBOR_CTX* ctx,
+    WOLFCOSE_CBOR_LABEL* label, uint32_t decodeFlags)
 {
     int ret;
     WOLFCOSE_CBOR_ITEM item;
@@ -708,7 +902,7 @@ int wc_CBOR_DecodeLabel(WOLFCOSE_CBOR_CTX* ctx, WOLFCOSE_CBOR_LABEL* label)
         ret = WOLFCOSE_E_INVALID_ARG;
     }
     else {
-        ret = wolfCose_CBOR_DecodeHead(ctx, &item);
+        ret = wolfCose_CBOR_DecodeHead_ex(ctx, &item, decodeFlags);
         if (ret == WOLFCOSE_SUCCESS) {
             label->val = 0;
             label->text = NULL;
@@ -744,6 +938,11 @@ int wc_CBOR_DecodeLabel(WOLFCOSE_CBOR_CTX* ctx, WOLFCOSE_CBOR_LABEL* label)
         }
     }
     return ret;
+}
+
+int wc_CBOR_DecodeLabel(WOLFCOSE_CBOR_CTX* ctx, WOLFCOSE_CBOR_LABEL* label)
+{
+    return wolfCose_CBOR_DecodeLabel_ex(ctx, label, 0u);
 }
 
 int wc_CBOR_LabelIsInt(const WOLFCOSE_CBOR_LABEL* label, int64_t val)

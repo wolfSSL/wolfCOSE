@@ -154,6 +154,15 @@ else
     skip "info (ES256)"
 fi
 
+echo "== info rejects malformed CBOR =="
+IB="$WORK/info-malformed.cbor"
+printf '\x1a' > "$IB"
+if "$TOOL" info -i "$IB" >/dev/null 2>&1; then
+    bad "info malformed CBOR rejected"
+else
+    ok "info malformed CBOR rejected"
+fi
+
 echo "== Usage errors must exit non-zero =="
 if "$TOOL" >/dev/null 2>&1; then bad "no-args exits non-zero"; else ok "no-args exits non-zero"; fi
 if "$TOOL" boguscmd >/dev/null 2>&1; then bad "bad command exits non-zero"; else ok "bad command exits non-zero"; fi

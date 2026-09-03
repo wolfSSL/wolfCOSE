@@ -342,6 +342,20 @@ The `examples/` directory contains complete working examples:
 | `encrypt0_demo.c` | All COSE_Encrypt0 algorithms |
 | `mac0_demo.c` | All COSE_Mac0 algorithms |
 | `lifecycle_demo.c` | Full edge-to-cloud workflow |
+| `psa_eat_demo.c` | RFC 9783 device onboarding and component appraisal |
+| `psa_eat_verify_lean.c` | Verify a fixed RFC 9783 token in a lean receiver |
+
+Run the complete PSA/EAT onboarding flow with:
+
+```bash
+make psa-eat-demo
+```
+
+The demo hashes a sample secure-partition firmware image, creates a current
+profile COSE_Sign1 token, selects a provisioned public IAK by UEID, proves that
+a wrong challenge is rejected, verifies the correct challenge, and appraises
+the authenticated lifecycle, device IDs, software measurement, signer ID, and
+version against trusted reference values.
 
 ### Comprehensive Tests (`examples/comprehensive/`)
 
@@ -364,14 +378,17 @@ The `examples/` directory contains complete working examples:
 
 ## Strict Decoding (RFC 8949 Preferred Serialization)
 
-**Read this before filing an interop bug.** wolfCOSE's decoder accepts only
-*deterministically encoded* CBOR. This is required by COSE (RFC 9052) and by
-CTAP2 canonical CBOR, but it is stricter than most general-purpose CBOR
-parsers, so on a device the symptom is usually "my authenticator rejects
-requests from client X" rather than an obvious parse bug.
+**Read this before filing an interop bug.** wolfCOSE's ordinary decoder APIs
+accept only *deterministically encoded* CBOR. This is required by COSE
+(RFC 9052) and by CTAP2 canonical CBOR, but it is stricter than most
+general-purpose CBOR parsers, so on a device the symptom is usually "my
+authenticator rejects requests from client X" rather than an obvious parse
+bug. The optional RFC 9783 PSA/EAT verifier is a definite-length
+variation-tolerant exception; that profile behavior is not exposed through the
+ordinary COSE API.
 
-Two rules apply at every decode entry point - `wc_CBOR_Decode*()`,
-`wc_CoseKey_Decode()`, and every `_Verify` / `_Decrypt` function:
+The following two rules apply to `wc_CBOR_Decode*()`, `wc_CoseKey_Decode()`,
+and the ordinary `_Verify` / `_Decrypt` functions:
 
 | Rule | Example rejected input | Error |
 |------|------------------------|-------|
@@ -385,17 +402,23 @@ Related strictness that surprises integrators for the same reason:
   [`wc_CBOR_SkipItem()`](API-Reference.md#wc_cbor_skipitem) to carve out the
   exact byte range of an embedded item.
 - Two-byte simple values below 32 are malformed, per RFC 8949.
+- All encountered CBOR text strings are validated as UTF-8. This also applies
+  to `wc_CBOR_DecodeHead()`, `wc_CBOR_DecodeLabel()`, `wc_CBOR_Skip()`, and
+  `wc_CBOR_SkipItem()` when they only inspect or traverse the string; invalid
+  text returns `WOLFCOSE_E_CBOR_MALFORMED`.
 - EC2 coordinates must be exactly the curve size, with leading zeros preserved
   (RFC 9053 Section 7.1.1) - a 31-byte P-256 `x` is rejected, not left-padded.
 - A duplicate label in a header or `COSE_Key` map is rejected.
-- `COSE_Key` and COSE header maps accept integer labels only. For your own
-  protocol maps that mix integer and text labels, use
-  [`wc_CBOR_DecodeLabel()`](API-Reference.md#wc_cbor_decodelabel).
+- With `WOLFCOSE_ENABLE_COSE_TEXT_LABELS`, `COSE_Key` and COSE header maps
+  accept unknown text labels and reject their duplicates. Registered COSE
+  parameters remain numeric; `"alg"` is not an alias for integer label 1.
+  The option is off by default and is implied by PSA/EAT verification.
 
-None of this is configurable: relaxing it would let a signature or MAC be
-recomputed over a re-encoding of the same data, which is the class of bug
-deterministic encoding exists to prevent. If a peer emits non-preferred CBOR,
-fix the peer - it is not producing valid COSE.
+The strict decoding rules are not configurable for the ordinary API: relaxing
+them would let a signature or MAC be recomputed over a re-encoding of the same
+data. The text-label option expands accepted label types without relaxing CBOR
+encoding rules. The optional PSA/EAT verifier's variation-tolerant path still
+rejects indefinite CBOR.
 
 ## Cross-Compilation
 

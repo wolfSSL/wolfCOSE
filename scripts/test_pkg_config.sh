@@ -133,8 +133,10 @@ check_config_rebuild() (
     mkdir -p "$config_fixture/src" "$config_fixture/include/wolfcose"
     cp "$ROOT_DIR/Makefile" "$config_fixture/Makefile"
     cp "$ROOT_DIR/src/wolfcose_cbor.c" "$ROOT_DIR/src/wolfcose.c" \
+        "$ROOT_DIR/src/wolfcose_eat_psa.c" \
         "$ROOT_DIR/src/wolfcose_internal.h" "$config_fixture/src/"
     cp "$ROOT_DIR/include/wolfcose/wolfcose.h" \
+        "$ROOT_DIR/include/wolfcose/eat_psa.h" \
         "$config_fixture/include/wolfcose/"
 
     FAKE_CC_LOG="$config_fixture/compiler.log"
@@ -160,13 +162,27 @@ check_config_rebuild() (
         'WOLFSSL_LIBS=-L/fake/second/lib -lfakesecond' \
         libwolfcose.a
 
+    # Some supported file systems expose only one-second timestamp precision.
+    sleep 1
+    touch "$config_fixture/include/wolfcose/eat_psa.h"
+    run_config_make \
+        "CC=sh $SCRIPT_PATH --fake-cc" \
+        "AR=sh $SCRIPT_PATH --fake-ar" \
+        'PKG_CONFIG=false' \
+        'WOLFSSL_CFLAGS=-I/fake/second/include' \
+        'WOLFSSL_LIBS=-L/fake/second/lib -lfakesecond' \
+        libwolfcose.a
+
     compiler_args=$(cat "$FAKE_CC_LOG")
     contains "$compiler_args" '-I/fake/second/include'
     compiler_count=$(wc -l < "$FAKE_CC_LOG" | tr -d ' ')
-    if [ "$compiler_count" -ne 4 ]; then
-        printf 'FAIL: expected configuration change to rebuild both objects\n' >&2
+    if [ "$compiler_count" -ne 7 ]; then
+        printf 'FAIL: expected 7 config/header compiles, got %s\n' \
+            "$compiler_count" >&2
         exit 1
     fi
+    last_compile=$(tail -n 1 "$FAKE_CC_LOG")
+    contains "$last_compile" 'src/wolfcose_eat_psa.c'
 )
 
 pkg_config_output=$(run_make tool \

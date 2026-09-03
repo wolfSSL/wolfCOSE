@@ -163,8 +163,9 @@ extern "C" {
  * - HMAC key length: HMAC-256/384/512 require a key of at least 32/48/64
  *   bytes (RFC 9053 Section 3.1). Shorter keys are rejected with
  *   WOLFCOSE_E_COSE_KEY_TYPE unless WOLFCOSE_ALLOW_SHORT_HMAC_KEY is defined.
- * - Strict decode: decoders require preferred (shortest-form) CBOR
- *   (RFC 8949 Section 4.2.1) across all entry points, and verify/decrypt
+ * - Strict decode: ordinary decoders require preferred (shortest-form) CBOR
+ *   (RFC 8949 Section 4.2.1). The optional PSA/EAT verifier privately accepts
+ *   non-preferred definite-length forms as RFC 9783 requires. Verify/decrypt
  *   APIs require inSz to be exactly the encoded object length (trailing bytes
  *   are rejected). EC2 coordinates must be exactly the curve size.
  */
@@ -441,9 +442,9 @@ typedef struct WOLFCOSE_SIGNATURE {
 /**
  * \brief Initialize a context for encoding into \p buf.
  *
- * WOLFCOSE_CBOR_CTX carries both an encode pointer (buf) and a decode pointer
- * (cbuf); this sets the encode one, clears the decode one, and rewinds idx, so
- * a context can never be half-initialized from the wrong direction.
+ * Sets the mutable encode pointer, clears the const decode pointer, and
+ * rewinds the cursor. A context initialized for decoding cannot be used to
+ * encode into its read-only input.
  *
  * \param ctx    Context to initialize.
  * \param buf    Output buffer.
@@ -496,7 +497,8 @@ WOLFCOSE_API int wc_CBOR_EncodeBstr(WOLFCOSE_CBOR_CTX* ctx,
  * \param ctx   Encoder context.
  * \param str   UTF-8 text (not null-terminated requirement).
  * \param len   Length in bytes.
- * \return WOLFCOSE_SUCCESS or negative error code.
+ * \return WOLFCOSE_SUCCESS, WOLFCOSE_E_CBOR_MALFORMED for invalid UTF-8,
+ *         or another negative error code.
  */
 WOLFCOSE_API int wc_CBOR_EncodeTstr(WOLFCOSE_CBOR_CTX* ctx,
                                      const uint8_t* str, size_t len);
@@ -550,27 +552,33 @@ WOLFCOSE_API int wc_CBOR_EncodeDouble(WOLFCOSE_CBOR_CTX* ctx, double val);
  *
  * Guarded by WOLFCOSE_CBOR_DECODE — always needed for verify/decrypt builds.
  *
- * Strictness note (RFC 8949 Section 4.2.1): every decode entry point requires
- * preferred, shortest-form argument encoding and rejects indefinite-length
- * items. This is what COSE deterministic encoding and CTAP2 canonical CBOR
- * require, but it is stricter than a general-purpose CBOR parser: input that
- * other decoders accept — 0x1817 for 23, an indefinite-length bstr — is
- * rejected here with WOLFCOSE_E_CBOR_MALFORMED or WOLFCOSE_E_UNSUPPORTED.
- * See docs/Getting-Started.md, "Strict decoding".
+ * Strictness note (RFC 8949 Section 4.2.1): the ordinary decode entry points
+ * require preferred, shortest-form argument encoding and reject
+ * indefinite-length items. This is what COSE deterministic encoding and CTAP2
+ * canonical CBOR require, but it is stricter than a general-purpose CBOR
+ * parser. The optional PSA/EAT verifier retains its variation-tolerant profile
+ * handling in private decoder state, so this public context remains ABI-stable
+ * and ordinary CBOR callers are always strict. Indefinite-length items remain
+ * unsupported in every mode. Every encountered text string is also validated
+ * as UTF-8; wc_CBOR_DecodeHead(), wc_CBOR_DecodeLabel(), wc_CBOR_Skip(), and
+ * wc_CBOR_SkipItem() return WOLFCOSE_E_CBOR_MALFORMED for invalid text even
+ * when the caller does not request the text value directly.
  * ----- */
 
 #if defined(WOLFCOSE_CBOR_DECODE)
 
 /**
- * \brief Initialize a context for decoding from \p buf.
+ * \brief Initialize a context for ordinary strict CBOR decoding.
  *
  * Sets the const decode pointer, clears the mutable encode pointer, and
- * rewinds idx. The buffer is never written through this context.
+ * rewinds the cursor. Decoder functions never write through the input. This
+ * initializer requires RFC 8949 preferred serialization and rejects
+ * indefinite-length items.
  *
- * \param ctx    Context to initialize.
- * \param buf    Input buffer.
- * \param bufSz  Input buffer size.
- * \return WOLFCOSE_SUCCESS or WOLFCOSE_E_INVALID_ARG.
+ * \param ctx   Context to initialize for read-only decoding.
+ * \param buf   Non-NULL input buffer that remains valid while decoded.
+ * \param bufSz Exact size of \p buf in bytes.
+ * \return WOLFCOSE_SUCCESS or WOLFCOSE_E_INVALID_ARG for a NULL argument.
  */
 static inline int wc_CBOR_DecoderInit(WOLFCOSE_CBOR_CTX* ctx,
                                        const uint8_t* buf, size_t bufSz)
@@ -591,15 +599,16 @@ static inline int wc_CBOR_DecoderInit(WOLFCOSE_CBOR_CTX* ctx,
  * \brief Decode a CBOR data item head. Core decoder function.
  *        For bstr/tstr, sets item->data to point into the input buffer.
  *
- * Enforces RFC 8949 Section 4.2.1 preferred serialization: an argument that
- * could have been encoded in fewer bytes is WOLFCOSE_E_CBOR_MALFORMED, and an
- * indefinite-length item (additional information 31) is
- * WOLFCOSE_E_UNSUPPORTED. Deliberately stricter than a general-purpose CBOR
- * parser; see the section note above.
+ * Enforces RFC 8949 Section 4.2.1 preferred serialization. An
+ * indefinite-length item (additional information 31) is always
+ * WOLFCOSE_E_UNSUPPORTED. Text strings are UTF-8 validated, including when a
+ * caller uses this low-level function only to inspect an item. See the section
+ * note above.
  *
  * \param ctx   Decoder context (advances idx past the decoded item head + data).
  * \param item  Output: decoded item.
- * \return WOLFCOSE_SUCCESS or negative error code.
+ * \return WOLFCOSE_SUCCESS, WOLFCOSE_E_CBOR_MALFORMED for invalid UTF-8 or
+ *         non-preferred serialization, or another negative error code.
  */
 WOLFCOSE_API int wc_CBOR_DecodeHead(WOLFCOSE_CBOR_CTX* ctx,
                                      WOLFCOSE_CBOR_ITEM* item);
@@ -621,7 +630,7 @@ WOLFCOSE_API int wc_CBOR_DecodeUint(WOLFCOSE_CBOR_CTX* ctx, uint64_t* val);
 WOLFCOSE_API int wc_CBOR_DecodeInt(WOLFCOSE_CBOR_CTX* ctx, int64_t* val);
 
 /**
- * \brief Decode a byte string. Zero-copy: *data points into ctx->buf.
+ * \brief Decode a byte string. Zero-copy: *data points into ctx->cbuf.
  * \param ctx      Decoder context.
  * \param data     Output: pointer into input buffer.
  * \param dataLen  Output: byte string length.
@@ -631,11 +640,12 @@ WOLFCOSE_API int wc_CBOR_DecodeBstr(WOLFCOSE_CBOR_CTX* ctx,
                                      const uint8_t** data, size_t* dataLen);
 
 /**
- * \brief Decode a text string. Zero-copy: *str points into ctx->buf.
+ * \brief Decode a UTF-8 text string. Zero-copy: *str points into ctx->cbuf.
  * \param ctx     Decoder context.
  * \param str     Output: pointer into input buffer.
  * \param strLen  Output: text string length in bytes.
- * \return WOLFCOSE_SUCCESS or negative error code.
+ * \return WOLFCOSE_SUCCESS, WOLFCOSE_E_CBOR_MALFORMED for invalid UTF-8,
+ *         or another negative error code.
  */
 WOLFCOSE_API int wc_CBOR_DecodeTstr(WOLFCOSE_CBOR_CTX* ctx,
                                      const uint8_t** str, size_t* strLen);
@@ -668,9 +678,11 @@ WOLFCOSE_API int wc_CBOR_DecodeTag(WOLFCOSE_CBOR_CTX* ctx, uint64_t* tag);
 
 /**
  * \brief Skip over a complete CBOR item (including nested arrays/maps).
- *        Uses iterative traversal with bounded stack depth.
+ *        Uses iterative traversal with bounded stack depth and validates any
+ *        text strings encountered while traversing.
  * \param ctx  Decoder context (idx advances past the skipped item).
- * \return WOLFCOSE_SUCCESS or negative error code.
+ * \return WOLFCOSE_SUCCESS, WOLFCOSE_E_CBOR_MALFORMED for invalid UTF-8,
+ *         or another negative error code.
  */
 WOLFCOSE_API int wc_CBOR_Skip(WOLFCOSE_CBOR_CTX* ctx);
 
@@ -686,8 +698,9 @@ WOLFCOSE_API int wc_CBOR_Skip(WOLFCOSE_CBOR_CTX* ctx);
  * \param ctx      Decoder context (idx advances past the skipped item).
  * \param data     Output: pointer to the first byte of the skipped item.
  * \param dataLen  Output: encoded length of the skipped item.
- * \return WOLFCOSE_SUCCESS or negative error code. On failure the outputs are
- *         untouched and ctx->idx may have advanced, as with wc_CBOR_Skip().
+ * \return WOLFCOSE_SUCCESS, WOLFCOSE_E_CBOR_MALFORMED for invalid UTF-8,
+ *         or another negative error code. On failure the outputs are untouched
+ *         and ctx->idx may have advanced, as with wc_CBOR_Skip().
  */
 WOLFCOSE_API int wc_CBOR_SkipItem(WOLFCOSE_CBOR_CTX* ctx,
                                    const uint8_t** data, size_t* dataLen);
@@ -695,9 +708,9 @@ WOLFCOSE_API int wc_CBOR_SkipItem(WOLFCOSE_CBOR_CTX* ctx,
 /**
  * \brief Decoded CBOR map label: either an integer or a text string.
  *
- * RFC 9052 allows `label = int / tstr`, and real COSE and CTAP2 maps use both
- * spellings for the same field (`3` vs `"alg"`, `1` vs `"type"`, `2` vs
- * `"id"`). Populated by wc_CBOR_DecodeLabel(); compare with
+ * RFC 9052 allows `label = int / tstr`. Applications may define either form
+ * for their own map parameters; registered COSE parameters retain their
+ * specified numeric labels. Populated by wc_CBOR_DecodeLabel(); compare with
  * wc_CBOR_LabelIsInt() / wc_CBOR_LabelIsText().
  */
 typedef struct WOLFCOSE_CBOR_LABEL {
@@ -716,7 +729,8 @@ typedef struct WOLFCOSE_CBOR_LABEL {
  *
  * \param ctx    Decoder context.
  * \param label  Output: decoded label.
- * \return WOLFCOSE_SUCCESS or negative error code.
+ * \return WOLFCOSE_SUCCESS, WOLFCOSE_E_CBOR_MALFORMED for an invalid UTF-8
+ *         text label, or another negative error code.
  */
 WOLFCOSE_API int wc_CBOR_DecodeLabel(WOLFCOSE_CBOR_CTX* ctx,
                                       WOLFCOSE_CBOR_LABEL* label);
@@ -996,11 +1010,13 @@ typedef struct WOLFCOSE_KEY_INFO {
  *
  * Nothing is imported, no key object is needed, and \p in is not modified.
  * The same structural checks wc_CoseKey_Decode() applies are applied here
- * (integer labels only, no duplicate labels, kty required, no trailing
- * bytes), so a buffer that peeks successfully will not be rejected by the
- * decoder for those reasons.
- * Keys containing key_ops are rejected with WOLFCOSE_E_UNSUPPORTED because
- * the fixed-size key wrapper cannot retain arbitrary operation identifiers.
+ * (no duplicate integer labels, kty required, no trailing bytes), so a buffer
+ * that peeks successfully will not be rejected by the decoder for those
+ * reasons. WOLFCOSE_ENABLE_COSE_TEXT_LABELS accepts unknown text labels as
+ * non-critical extensions and checks them for duplicates. Registered
+ * COSE_Key parameters remain numeric. Keys containing key_ops are rejected
+ * with WOLFCOSE_E_UNSUPPORTED because the fixed-size key wrapper cannot
+ * retain arbitrary operation identifiers.
  *
  * \param in    Input CBOR COSE_Key buffer.
  * \param inSz  Input buffer size; must be exactly the encoded length.

@@ -57,7 +57,7 @@ jobs:
       run: |
         export WOLFSSL_DIR=$HOME/wolfssl-install
         export LD_LIBRARY_PATH=$WOLFSSL_DIR/lib
-        make coverage-force-failure CC=gcc \
+        make eat-psa-coverage-force-failure CC=gcc \
           CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -I./include -isystem $WOLFSSL_DIR/include" \
           LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
 
@@ -71,6 +71,7 @@ jobs:
         # Coverage thresholds:
         #   wolfcose.c:      99% minimum
         #   wolfcose_cbor.c: 100% minimum
+        #   wolfcose_eat_psa.c: 100% minimum (full PSA/EAT profile)
 
         FAILED=0
 
@@ -131,14 +132,45 @@ jobs:
           echo ""
         fi
 
+        # Parse optional RFC 9783 PSA/EAT parser coverage. This source is
+        # compiled only by the explicit full profile used above.
+        EAT_PCT=$(echo "$GCOV_OUTPUT" | grep -A1 "wolfcose_eat_psa.c'" | grep "Lines executed" | sed "s/.*:\([0-9.]*\)%.*/\1/")
+        EAT_UNCOV=$(grep -c "#####" wolfcose_eat_psa.c.gcov 2>/dev/null) || EAT_UNCOV=0
+
+        if [ -z "$EAT_PCT" ]; then
+          FAILED=1
+          echo ">>> FAILED: wolfcose_eat_psa.c coverage data is missing! <<<"
+          echo ""
+        else
+          echo "wolfcose_eat_psa.c:"
+          echo "  Coverage: ${EAT_PCT}%"
+          echo "  Threshold: 100%"
+          echo "  Uncovered lines: ${EAT_UNCOV}"
+          echo ""
+
+          if awk "BEGIN {exit !($EAT_PCT < 100)}"; then
+            FAILED=1
+            echo ">>> FAILED: wolfcose_eat_psa.c coverage is below 100%! <<<"
+            echo ""
+            echo "Uncovered lines in wolfcose_eat_psa.c:"
+            echo "---------------------------------------"
+            grep -n "#####" wolfcose_eat_psa.c.gcov | head -50
+            echo ""
+          else
+            echo ">>> PASSED: wolfcose_eat_psa.c meets 100% threshold <<<"
+          fi
+          echo ""
+        fi
+
         echo "=============================================="
 
         if [ "$FAILED" -eq 1 ]; then
           echo ""
           echo "  Looks like you need more tests!"
           echo ""
-          echo "  Add tests to tests/test_cose.c to cover the"
-          echo "  uncovered lines shown above."
+          echo "  Add tests in the matching test source, for example"
+          echo "  tests/test_eat_psa.c for wolfcose_eat_psa.c, to cover"
+          echo "  the uncovered lines shown above."
           echo ""
           echo "=============================================="
           exit 1

@@ -82,8 +82,18 @@ jobs:
         # a full production build does. Only true user inputs are supplied.
         cc -std=c99 -Wall -Wextra -Wpedantic -Werror \
            -DWOLFCOSE_FLOAT -DWOLFCOSE_ENABLE_EXT_SIGN \
+           -DWOLFCOSE_ENABLE_EAT_PSA \
+           -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
+           -DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 \
+           -DWOLFCOSE_ENABLE_EAT_PSA_MAC0 \
+           -DWOLFCOSE_ENABLE_EAT_PSA_ISSUE \
+           -DWOLFCOSE_ENABLE_EAT_PSA_SIGN1_ISSUE \
+           -DWOLFCOSE_ENABLE_EAT_PSA_MAC0_ISSUE \
+           -DWOLFCOSE_ENABLE_EAT_PSA_LEGACY \
+           -DWOLFCOSE_ENABLE_EAT_PSA_UEID_RESOLVER \
+           -DWOLFCOSE_ENABLE_EAT_PSA_COMPONENT_ITERATOR \
            -I include -I "$HOME/wolfssl-install/include" \
-           -fsyntax-only tests/misra_consumer.c
+           -fsyntax-only src/wolfcose_eat_psa.c tests/misra_consumer.c
 
         set +e
         cppcheck --addon=misra \
@@ -107,10 +117,21 @@ jobs:
                  -DWOLFSSL_AES_DIRECT \
                  -DHAVE_HKDF \
                  -DHAVE_AES_CBC \
+                 -DWOLFCOSE_ENABLE_EAT_PSA \
+                 -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
+                 -DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 \
+                 -DWOLFCOSE_ENABLE_EAT_PSA_MAC0 \
+                 -DWOLFCOSE_ENABLE_EAT_PSA_ISSUE \
+                 -DWOLFCOSE_ENABLE_EAT_PSA_SIGN1_ISSUE \
+                 -DWOLFCOSE_ENABLE_EAT_PSA_MAC0_ISSUE \
+                 -DWOLFCOSE_ENABLE_EAT_PSA_LEGACY \
+                 -DWOLFCOSE_ENABLE_EAT_PSA_UEID_RESOLVER \
+                 -DWOLFCOSE_ENABLE_EAT_PSA_COMPONENT_ITERATOR \
                  -DWOLFCOSE_FLOAT \
                  -DWOLFCOSE_ENABLE_EXT_SIGN \
                  -I include -I src -I $HOME/wolfssl-install/include \
                  src/wolfcose.c src/wolfcose_cbor.c \
+                 src/wolfcose_eat_psa.c \
                  tests/misra_consumer.c \
                  2>&1 | tee misra-report-raw.txt
         CPPCHECK_STATUS=${PIPESTATUS[0]}

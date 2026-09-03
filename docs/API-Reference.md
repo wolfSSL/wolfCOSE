@@ -12,6 +12,7 @@ Complete API documentation for wolfCOSE (RFC 9052/9053 COSE implementation).
 - [COSE_Sign API (Multi-Signer)](#cose_sign-api-multi-signer)
 - [COSE_Encrypt API (Multi-Recipient)](#cose_encrypt-api-multi-recipient)
 - [COSE_Mac API (Multi-Recipient)](#cose_mac-api-multi-recipient)
+- [PSA/EAT API](#psaeat-api)
 - [CBOR API](#cbor-api)
 - [Error Codes](#error-codes)
 
@@ -108,13 +109,17 @@ Recipient information for COSE_Encrypt and COSE_Mac multi-recipient messages.
 
 ```c
 typedef struct WOLFCOSE_CBOR_CTX {
-    uint8_t* buf;             /* Buffer pointer */
-    size_t bufSz;             /* Buffer size */
-    size_t idx;               /* Current position */
+    uint8_t*       buf;         /* Encode output */
+    const uint8_t* cbuf;        /* Decode input */
+    size_t         bufSz;       /* Buffer size */
+    size_t         idx;         /* Current position */
 } WOLFCOSE_CBOR_CTX;
 ```
 
-CBOR encoder/decoder context.
+CBOR encoder/decoder context. Use the initializer appropriate to its mode;
+the initializers clear the opposite pointer so encode operations cannot write
+through decoder input. Variation-tolerant parsing is private to the optional
+PSA/EAT verifier and is not stored in caller-owned context state.
 
 ---
 
@@ -462,8 +467,11 @@ The decoded `kty`/`crv` must name the attached key type or
 key type a buffer holds before attaching anything, use
 [`wc_CoseKey_PeekInfo()`](#wc_cosekey_peekinfo).
 
-Decoding is strict: preferred CBOR only, integer labels only, no duplicate
-labels, and `bufSz` must be exactly the encoded length. See
+Decoding is strict: preferred CBOR only, no duplicate integer labels, and
+`bufSz` must be exactly the encoded length. With
+`WOLFCOSE_ENABLE_COSE_TEXT_LABELS`, unknown text labels are accepted as
+non-critical extensions and checked for duplicates. Registered COSE_Key
+parameters remain numeric. See
 [Getting Started - Strict
 decoding](Getting-Started.md#strict-decoding-rfc-8949-preferred-serialization).
 Keys containing the optional `key_ops` label (4) return
@@ -526,13 +534,15 @@ if (ret == WOLFCOSE_SUCCESS) {
 `in` is not modified and nothing is consumed, so the call is repeatable. `kid`
 points into `in`, so it stays valid only as long as that buffer does.
 
-The same structural checks `wc_CoseKey_Decode()` applies are applied here -
-integer labels only, no duplicate labels, `kty` required, no trailing bytes -
-so a buffer that peeks successfully will not be rejected by the decoder for
-those reasons. Label `-1` is `crv` for EC2/OKP but `k`/`n` for symmetric/RSA
-keys; the value is dispatched on its CBOR type, so `crv` stays 0 for the
-latter. A `key_ops` label returns `WOLFCOSE_E_UNSUPPORTED`, matching decode.
-On any error every field of `info` is cleared.
+The same structural checks `wc_CoseKey_Decode()` applies are applied here:
+no duplicate integer labels, `kty` required, and no trailing bytes. With
+`WOLFCOSE_ENABLE_COSE_TEXT_LABELS`, unknown text labels are also accepted and
+checked for duplicates. Registered COSE_Key parameters remain numeric. Label
+`-1` is `crv` for
+EC2/OKP but `k`/`n` for symmetric/RSA keys; the value is dispatched on its
+CBOR type, so `crv` stays 0 for the latter. A `key_ops` label returns
+`WOLFCOSE_E_UNSUPPORTED`, matching decode. On any error every field of `info`
+is cleared.
 
 **Returns:** `WOLFCOSE_SUCCESS` or error code
 
@@ -1006,23 +1016,74 @@ pin the same algorithm.
 
 ---
 
+## PSA/EAT API
+
+Available only when `WOLFCOSE_ENABLE_EAT_PSA` and the selected profile and
+envelope gates are defined. Include `<wolfcose/eat_psa.h>`. See [[PSA-EAT]]
+for configuration and security requirements.
+
+### wc_CoseEatPsaToken_Verify
+
+```c
+int wc_CoseEatPsaToken_Verify(const WOLFCOSE_KEY* key,
+    const uint8_t* in, size_t inSz,
+    const uint8_t* expectedNonce, size_t expectedNonceLen,
+    uint8_t* scratch, size_t scratchSz,
+    WOLFCOSE_EAT_PSA_TOKEN* token);
+```
+
+Authenticates a tagged, attached RFC 9783 current or selected legacy token,
+checks profile-required claim structure and the expected nonce, then returns
+zero-copy claim spans in `token`. The input buffer must remain unchanged while
+the output token is used. `expectedNonce` is required and must be 32, 48, or
+64 bytes.
+
+### Other PSA/EAT entry points
+
+| Function | Required feature gate | Purpose |
+|----------|-----------------------|---------|
+| `wc_CoseEatPsaToken_EncodeClaims` | `WOLFCOSE_ENABLE_EAT_PSA_ISSUE` | Encode current-profile claims |
+| `wc_CoseEatPsaToken_CreateSign1` | `WOLFCOSE_ENABLE_EAT_PSA_SIGN1_ISSUE` plus common issue | Encode and create a current Sign1 token |
+| `wc_CoseEatPsaToken_CreateMac0` | `WOLFCOSE_ENABLE_EAT_PSA_MAC0_ISSUE` plus common issue | Encode and create a current Mac0 token |
+| `wc_CoseEatPsaToken_VerifyByUeid` | `WOLFCOSE_ENABLE_EAT_PSA_UEID_RESOLVER` | Resolve a candidate key from an untrusted UEID, then authenticate the original token |
+| `wc_CoseEatPsaToken_ForEachComponent` | `WOLFCOSE_ENABLE_EAT_PSA_COMPONENT_ITERATOR` | Decode authenticated software components one at a time |
+
+The three writable buffers passed to either creation API (`claimsBuf`,
+`scratch`, and `out`) must be pairwise disjoint. Exact or partial overlap is
+rejected with `WOLFCOSE_E_INVALID_ARG` before claims are encoded.
+`claimsBuf` must additionally be disjoint from the claims structure, component
+array, and every nonempty input span. The direct `EncodeClaims` output has the
+same input-disjointness requirement; in-place encoding is rejected.
+
+The raw-key verifier rejects `x5chain`; validate certificates outside this API
+before supplying a public key. Verification provides claims for caller policy
+appraisal and does not itself authorize a device.
+
+`wc_CoseEatPsaToken_ForEachComponent()` supplies a component structure that is
+valid only for its callback. The structure's span data borrows from the verified
+input token and remains valid while that input remains unchanged.
+
+---
+
 ## CBOR API
 
 Basic CBOR encoding/decoding functions in `wolfcose.h`:
 
 ### Context Setup
 
-`WOLFCOSE_CBOR_CTX` carries both a mutable `buf` (encode) and a const `cbuf`
-(decode). These set the right one, clear the other, set `bufSz`, and zero
-`idx` in a single call:
+`WOLFCOSE_CBOR_CTX` carries a mutable `buf` for encode output and a const
+`cbuf` for decode input. The initializers set the appropriate pointer, clear
+the opposite pointer, set `bufSz`, and zero `idx` in a single call:
 
 ```c
 int wc_CBOR_EncoderInit(WOLFCOSE_CBOR_CTX* ctx, uint8_t* buf, size_t bufSz);
 int wc_CBOR_DecoderInit(WOLFCOSE_CBOR_CTX* ctx, const uint8_t* buf, size_t bufSz);
 ```
 
-Both are `static inline` in the header, so they cost nothing over assigning
-the fields by hand.
+Use these initializers instead of assigning context fields directly.
+Public CBOR decoding always requires RFC 8949 preferred serialization. The
+optional PSA/EAT verifier handles RFC 9783's permitted definite-length
+variation serialization privately; indefinite-length forms remain unsupported.
 
 ```c
 WOLFCOSE_CBOR_CTX ctx;
@@ -1069,9 +1130,14 @@ is `NULL`.
 | `wc_CBOR_SkipItem(ctx, data, dataLen)` | Skip an item and capture its raw bytes |
 | `wc_CBOR_PeekType(ctx)` | Peek at next item's major type |
 
-> **Decoding is strict by design.** Every decode entry point requires
-> RFC 8949 Section 4.2.1 preferred (shortest-form) arguments and rejects
-> indefinite lengths. See [Getting Started - Strict
+> **Decoding is strict by default.** Ordinary decode entry points require
+> RFC 8949 Section 4.2.1 preferred (shortest-form) arguments and reject
+> indefinite lengths. The optional PSA/EAT verifier privately admits the
+> non-preferred definite-length forms RFC 9783 requires; it never admits
+> indefinite lengths. `wc_CBOR_DecodeHead()`, `wc_CBOR_DecodeLabel()`,
+> `wc_CBOR_Skip()`, and `wc_CBOR_SkipItem()` validate every text string they
+> encounter, even when merely traversing it, and return
+> `WOLFCOSE_E_CBOR_MALFORMED` for invalid UTF-8. See [Getting Started - Strict
 > decoding](Getting-Started.md#strict-decoding-rfc-8949-preferred-serialization)
 > before debugging an interop failure.
 
@@ -1108,7 +1174,8 @@ if (ret == WOLFCOSE_SUCCESS) {
 }
 ```
 
-`wc_CBOR_Skip()` is unchanged. On failure the outputs are untouched.
+`wc_CBOR_Skip()` and `wc_CBOR_SkipItem()` validate UTF-8 in every text string
+they traverse. On failure the capture outputs are untouched.
 
 **Returns:** `WOLFCOSE_SUCCESS` or error code
 
@@ -1130,10 +1197,11 @@ int wc_CBOR_LabelIsText(const WOLFCOSE_CBOR_LABEL* label,
                         const uint8_t* text, size_t textLen);
 ```
 
-RFC 9052 defines `label = int / tstr`, and real COSE and CTAP2 maps use both
-spellings for the same field (`3` vs `"alg"`, `1` vs `"type"`, `2` vs `"id"`).
-`wc_CBOR_DecodeLabel()` consumes one item and reports whichever form it found,
-so a parser writes the dispatch once instead of duplicating a
+RFC 9052 defines `label = int / tstr`. Applications may use either form for
+their own map parameters, while registered COSE parameters retain their
+specified numeric labels. `wc_CBOR_DecodeLabel()` consumes one item and reports
+whichever form it found, so a parser writes the dispatch once instead of
+duplicating a
 `wc_CBOR_PeekType()` branch at every map.
 
 Major types 0 and 1 fill `val` with `isText == 0`; major type 3 fills
@@ -1158,10 +1226,13 @@ else {
 }
 ```
 
-Note that `wc_CoseKey_Decode()` and the COSE header parsers accept integer
-labels only, by design: silently skipping text labels would break their
-duplicate-label enforcement. `wc_CBOR_DecodeLabel()` is for caller-written
-parsers of protocol maps such as CTAP2.
+With `WOLFCOSE_ENABLE_COSE_TEXT_LABELS`, `wc_CoseKey_Decode()` and the COSE
+header parsers accept both forms and bytewise track text-label duplicates,
+including between protected and unprotected header buckets. Registered COSE
+parameters remain numeric: a text label such as `"alg"` or `"kty"` is an
+unknown extension, not an alias for numeric labels 1 or 3. Unknown
+non-critical extensions are skipped; an unknown entry listed in numeric
+`crit` is rejected. Without the gate, these generic parsers reject text labels.
 
 **Returns:** `WOLFCOSE_SUCCESS` or error code
 
@@ -1189,6 +1260,10 @@ parsers of protocol maps such as CTAP2.
 | -9021 | `WOLFCOSE_E_UNSUPPORTED` | Feature not supported |
 | -9022 | `WOLFCOSE_E_MAC_FAIL` | MAC verification failed |
 | -9023 | `WOLFCOSE_E_DETACHED_PAYLOAD` | Detached payload required but not provided |
+| -9030 | `WOLFCOSE_E_EAT_PSA_CLAIM` | PSA/EAT required claim is malformed, missing, or duplicated (PSA/EAT builds only) |
+| -9031 | `WOLFCOSE_E_EAT_PSA_PROFILE` | Token does not match a selected PSA/EAT profile (PSA/EAT builds only) |
+| -9032 | `WOLFCOSE_E_EAT_PSA_NONCE` | Authenticated token nonce does not match the expected nonce (PSA/EAT builds only) |
+| -9033 | `WOLFCOSE_E_EAT_PSA_KEY` | PSA/EAT key resolution failed (PSA/EAT builds only) |
 
 ---
 
@@ -1197,3 +1272,4 @@ parsers of protocol maps such as CTAP2.
 - [[Getting Started]]: Build instructions and examples
 - [[Algorithms]]: Supported algorithms
 - [[Macros]]: Compile-time configuration
+- [[PSA-EAT]]: RFC 9783 PSA attestation support

@@ -1011,16 +1011,17 @@ static int tool_info(const char* inPath)
 
     printf("COSE message: %zu bytes\n", msgLen);
 
-    ctx.buf = msgBuf;
-    ctx.bufSz = msgLen;
-    ctx.idx = 0;
+    ret = wc_CBOR_DecoderInit(&ctx, msgBuf, msgLen);
+    if (ret != WOLFCOSE_SUCCESS) {
+        return EXIT_CRYPTO;
+    }
 
     while (ctx.idx < ctx.bufSz) {
         size_t pos = ctx.idx;
         ret = wc_CBOR_DecodeHead(&ctx, &item);
         if (ret != 0) {
             printf("  [decode error at offset %zu: %d]\n", pos, ret);
-            break;
+            return EXIT_CRYPTO;
         }
 
         for (i = 0; i < (size_t)indent; i++) printf("  ");

@@ -171,6 +171,16 @@ jobs:
         make test CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -I./include -isystem $WOLFSSL_DIR/include" \
                   LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
 
+    - name: Run enabled PSA/EAT tests at the wolfSSL compatibility floor
+      if: matrix.wolfssl-version == 'v5.8.0-stable' && !matrix.pqc
+      run: |
+        export WOLFSSL_DIR=$HOME/wolfssl-install
+        export LD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        CF="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -I./include -isystem $WOLFSSL_DIR/include"
+        LF="-L$WOLFSSL_DIR/lib -lwolfssl"
+        make eat-psa-test CFLAGS="$CF" LDFLAGS="$LF"
+        make eat-psa-config-check CFLAGS="$CF" LDFLAGS="$LF"
+
     - name: Run tool round-trip test
       run: |
         export WOLFSSL_DIR=$HOME/wolfssl-install

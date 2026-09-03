@@ -5,7 +5,7 @@
 set -e
 
 BUDGET="${1:-6144}"
-SU="src/wolfcose.su src/wolfcose_cbor.su"
+SU="src/wolfcose.su src/wolfcose_cbor.su src/wolfcose_eat_psa.su"
 
 for f in $SU; do
     if [ ! -f "$f" ]; then

@@ -88,6 +88,62 @@ jobs:
         make test CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -I./include -isystem $WOLFSSL_DIR/include" \
                   LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
 
+    - name: Run RFC 9783 PSA/EAT conformance tests
+      run: |
+        export WOLFSSL_DIR=$HOME/wolfssl-install
+        export LD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        export DYLD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        make eat-psa-test CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -I./include -isystem $WOLFSSL_DIR/include" \
+                          LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
+
+    - name: Run RFC 9783 PSA/EAT device-onboarding example
+      run: |
+        export WOLFSSL_DIR=$HOME/wolfssl-install
+        export LD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        export DYLD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        make psa-eat-demo CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -I./include -isystem $WOLFSSL_DIR/include" \
+                          LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
+
+    - name: Run RFC 9783 PSA/EAT floating-point decoder-safety tests
+      run: |
+        export WOLFSSL_DIR=$HOME/wolfssl-install
+        export LD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        export DYLD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        make eat-psa-float-test CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -I./include -isystem $WOLFSSL_DIR/include" \
+                                 LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
+
+    - name: Run RFC 9783 PSA/EAT constrained-buffer tests
+      run: |
+        export WOLFSSL_DIR=$HOME/wolfssl-install
+        export LD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        export DYLD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        make eat-psa-min-buffers-test CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -I./include -isystem $WOLFSSL_DIR/include" \
+                                      LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
+
+    - name: Run RFC 9783 PSA/EAT claim-limit boundary tests
+      run: |
+        export WOLFSSL_DIR=$HOME/wolfssl-install
+        export LD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        export DYLD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        make eat-psa-claim-limits-test CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -I./include -isystem $WOLFSSL_DIR/include" \
+                                            LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
+
+    - name: Run isolated RFC 9783 PSA/EAT feature-profile tests
+      run: |
+        export WOLFSSL_DIR=$HOME/wolfssl-install
+        export LD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        export DYLD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        make eat-psa-profile-test CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -I./include -isystem $WOLFSSL_DIR/include" \
+                                   LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
+
+    - name: Check PSA/EAT feature-gate matrix
+      run: |
+        export WOLFSSL_DIR=$HOME/wolfssl-install
+        export LD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        export DYLD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        make eat-psa-config-check CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -I./include -isystem $WOLFSSL_DIR/include" \
+                                   LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
+
     - name: Run zeroize-hook regression test
       run: |
         export WOLFSSL_DIR=$HOME/wolfssl-install
@@ -111,6 +167,24 @@ jobs:
         export DYLD_LIBRARY_PATH=$WOLFSSL_DIR/lib
         make ext-sign-force-failure CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -I./include -isystem $WOLFSSL_DIR/include" \
                                     LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
+
+    - name: Run PSA/EAT delegated signing tests
+      run: |
+        export WOLFSSL_DIR=$HOME/wolfssl-install
+        export LD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        export DYLD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        make eat-psa-ext-sign-test CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -I./include -isystem $WOLFSSL_DIR/include" \
+                                   LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
+        make eat-psa-ext-sign-force-failure CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -I./include -isystem $WOLFSSL_DIR/include" \
+                                             LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
+
+    - name: Run generic reduced-algorithm regression
+      run: |
+        export WOLFSSL_DIR=$HOME/wolfssl-install
+        export LD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        export DYLD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        make generic-reduced-alg-test CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -I./include -isystem $WOLFSSL_DIR/include" \
+                                       LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
 
     - name: Run tool round-trip test
       run: |

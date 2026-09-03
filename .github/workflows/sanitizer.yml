@@ -77,6 +77,13 @@ jobs:
         make test CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Og -g -fsanitize=address -fno-omit-frame-pointer -I./include -isystem $WOLFSSL_DIR/include" \
                   LDFLAGS="-fsanitize=address -L$WOLFSSL_DIR/lib -lwolfssl"
 
+    - name: Run PSA/EAT conformance tests (ASan)
+      run: |
+        export WOLFSSL_DIR=$HOME/wolfssl-asan
+        export LD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        make eat-psa-test CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Og -g -fsanitize=address -fno-omit-frame-pointer -I./include -isystem $WOLFSSL_DIR/include" \
+                          LDFLAGS="-fsanitize=address -L$WOLFSSL_DIR/lib -lwolfssl"
+
     - name: Run delegated signing tests (ASan)
       run: |
         export WOLFSSL_DIR=$HOME/wolfssl-asan
@@ -91,11 +98,20 @@ jobs:
         make ext-sign-force-failure CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Og -g -fsanitize=address -fno-omit-frame-pointer -I./include -isystem $WOLFSSL_DIR/include" \
                                     LDFLAGS="-fsanitize=address -L$WOLFSSL_DIR/lib -lwolfssl"
 
+    - name: Run PSA/EAT delegated signing tests (ASan)
+      run: |
+        export WOLFSSL_DIR=$HOME/wolfssl-asan
+        export LD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        make eat-psa-ext-sign-test CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Og -g -fsanitize=address -fno-omit-frame-pointer -I./include -isystem $WOLFSSL_DIR/include" \
+                                   LDFLAGS="-fsanitize=address -L$WOLFSSL_DIR/lib -lwolfssl"
+        make eat-psa-ext-sign-force-failure CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Og -g -fsanitize=address -fno-omit-frame-pointer -I./include -isystem $WOLFSSL_DIR/include" \
+                                             LDFLAGS="-fsanitize=address -L$WOLFSSL_DIR/lib -lwolfssl"
+
     - name: Forced-failure coverage (ASan)
       run: |
         export WOLFSSL_DIR=$HOME/wolfssl-asan
         export LD_LIBRARY_PATH=$WOLFSSL_DIR/lib
-        make coverage-force-failure CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Og -g -fsanitize=address -fno-omit-frame-pointer -I./include -isystem $WOLFSSL_DIR/include" \
+        make eat-psa-coverage-force-failure CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Og -g -fsanitize=address -fno-omit-frame-pointer -I./include -isystem $WOLFSSL_DIR/include" \
              LDFLAGS="-fsanitize=address -L$WOLFSSL_DIR/lib -lwolfssl"
 
     - name: ECC private-import backend policy (ASan)

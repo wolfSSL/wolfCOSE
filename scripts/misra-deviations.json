@@ -12,6 +12,17 @@
       "expected": 1
     },
     {
+      "id": "D-11.4-001",
+      "rule": "11.4",
+      "path": "src/wolfcose_eat_psa.c",
+      "symbol": "wolfCose_EatPsaBuffersOverlap",
+      "anchors": [
+        "        uintptr_t aStart = (uintptr_t)a;",
+        "        uintptr_t bStart = (uintptr_t)b;"
+      ],
+      "expected": 2
+    },
+    {
       "id": "D-19.2-001",
       "rule": "19.2",
       "path": "include/wolfcose/wolfcose.h",

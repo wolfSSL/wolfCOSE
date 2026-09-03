@@ -41,6 +41,10 @@ int main(void)
     printf("\n--- Interoperability Tests ---\n");
     failures += test_interop();
 
+    printf("\n--- PSA/EAT Tests ---\n");
+    failures += test_eat_psa();
+    failures += test_eat_psa_profiles();
+
     printf("\n=== Results: %s ===\n",
            (failures == 0) ? "ALL PASSED" : "FAILURES");
 

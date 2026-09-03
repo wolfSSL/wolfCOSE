@@ -14,6 +14,7 @@ performance or feature comparison.
 | COSE_Sign1  | ES256/384/512, PS256/384/512, EdDSA (Ed25519, Ed448) |
 | COSE_Mac0   | HMAC 256/384/512                                      |
 | COSE_Encrypt0 | AES-GCM 128/192/256                                |
+| RFC 9783 PSA/EAT | Current TF-M claims in Sign1 ES256 and Mac0 HMAC256 |
 
 Each primitive class also runs a negative case — a tampered signature, MAC tag,
 or AEAD tag — that wolfCOSE must reject.
@@ -21,6 +22,12 @@ or AEAD tag — that wolfCOSE must reject.
 CBOR byte-for-byte equality is an explicit non-goal: CBOR permits multiple valid
 encodings, so the suite verifies that each side *reconstructs and validates* the
 other's output, never that the two producers emit identical bytes.
+
+For the PSA/EAT rows, wolfCOSE builds the current profile claims and each side
+authenticates the other's COSE envelope. On the t_cose to wolfCOSE direction,
+wolfCOSE additionally performs the RFC 9783 claim and nonce checks. t_cose
+does not implement a PSA/EAT profile parser, so its role is intentionally
+limited to independent COSE wire validation.
 
 ## Dependencies (not vendored)
 

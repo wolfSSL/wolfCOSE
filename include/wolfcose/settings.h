@@ -59,8 +59,13 @@ extern "C" {
     #ifndef WOLFCOSE_NO_ENCRYPT0
         #define WOLFCOSE_NO_ENCRYPT0
     #endif
-    #ifndef WOLFCOSE_NO_MAC0
+    /* A PSA/EAT Mac0 opt-in retains verification only for a full #tfm receiver. */
+    #if !defined(WOLFCOSE_NO_MAC0) && \
+        !defined(WOLFCOSE_ENABLE_EAT_PSA_MAC0)
         #define WOLFCOSE_NO_MAC0
+    #endif
+    #ifndef WOLFCOSE_NO_MAC0_CREATE
+        #define WOLFCOSE_NO_MAC0_CREATE
     #endif
     #ifndef WOLFCOSE_NO_KEY_ENCODE
         #define WOLFCOSE_NO_KEY_ENCODE
@@ -136,30 +141,41 @@ extern "C" {
 
 /* ----- Signature algorithms ----- */
 
-/* ES256 — core (on whenever wolfSSL has ECC) */
-#if defined(HAVE_ECC) && !defined(WOLFCOSE_NO_ES256)
+/* ES256 — core. ECC_USER_CURVES keeps P-256 unless NO_ECC256 selects it
+ * out; HAVE_ALL_CURVES is the equivalent all-curves configuration. */
+#if !defined(WOLFCOSE_NO_ES256) && defined(HAVE_ECC) && \
+    !defined(NO_SHA256) && !defined(NO_ECC256) && \
+    (!defined(ECC_MIN_KEY_SZ) || (ECC_MIN_KEY_SZ <= 256))
     #define WOLFCOSE_HAVE_ES256
 #endif
 
-/* ES384 — extension */
+/* ES384 — extension. A custom curve build must opt into P-384 explicitly. */
 #if defined(WOLFCOSE_ENABLE_ES384)
-    #if !defined(HAVE_ECC) || !defined(WOLFSSL_SHA384)
-        #error "WOLFCOSE_ENABLE_ES384 requires wolfSSL HAVE_ECC + WOLFSSL_SHA384"
+    #if !defined(HAVE_ECC) || !defined(WOLFSSL_SHA384) || \
+        (!defined(HAVE_ECC384) && !defined(HAVE_ALL_CURVES)) || \
+        (defined(ECC_MIN_KEY_SZ) && (ECC_MIN_KEY_SZ > 384))
+        #error "WOLFCOSE_ENABLE_ES384 requires wolfSSL P-384 ECC + WOLFSSL_SHA384"
     #endif
     #define WOLFCOSE_HAVE_ES384
 #elif !defined(WOLFCOSE_LEAN) && !defined(WOLFCOSE_NO_ES384) && \
-      defined(HAVE_ECC) && defined(WOLFSSL_SHA384)
+      defined(HAVE_ECC) && defined(WOLFSSL_SHA384) && \
+      (defined(HAVE_ECC384) || defined(HAVE_ALL_CURVES)) && \
+      (!defined(ECC_MIN_KEY_SZ) || (ECC_MIN_KEY_SZ <= 384))
     #define WOLFCOSE_HAVE_ES384
 #endif
 
-/* ES512 — extension */
+/* ES512 — extension. A custom curve build must opt into P-521 explicitly. */
 #if defined(WOLFCOSE_ENABLE_ES512)
-    #if !defined(HAVE_ECC) || !defined(WOLFSSL_SHA512)
-        #error "WOLFCOSE_ENABLE_ES512 requires wolfSSL HAVE_ECC + WOLFSSL_SHA512"
+    #if !defined(HAVE_ECC) || !defined(WOLFSSL_SHA512) || \
+        (!defined(HAVE_ECC521) && !defined(HAVE_ALL_CURVES)) || \
+        (defined(ECC_MIN_KEY_SZ) && (ECC_MIN_KEY_SZ > 521))
+        #error "WOLFCOSE_ENABLE_ES512 requires wolfSSL P-521 ECC + WOLFSSL_SHA512"
     #endif
     #define WOLFCOSE_HAVE_ES512
 #elif !defined(WOLFCOSE_LEAN) && !defined(WOLFCOSE_NO_ES512) && \
-      defined(HAVE_ECC) && defined(WOLFSSL_SHA512)
+      defined(HAVE_ECC) && defined(WOLFSSL_SHA512) && \
+      (defined(HAVE_ECC521) || defined(HAVE_ALL_CURVES)) && \
+      (!defined(ECC_MIN_KEY_SZ) || (ECC_MIN_KEY_SZ <= 521))
     #define WOLFCOSE_HAVE_ES512
 #endif
 
@@ -269,7 +285,8 @@ extern "C" {
 /* ----- MAC algorithms ----- */
 
 /* HMAC-SHA256 — core */
-#if !defined(NO_HMAC) && !defined(WOLFCOSE_NO_HMAC256)
+#if !defined(NO_HMAC) && !defined(NO_SHA256) && \
+    !defined(WOLFCOSE_NO_HMAC256)
     #define WOLFCOSE_HAVE_HMAC256
 #endif
 
@@ -522,6 +539,147 @@ extern "C" {
     #error "WOLFCOSE_NO_CBOR_DECODE conflicts with an enabled decode operation"
 #endif
 
+/* ----- PSA EAT attestation tokens (RFC 9783) -----
+ *
+ * PSA/EAT is always opt-in. The core current-profile decoder, every envelope
+ * family, issuance, legacy compatibility, and convenience helper are selected
+ * independently so an embedded verifier carries only the code it uses.
+ * Generic WOLFCOSE_ENABLE_<algorithm> controls remain the algorithm gates.
+ *
+ *   WOLFCOSE_ENABLE_EAT_PSA                    common PSA/EAT API and types
+ *   WOLFCOSE_ENABLE_EAT_PSA_CURRENT            RFC 9783 TF-M claim profile
+ *   WOLFCOSE_ENABLE_EAT_PSA_SIGN1              tagged Sign1 consumption
+ *   WOLFCOSE_ENABLE_EAT_PSA_MAC0               tagged Mac0 consumption
+ *   WOLFCOSE_ENABLE_EAT_PSA_ISSUE              current claim encoding
+ *   WOLFCOSE_ENABLE_EAT_PSA_SIGN1_ISSUE        tagged Sign1 issuance
+ *   WOLFCOSE_ENABLE_EAT_PSA_MAC0_ISSUE         tagged Mac0 issuance
+ *   WOLFCOSE_ENABLE_EAT_PSA_LEGACY             PSA_IOT_PROFILE_1 consume
+ *   WOLFCOSE_ENABLE_EAT_PSA_UEID_RESOLVER      claim-based key lookup helper
+ *   WOLFCOSE_ENABLE_EAT_PSA_COMPONENT_ITERATOR component traversal helper
+ */
+#if defined(WOLFCOSE_ENABLE_EAT_PSA)
+    #define WOLFCOSE_EAT_PSA
+#endif
+
+#if defined(WOLFCOSE_ENABLE_EAT_PSA_CURRENT)
+    #if !defined(WOLFCOSE_EAT_PSA)
+        #error "WOLFCOSE_ENABLE_EAT_PSA_CURRENT requires EAT_PSA"
+    #endif
+    #define WOLFCOSE_EAT_PSA_CURRENT
+#endif
+
+#if defined(WOLFCOSE_ENABLE_EAT_PSA_LEGACY)
+    #if !defined(WOLFCOSE_EAT_PSA)
+        #error "WOLFCOSE_ENABLE_EAT_PSA_LEGACY requires EAT_PSA"
+    #endif
+    #define WOLFCOSE_EAT_PSA_LEGACY
+#endif
+
+#if defined(WOLFCOSE_ENABLE_EAT_PSA_ISSUE)
+    #if !defined(WOLFCOSE_EAT_PSA_CURRENT) || !defined(WOLFCOSE_CBOR_ENCODE)
+        #error "WOLFCOSE_ENABLE_EAT_PSA_ISSUE requires EAT_PSA_CURRENT and CBOR encode"
+    #endif
+    #define WOLFCOSE_EAT_PSA_ISSUE
+#endif
+
+#if defined(WOLFCOSE_ENABLE_EAT_PSA_SIGN1)
+    #if !defined(WOLFCOSE_EAT_PSA) || !defined(WOLFCOSE_SIGN1_VERIFY) || \
+        !defined(WOLFCOSE_CBOR_DECODE) || \
+        (!defined(WOLFCOSE_HAVE_ES256) && !defined(WOLFCOSE_HAVE_ES384) && \
+         !defined(WOLFCOSE_HAVE_ES512))
+        #error "WOLFCOSE_ENABLE_EAT_PSA_SIGN1 requires EAT_PSA and an ECDSA COSE Sign1 verifier"
+    #endif
+    #define WOLFCOSE_EAT_PSA_SIGN1
+#endif
+
+#if defined(WOLFCOSE_ENABLE_EAT_PSA_MAC0)
+    #if !defined(WOLFCOSE_EAT_PSA) || !defined(WOLFCOSE_MAC0_VERIFY) || \
+        !defined(WOLFCOSE_CBOR_DECODE) || !defined(WOLFCOSE_HAVE_HMAC)
+        #error "WOLFCOSE_ENABLE_EAT_PSA_MAC0 requires EAT_PSA and HMAC COSE Mac0 verify"
+    #endif
+    #define WOLFCOSE_EAT_PSA_MAC0
+#endif
+
+#if defined(WOLFCOSE_ENABLE_EAT_PSA_SIGN1_ISSUE)
+    #if !defined(WOLFCOSE_EAT_PSA_ISSUE) || \
+        !defined(WOLFCOSE_SIGN1_SIGN) || \
+        (!defined(WOLFCOSE_HAVE_ES256) && !defined(WOLFCOSE_HAVE_ES384) && \
+         !defined(WOLFCOSE_HAVE_ES512))
+        #error "EAT_PSA_SIGN1_ISSUE needs EAT_PSA_ISSUE and ECDSA Sign1 signing"
+    #endif
+    #define WOLFCOSE_EAT_PSA_SIGN1_ISSUE
+#endif
+
+#if defined(WOLFCOSE_ENABLE_EAT_PSA_MAC0_ISSUE)
+    #if !defined(WOLFCOSE_EAT_PSA_ISSUE) || \
+        !defined(WOLFCOSE_MAC0_CREATE) || !defined(WOLFCOSE_HAVE_HMAC)
+        #error "EAT_PSA_MAC0_ISSUE needs EAT_PSA_ISSUE and HMAC Mac0 creation"
+    #endif
+    #define WOLFCOSE_EAT_PSA_MAC0_ISSUE
+#endif
+
+#if defined(WOLFCOSE_EAT_PSA_SIGN1) || defined(WOLFCOSE_EAT_PSA_MAC0)
+    #define WOLFCOSE_EAT_PSA_VERIFY
+#endif
+
+/* Text-string COSE labels need additional duplicate-tracking state. Keep the
+ * generic extension opt-in, while enabling it automatically for variation-
+ * tolerant PSA/EAT verification. */
+#if defined(WOLFCOSE_ENABLE_COSE_TEXT_LABELS)
+    #if !defined(WOLFCOSE_CBOR_DECODE)
+        #error "WOLFCOSE_ENABLE_COSE_TEXT_LABELS requires CBOR decode"
+    #endif
+    #define WOLFCOSE_COSE_TEXT_LABELS
+#elif defined(WOLFCOSE_EAT_PSA_VERIFY)
+    #define WOLFCOSE_COSE_TEXT_LABELS
+#endif
+
+#if defined(WOLFCOSE_EAT_PSA) && !defined(WOLFCOSE_EAT_PSA_CURRENT) && \
+    !defined(WOLFCOSE_EAT_PSA_LEGACY)
+    #error "WOLFCOSE_ENABLE_EAT_PSA needs EAT_PSA_CURRENT and/or EAT_PSA_LEGACY"
+#endif
+
+#if defined(WOLFCOSE_EAT_PSA) && !defined(WOLFCOSE_EAT_PSA_VERIFY) && \
+    !defined(WOLFCOSE_EAT_PSA_ISSUE)
+    #error "WOLFCOSE_ENABLE_EAT_PSA needs a verifier and/or issuer operation"
+#endif
+
+#if defined(WOLFCOSE_EAT_PSA_LEGACY) && \
+    !defined(WOLFCOSE_EAT_PSA_VERIFY)
+    #error "WOLFCOSE_ENABLE_EAT_PSA_LEGACY is consume-only and needs a verifier"
+#endif
+
+#if defined(WOLFCOSE_ENABLE_EAT_PSA_UEID_RESOLVER)
+    #if !defined(WOLFCOSE_EAT_PSA_VERIFY)
+        #error "WOLFCOSE_ENABLE_EAT_PSA_UEID_RESOLVER requires an EAT_PSA verifier"
+    #endif
+    #define WOLFCOSE_EAT_PSA_UEID_RESOLVER
+#endif
+
+#if defined(WOLFCOSE_ENABLE_EAT_PSA_COMPONENT_ITERATOR)
+    #if !defined(WOLFCOSE_EAT_PSA_VERIFY)
+        #error "WOLFCOSE_ENABLE_EAT_PSA_COMPONENT_ITERATOR requires an EAT_PSA verifier"
+    #endif
+    #define WOLFCOSE_EAT_PSA_COMPONENT_ITERATOR
+#endif
+
+/* RFC 9783 Section 5.2 gives the standardized #tfm profile a fixed receiver
+ * capability floor: both COSE_Sign1 and COSE_Mac0, with ES256/384/512 and
+ * HMAC 256/256, 384/384, and 512/512. This is intentionally derived rather
+ * than user-selectable. It gates #tfm receiver conformance only: an attester
+ * may issue #tfm with one selected RFC-permitted Sign1 or Mac0 algorithm. */
+#if defined(WOLFCOSE_EAT_PSA_TFM_FULL)
+    #error "WOLFCOSE_EAT_PSA_TFM_FULL is derived; do not define it"
+#endif
+
+#if defined(WOLFCOSE_EAT_PSA_CURRENT) && \
+    defined(WOLFCOSE_EAT_PSA_SIGN1) && defined(WOLFCOSE_EAT_PSA_MAC0) && \
+    defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_HAVE_ES384) && \
+    defined(WOLFCOSE_HAVE_ES512) && defined(WOLFCOSE_HAVE_HMAC256) && \
+    defined(WOLFCOSE_HAVE_HMAC384) && defined(WOLFCOSE_HAVE_HMAC512)
+    #define WOLFCOSE_EAT_PSA_TFM_FULL
+#endif
+
 /* ----- Configurable limits (precedence: -D > WOLFCOSE_MIN_BUFFERS > default) -----
  * Floors track the largest enabled signature algorithm. See docs/Macros.md. */
 #ifndef WOLFCOSE_MAX_SCRATCH_SZ
@@ -564,6 +722,27 @@ extern "C" {
     #endif
 #endif
 
+#if defined(WOLFCOSE_EAT_PSA)
+    /* Maximum software-component maps accepted in one PSA token. This bounds
+     * verification time and issuer input size. */
+    #ifndef WOLFCOSE_EAT_PSA_MAX_COMPONENTS
+        #define WOLFCOSE_EAT_PSA_MAX_COMPONENTS 32u
+    #endif
+#endif
+
+#if defined(WOLFCOSE_EAT_PSA_VERIFY)
+    /* PSA/EAT map keys must be unique, including unknown extension keys. The
+     * allocation-free duplicate check re-scans earlier entries, so bound both
+     * maps to retain predictable verifier time. Defaults leave room for
+     * vendor extensions beyond all standardized claims. */
+    #ifndef WOLFCOSE_EAT_PSA_MAX_CLAIMS
+        #define WOLFCOSE_EAT_PSA_MAX_CLAIMS 64u
+    #endif
+    #ifndef WOLFCOSE_EAT_PSA_MAX_COMPONENT_CLAIMS
+        #define WOLFCOSE_EAT_PSA_MAX_COMPONENT_CLAIMS 16u
+    #endif
+#endif
+
 /* Floor checks: an override below the structural minimum is a build error. */
 #if WOLFCOSE_MAX_SIG_SZ < 132u
     #error "WOLFCOSE_MAX_SIG_SZ below 132 cannot hold an ES256/EdDSA signature"
@@ -576,6 +755,19 @@ extern "C" {
 #endif
 #if WOLFCOSE_MAX_MAP_ITEMS < 4u
     #error "WOLFCOSE_MAX_MAP_ITEMS below 4 is too small for COSE headers"
+#endif
+#if defined(WOLFCOSE_EAT_PSA)
+    #if WOLFCOSE_EAT_PSA_MAX_COMPONENTS < 1u
+        #error "WOLFCOSE_EAT_PSA_MAX_COMPONENTS must permit one component"
+    #endif
+#endif
+#if defined(WOLFCOSE_EAT_PSA_VERIFY)
+    #if WOLFCOSE_EAT_PSA_MAX_CLAIMS < 10u
+        #error "WOLFCOSE_EAT_PSA_MAX_CLAIMS must permit all current-profile claims"
+    #endif
+    #if WOLFCOSE_EAT_PSA_MAX_COMPONENT_CLAIMS < 5u
+        #error "WOLFCOSE_EAT_PSA_MAX_COMPONENT_CLAIMS must permit all component claims"
+    #endif
 #endif
 
 #if defined(WOLFCOSE_HAVE_MLDSA) && (WOLFCOSE_MAX_SCRATCH_SZ < 4096u)

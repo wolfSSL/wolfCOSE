@@ -65,8 +65,30 @@ jobs:
                  --suppress=unreadVariable:tests/test_cose.c \
                  --suppress=unusedVariable:tests/test_cose.c \
                  --inline-suppr \
+                 -itests/test_eat_psa_curve_gates.c \
+                 -itests/test_eat_psa_hash_gates.c \
+                 -itests/test_eat_psa_min_key_gates.c \
                  -I include -I src -I $HOME/wolfssl-install/include \
                  src/ tests/
+
+    - name: Run cppcheck on the full PSA/EAT profile
+      run: |
+        cppcheck --enable=warning,style,performance,portability \
+                 --error-exitcode=1 \
+                 --suppress=missingIncludeSystem \
+                 --inline-suppr \
+                 -DWOLFCOSE_ENABLE_EAT_PSA \
+                 -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
+                 -DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 \
+                 -DWOLFCOSE_ENABLE_EAT_PSA_MAC0 \
+                 -DWOLFCOSE_ENABLE_EAT_PSA_ISSUE \
+                 -DWOLFCOSE_ENABLE_EAT_PSA_SIGN1_ISSUE \
+                 -DWOLFCOSE_ENABLE_EAT_PSA_MAC0_ISSUE \
+                 -DWOLFCOSE_ENABLE_EAT_PSA_LEGACY \
+                 -DWOLFCOSE_ENABLE_EAT_PSA_UEID_RESOLVER \
+                 -DWOLFCOSE_ENABLE_EAT_PSA_COMPONENT_ITERATOR \
+                 -I include -I src -I $HOME/wolfssl-install/include \
+                 src/wolfcose_eat_psa.c
 
   clang-analyzer:
     name: Clang Static Analyzer
@@ -108,8 +130,12 @@ jobs:
 
     - name: Run scan-build
       run: |
+        export LD_LIBRARY_PATH=$HOME/wolfssl-install/lib
         scan-build --status-bugs -o scan-results \
           make CC=clang CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Os -Wall -Wextra -I./include -isystem $HOME/wolfssl-install/include" \
+               LDFLAGS="-L$HOME/wolfssl-install/lib -lwolfssl"
+        scan-build --status-bugs -o scan-results \
+          make eat-psa-test CC=clang CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Os -Wall -Wextra -I./include -isystem $HOME/wolfssl-install/include" \
                LDFLAGS="-L$HOME/wolfssl-install/lib -lwolfssl"
 
     - name: Upload scan-build results
@@ -160,5 +186,8 @@ jobs:
     - name: Build with -fanalyzer
       run: |
         export WOLFSSL_DIR=$HOME/wolfssl-install
+        export LD_LIBRARY_PATH=$WOLFSSL_DIR/lib
         make CC=gcc CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Os -Wall -Wextra -fanalyzer -Werror -I./include -isystem $WOLFSSL_DIR/include" \
+             LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
+        make eat-psa-test CC=gcc CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Os -Wall -Wextra -fanalyzer -Werror -I./include -isystem $WOLFSSL_DIR/include" \
              LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"

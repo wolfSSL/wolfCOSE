@@ -37,6 +37,7 @@
 #include <wolfssl/wolfcrypt/settings.h>
 
 #include <wolfcose/wolfcose.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -69,13 +70,13 @@ static int check_encode_hex(const uint8_t* buf, size_t len,
 static void test_cbor_encode_vectors(void)
 {
     uint8_t buf[64];
-    WOLFCOSE_CBOR_CTX ctx;
+    WOLFCOSE_CBOR_CTX ctx = { 0 };
     int ret;
 
     printf("  [Encode Vectors]\n");
 
     /* 0 -> 0x00 */
-    ctx.buf = buf; ctx.bufSz = sizeof(buf); ctx.idx = 0;
+    ctx.buf = buf; ctx.cbuf = NULL; ctx.bufSz = sizeof(buf); ctx.idx = 0;
     ret = wc_CBOR_EncodeUint(&ctx, 0);
     TEST_ASSERT(ret == 0 && ctx.idx == 1 && buf[0] == 0x00,
                 "uint 0");
@@ -224,7 +225,7 @@ static void test_cbor_encode_vectors(void)
 /* ----- Decode known vectors ----- */
 static void test_cbor_decode_vectors(void)
 {
-    WOLFCOSE_CBOR_CTX ctx;
+    WOLFCOSE_CBOR_CTX ctx = { 0 };
     int ret;
     uint64_t uval;
     int64_t ival;
@@ -395,7 +396,7 @@ static void test_cbor_decode_vectors(void)
 static void test_cbor_roundtrip(void)
 {
     uint8_t buf[256];
-    WOLFCOSE_CBOR_CTX enc, dec;
+    WOLFCOSE_CBOR_CTX enc = { 0 }, dec = { 0 };
     int ret;
     uint64_t uval;
     int64_t ival;
@@ -407,7 +408,7 @@ static void test_cbor_roundtrip(void)
     printf("  [Round-trip]\n");
 
     /* Encode a complex structure: Tag(99) [42, -7, h'DEADBEEF', "hello", {}] */
-    enc.buf = buf; enc.bufSz = sizeof(buf); enc.idx = 0;
+    enc.buf = buf; enc.cbuf = NULL; enc.bufSz = sizeof(buf); enc.idx = 0;
     ret = wc_CBOR_EncodeTag(&enc, 99);
     if (ret == 0) {
         ret = wc_CBOR_EncodeArrayStart(&enc, 5);
@@ -462,7 +463,7 @@ static void test_cbor_roundtrip(void)
 static void test_cbor_nested(void)
 {
     uint8_t buf[128];
-    WOLFCOSE_CBOR_CTX enc, dec;
+    WOLFCOSE_CBOR_CTX enc = { 0 }, dec = { 0 };
     int ret;
     size_t count;
     uint64_t uval;
@@ -472,7 +473,7 @@ static void test_cbor_nested(void)
     printf("  [Nested structures]\n");
 
     /* {1: [10, 20], 2: "abc"} */
-    enc.buf = buf; enc.bufSz = sizeof(buf); enc.idx = 0;
+    enc.buf = buf; enc.cbuf = NULL; enc.bufSz = sizeof(buf); enc.idx = 0;
     ret = wc_CBOR_EncodeMapStart(&enc, 2);
     if (ret == 0) {
         ret = wc_CBOR_EncodeUint(&enc, 1);
@@ -522,7 +523,7 @@ static void test_cbor_nested(void)
 static void test_cbor_skip(void)
 {
     uint8_t buf[128];
-    WOLFCOSE_CBOR_CTX enc, dec;
+    WOLFCOSE_CBOR_CTX enc = { 0 }, dec = { 0 };
     int ret;
     uint64_t uval;
 
@@ -530,7 +531,7 @@ static void test_cbor_skip(void)
 
     /* Encode: [42, {1: "foo", 2: [10, 20, 30]}, 99]
      * Skip the middle map, then read 99 */
-    enc.buf = buf; enc.bufSz = sizeof(buf); enc.idx = 0;
+    enc.buf = buf; enc.cbuf = NULL; enc.bufSz = sizeof(buf); enc.idx = 0;
     ret = wc_CBOR_EncodeArrayStart(&enc, 3);
     if (ret == 0) {
         ret = wc_CBOR_EncodeUint(&enc, 42);
@@ -607,7 +608,7 @@ static void test_cbor_skip_depth(void)
      * WOLFCOSE_CBOR_MAX_DEPTH (8). wc_CBOR_Skip must reject it instead
      * of overflowing its stack-local depth tracker. */
     uint8_t deep[12];
-    WOLFCOSE_CBOR_CTX dec;
+    WOLFCOSE_CBOR_CTX dec = { 0 };
     size_t i;
     int ret;
 
@@ -631,7 +632,7 @@ static void test_cbor_skip_tainted_count(void)
      * with value 0xFFFFFFFFFFFFFFFF to exercise both the
      * `val > bufSz` and `val > SIZE_MAX/2` sanity gates. */
     uint8_t tainted[10];
-    WOLFCOSE_CBOR_CTX dec;
+    WOLFCOSE_CBOR_CTX dec = { 0 };
     int ret;
 
     printf("  [Skip: tainted item count]\n");
@@ -659,7 +660,7 @@ static void test_cbor_decode_simple_not_well_formed(void)
     /* RFC 8949 Section 3.3: two-byte 0xF8 simple value with arg < 32 is
      * not well-formed. */
     uint8_t badSimple[2];
-    WOLFCOSE_CBOR_CTX dec;
+    WOLFCOSE_CBOR_CTX dec = { 0 };
     WOLFCOSE_CBOR_ITEM item;
     int ret;
 
@@ -680,11 +681,11 @@ static void test_cbor_encode_bstr_null_with_len(void)
     /* EncodeBstr with NULL data and non-zero length must reject the
      * call instead of emitting uninitialised buffer contents. */
     uint8_t out[32];
-    WOLFCOSE_CBOR_CTX enc;
+    WOLFCOSE_CBOR_CTX enc = { 0 };
     int ret;
 
     printf("  [Encode: NULL bstr with non-zero length]\n");
-    enc.buf = out;
+    enc.buf = out; enc.cbuf = NULL;
     enc.bufSz = sizeof(out);
     enc.idx = 0;
     ret = wc_CBOR_EncodeBstr(&enc, NULL, 4);
@@ -697,11 +698,11 @@ static void test_cbor_encode_idx_past_bufsz(void)
     /* WOLFCOSE_CBOR_CTX is public; a corrupted idx near SIZE_MAX must not
      * wrap the capacity check and write out of bounds. */
     uint8_t out[8];
-    WOLFCOSE_CBOR_CTX enc;
+    WOLFCOSE_CBOR_CTX enc = { 0 };
     int ret;
 
     printf("  [Encode: idx past bufSz does not wrap]\n");
-    enc.buf = out;
+    enc.buf = out; enc.cbuf = NULL;
     enc.bufSz = sizeof(out);
     enc.idx = SIZE_MAX;
     ret = wc_CBOR_EncodeUint(&enc, 1u);
@@ -718,7 +719,7 @@ static void test_cbor_reject_non_preferred(void)
 {
     /* RFC 8949 4.2.1: arguments must use the shortest form. Overlong encodings
      * of small values must be rejected (F-5374). */
-    WOLFCOSE_CBOR_CTX ctx;
+    WOLFCOSE_CBOR_CTX ctx = { 0 };
     uint64_t uval;
     const uint8_t* data;
     size_t dataLen;
@@ -783,11 +784,201 @@ static void test_cbor_reject_non_preferred(void)
     TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED, "reject overlong array len");
 }
 
+static void test_cbor_public_decode_strictness(void)
+{
+    WOLFCOSE_CBOR_CTX ctx = { 0 };
+    uint64_t value = 1u;
+    static const uint8_t nonPreferredZero[] = { 0x18u, 0x00u };
+    int ret;
+
+    printf("  [Public decoder strictness]\n");
+    ret = wc_CBOR_DecoderInit(&ctx, nonPreferredZero,
+        sizeof(nonPreferredZero));
+    TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "strict decoder initialises");
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CBOR_DecodeUint(&ctx, &value);
+        TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED,
+            "public decoder rejects non-preferred definite item");
+    }
+}
+
+static void test_cbor_utf8_boundaries(void)
+{
+    static const uint8_t valid2[] = { 0xC2u, 0x80u };
+    static const uint8_t valid3E0[] = { 0xE0u, 0xA0u, 0x80u };
+    static const uint8_t valid3Ordinary[] = { 0xE1u, 0x80u, 0x80u };
+    static const uint8_t valid3Ed[] = { 0xEDu, 0x9Fu, 0xBFu };
+    static const uint8_t valid3Ee[] = { 0xEEu, 0x80u, 0x80u };
+    static const uint8_t valid4F0[] = { 0xF0u, 0x90u, 0x80u, 0x80u };
+    static const uint8_t valid4Ordinary[] = { 0xF1u, 0x80u, 0x80u, 0x80u };
+    static const uint8_t valid4F4[] = { 0xF4u, 0x8Fu, 0xBFu, 0xBFu };
+    static const uint8_t truncated2[] = { 0xC2u };
+    static const uint8_t badContinuation[] = { 0xC2u, 0x41u };
+    static const uint8_t overlong2[] = { 0xC0u, 0x80u };
+    static const uint8_t truncated3[] = { 0xE0u, 0xA0u };
+    static const uint8_t overlong3[] = { 0xE0u, 0x80u, 0x80u };
+    static const uint8_t surrogate[] = { 0xEDu, 0xA0u, 0x80u };
+    static const uint8_t truncated4[] = { 0xF0u, 0x90u, 0x80u };
+    static const uint8_t overlong4[] = { 0xF0u, 0x80u, 0x80u, 0x80u };
+    static const uint8_t aboveUnicode[] = { 0xF4u, 0x90u, 0x80u, 0x80u };
+    static const uint8_t invalidLead[] = { 0xF5u, 0x80u, 0x80u, 0x80u };
+    static const struct {
+        const char* name;
+        const uint8_t* bytes;
+        size_t len;
+        int valid;
+    } cases[] = {
+        { "UTF-8 valid U+0080", valid2, sizeof(valid2), 1 },
+        { "UTF-8 valid U+0800", valid3E0, sizeof(valid3E0), 1 },
+        { "UTF-8 valid ordinary 3-byte", valid3Ordinary,
+          sizeof(valid3Ordinary), 1 },
+        { "UTF-8 valid before surrogate range", valid3Ed, sizeof(valid3Ed),
+          1 },
+        { "UTF-8 valid after surrogate range", valid3Ee, sizeof(valid3Ee),
+          1 },
+        { "UTF-8 valid U+10000", valid4F0, sizeof(valid4F0), 1 },
+        { "UTF-8 valid ordinary 4-byte", valid4Ordinary,
+          sizeof(valid4Ordinary), 1 },
+        { "UTF-8 valid U+10FFFF", valid4F4, sizeof(valid4F4), 1 },
+        { "UTF-8 truncated 2-byte", truncated2, sizeof(truncated2), 0 },
+        { "UTF-8 invalid continuation", badContinuation,
+          sizeof(badContinuation), 0 },
+        { "UTF-8 overlong 2-byte", overlong2, sizeof(overlong2), 0 },
+        { "UTF-8 truncated 3-byte", truncated3, sizeof(truncated3), 0 },
+        { "UTF-8 overlong 3-byte", overlong3, sizeof(overlong3), 0 },
+        { "UTF-8 surrogate", surrogate, sizeof(surrogate), 0 },
+        { "UTF-8 truncated 4-byte", truncated4, sizeof(truncated4), 0 },
+        { "UTF-8 overlong 4-byte", overlong4, sizeof(overlong4), 0 },
+        { "UTF-8 above U+10FFFF", aboveUnicode, sizeof(aboveUnicode), 0 },
+        { "UTF-8 invalid leading byte", invalidLead, sizeof(invalidLead), 0 }
+    };
+    WOLFCOSE_CBOR_CTX ctx;
+    uint8_t encoded[8];
+    uint8_t input[8];
+    const uint8_t* decoded = NULL;
+    size_t decodedLen = 0u;
+    size_t idx;
+    size_t i;
+    int ret;
+
+    printf("  [UTF-8 boundaries]\n");
+    for (i = 0u; i < (sizeof(cases) / sizeof(cases[0])); i++) {
+        ret = wc_CBOR_EncoderInit(&ctx, encoded, sizeof(encoded));
+        if (ret == WOLFCOSE_SUCCESS) {
+            ret = wc_CBOR_EncodeTstr(&ctx, cases[i].bytes, cases[i].len);
+        }
+        if (cases[i].valid != 0) {
+            TEST_ASSERT(ret == WOLFCOSE_SUCCESS &&
+                        ctx.idx == (cases[i].len + 1u) &&
+                        encoded[0] == (uint8_t)(0x60u + cases[i].len) &&
+                        memcmp(&encoded[1], cases[i].bytes, cases[i].len) == 0,
+                        cases[i].name);
+        }
+        else {
+            TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED, cases[i].name);
+        }
+
+        input[0] = (uint8_t)(0x60u + cases[i].len);
+        (void)memcpy(&input[1], cases[i].bytes, cases[i].len);
+        ret = wc_CBOR_DecoderInit(&ctx, input, cases[i].len + 1u);
+        if (ret == WOLFCOSE_SUCCESS) {
+            ret = wc_CBOR_DecodeTstr(&ctx, &decoded, &decodedLen);
+        }
+        if (cases[i].valid != 0) {
+            TEST_ASSERT(ret == WOLFCOSE_SUCCESS && decodedLen == cases[i].len &&
+                        memcmp(decoded, cases[i].bytes, cases[i].len) == 0,
+                        cases[i].name);
+        }
+        else {
+            TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED, cases[i].name);
+        }
+    }
+
+    ret = wc_CBOR_EncoderInit(&ctx, encoded, sizeof(encoded));
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CBOR_EncodeTstr(&ctx, NULL, 1u);
+    }
+    TEST_ASSERT(ret == WOLFCOSE_E_INVALID_ARG && ctx.idx == 0u,
+        "tstr NULL with nonzero length is invalid argument");
+
+    ret = wc_CBOR_EncoderInit(&ctx, encoded, sizeof(encoded));
+    idx = ctx.idx;
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CBOR_EncodeTstr(&ctx, invalidLead, sizeof(invalidLead));
+    }
+    TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED && ctx.idx == idx,
+        "tstr encoder validates UTF-8 before writing");
+}
+
+#ifdef WOLFCOSE_FLOAT
+static void test_cbor_float_writers(void)
+{
+    static const uint8_t expectedFloat[] = {
+        0xFAu, 0x3Fu, 0x80u, 0x00u, 0x00u
+    };
+    static const uint8_t expectedDouble[] = {
+        0xFBu, 0x3Fu, 0xF0u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u
+    };
+    WOLFCOSE_CBOR_CTX ctx;
+    uint8_t buf[sizeof(expectedDouble)];
+    uint8_t shortBuf[sizeof(expectedDouble) - 1u];
+    int ret;
+
+    printf("  [Float writers]\n");
+
+    ret = wc_CBOR_EncoderInit(&ctx, buf, sizeof(buf));
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CBOR_EncodeFloat(&ctx, 1.0f);
+    }
+    TEST_ASSERT(ret == WOLFCOSE_SUCCESS && ctx.idx == sizeof(expectedFloat) &&
+                memcmp(buf, expectedFloat, sizeof(expectedFloat)) == 0,
+                "encode IEEE 754 single precision float");
+
+    ret = wc_CBOR_EncoderInit(&ctx, shortBuf, sizeof(expectedFloat) - 1u);
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CBOR_EncodeFloat(&ctx, 1.0f);
+    }
+    TEST_ASSERT(ret == WOLFCOSE_E_BUFFER_TOO_SMALL && ctx.idx == 0u,
+                "reject float writer undersized output");
+
+    ret = wc_CBOR_EncoderInit(&ctx, buf, sizeof(buf));
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CBOR_EncodeDouble(&ctx, 1.0);
+    }
+    TEST_ASSERT(ret == WOLFCOSE_SUCCESS && ctx.idx == sizeof(expectedDouble) &&
+                memcmp(buf, expectedDouble, sizeof(expectedDouble)) == 0,
+                "encode IEEE 754 double precision float");
+
+    ret = wc_CBOR_EncoderInit(&ctx, shortBuf, sizeof(shortBuf));
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CBOR_EncodeDouble(&ctx, 1.0);
+    }
+    TEST_ASSERT(ret == WOLFCOSE_E_BUFFER_TOO_SMALL && ctx.idx == 0u,
+                "reject double writer undersized output");
+
+    ret = wc_CBOR_DecoderInit(&ctx, buf, sizeof(buf));
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CBOR_EncodeFloat(&ctx, 1.0f);
+    }
+    TEST_ASSERT(ret == WOLFCOSE_E_INVALID_ARG,
+                "reject float writer on decoder context");
+
+    ret = wc_CBOR_DecoderInit(&ctx, buf, sizeof(buf));
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CBOR_EncodeDouble(&ctx, 1.0);
+    }
+    TEST_ASSERT(ret == WOLFCOSE_E_INVALID_ARG,
+                "reject double writer on decoder context");
+
+}
+#endif /* WOLFCOSE_FLOAT */
+
 /* ----- Error cases ----- */
 static void test_cbor_errors(void)
 {
     uint8_t buf[8];
-    WOLFCOSE_CBOR_CTX ctx;
+    WOLFCOSE_CBOR_CTX ctx = { 0 };
     int ret;
     uint64_t uval;
     const uint8_t* data;
@@ -811,12 +1002,12 @@ static void test_cbor_errors(void)
     TEST_ASSERT(ret == WOLFCOSE_E_INVALID_ARG, "decode null val");
 
     /* Buffer too small for encode */
-    ctx.buf = buf; ctx.bufSz = 1; ctx.idx = 0;
+    ctx.buf = buf; ctx.cbuf = NULL; ctx.bufSz = 1; ctx.idx = 0;
     ret = wc_CBOR_EncodeUint(&ctx, 1000); /* needs 3 bytes */
     TEST_ASSERT(ret == WOLFCOSE_E_BUFFER_TOO_SMALL, "encode overflow");
 
     /* Buffer too small for bstr data */
-    ctx.buf = buf; ctx.bufSz = 3; ctx.idx = 0;
+    ctx.buf = buf; ctx.cbuf = NULL; ctx.bufSz = 3; ctx.idx = 0;
     { const uint8_t d[] = {1, 2, 3, 4};
       ret = wc_CBOR_EncodeBstr(&ctx, d, 4); /* head=1 + data=4 > 3 */
       TEST_ASSERT(ret == WOLFCOSE_E_BUFFER_TOO_SMALL, "encode bstr overflow"); }
@@ -844,6 +1035,26 @@ static void test_cbor_errors(void)
       ctx.cbuf = in; ctx.bufSz = 1; ctx.idx = 0;
       ret = wc_CBOR_DecodeTstr(&ctx, &data, &dataLen);
       TEST_ASSERT(ret == WOLFCOSE_E_CBOR_TYPE, "decode wrong type tstr"); }
+
+    /* RFC 8949 text strings must contain valid UTF-8, including when the
+     * caller reaches them via a profile parser or Skip(). */
+    { uint8_t in[] = {0x61u, 0xFFu};
+      ctx.cbuf = in; ctx.bufSz = sizeof(in); ctx.idx = 0;
+      ret = wc_CBOR_DecodeTstr(&ctx, &data, &dataLen);
+      TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED,
+                  "decode rejects invalid UTF-8 text");
+      ctx.idx = 0u;
+      ret = wc_CBOR_DecodeHead(&ctx, &item);
+      TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED,
+                  "decode head rejects invalid UTF-8 text");
+      ctx.idx = 0u;
+      ret = wc_CBOR_Skip(&ctx);
+      TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED,
+                  "skip rejects invalid UTF-8 text");
+      ctx.buf = buf; ctx.cbuf = NULL; ctx.bufSz = sizeof(buf); ctx.idx = 0u;
+      ret = wc_CBOR_EncodeTstr(&ctx, &in[1], 1u);
+      TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED,
+                  "encode rejects invalid UTF-8 text"); }
 
     /* Wrong type: expect array, get uint */
     { uint8_t in[] = {0x00};
@@ -905,7 +1116,7 @@ static void test_cbor_errors(void)
 static void test_cbor_negative_map_keys(void)
 {
     uint8_t buf[64];
-    WOLFCOSE_CBOR_CTX enc, dec;
+    WOLFCOSE_CBOR_CTX enc = { 0 }, dec = { 0 };
     int ret;
     int64_t key;
     uint64_t val;
@@ -913,7 +1124,7 @@ static void test_cbor_negative_map_keys(void)
     printf("  [Negative map keys]\n");
 
     /* {1: 2, -1: 1, -2: h'AA'} -- COSE Key style */
-    enc.buf = buf; enc.bufSz = sizeof(buf); enc.idx = 0;
+    enc.buf = buf; enc.cbuf = NULL; enc.bufSz = sizeof(buf); enc.idx = 0;
     ret = wc_CBOR_EncodeMapStart(&enc, 3);
     if (ret == 0) {
         ret = wc_CBOR_EncodeUint(&enc, 1);
@@ -973,7 +1184,7 @@ static void test_cbor_boundary_roundtrip(void)
         {-4294967296LL, 5u}, {-4294967297LL, 9u}, {INT64_MIN, 9u}
     };
     uint8_t buf[16];
-    WOLFCOSE_CBOR_CTX ctx;
+    WOLFCOSE_CBOR_CTX ctx = { 0 };
     uint64_t uval;
     int64_t ival;
     int ret;
@@ -982,7 +1193,7 @@ static void test_cbor_boundary_roundtrip(void)
     printf("  [Boundary Round-trip]\n");
 
     for (i = 0; i < (sizeof(uvec) / sizeof(uvec[0])); i++) {
-        ctx.buf = buf; ctx.bufSz = sizeof(buf); ctx.idx = 0;
+        ctx.buf = buf; ctx.cbuf = NULL; ctx.bufSz = sizeof(buf); ctx.idx = 0;
         ret = wc_CBOR_EncodeUint(&ctx, uvec[i].val);
         TEST_ASSERT(ret == 0 && ctx.idx == uvec[i].len,
                     "uint boundary encode len");
@@ -993,7 +1204,7 @@ static void test_cbor_boundary_roundtrip(void)
     }
 
     for (i = 0; i < (sizeof(ivec) / sizeof(ivec[0])); i++) {
-        ctx.buf = buf; ctx.bufSz = sizeof(buf); ctx.idx = 0;
+        ctx.buf = buf; ctx.cbuf = NULL; ctx.bufSz = sizeof(buf); ctx.idx = 0;
         ret = wc_CBOR_EncodeInt(&ctx, ivec[i].val);
         TEST_ASSERT(ret == 0 && ctx.idx == ivec[i].len,
                     "negint boundary encode len");
@@ -1006,7 +1217,7 @@ static void test_cbor_boundary_roundtrip(void)
 
 static void test_cbor_peektype_bounds(void)
 {
-    WOLFCOSE_CBOR_CTX ctx;
+    WOLFCOSE_CBOR_CTX ctx = { 0 };
     uint8_t buf[1] = {0x40};
 
     printf("  [PeekType bounds]\n");
@@ -1024,32 +1235,56 @@ static void test_cbor_peektype_bounds(void)
 
 static void test_cbor_ctx_init(void)
 {
-    WOLFCOSE_CBOR_CTX ctx;
+    WOLFCOSE_CBOR_CTX ctx = { 0 };
     uint8_t buf[16];
     uint64_t uval = 0;
     int ret;
 
     printf("  [Context initialisers]\n");
 
-    /* Poison every field so a partial init is visible. */
-    ctx.buf = (uint8_t*)0x1;
-    ctx.cbuf = (const uint8_t*)0x1;
+    /* Preserve the committed four-field public ABI. */
+    TEST_ASSERT(offsetof(WOLFCOSE_CBOR_CTX, buf) == 0u &&
+                offsetof(WOLFCOSE_CBOR_CTX, cbuf) == sizeof(uint8_t*) &&
+                offsetof(WOLFCOSE_CBOR_CTX, bufSz) ==
+                    (2u * sizeof(uint8_t*)) &&
+                offsetof(WOLFCOSE_CBOR_CTX, idx) ==
+                    ((2u * sizeof(uint8_t*)) + sizeof(size_t)) &&
+                sizeof(WOLFCOSE_CBOR_CTX) ==
+                    ((2u * sizeof(uint8_t*)) + (2u * sizeof(size_t))),
+                "CBOR context retains committed ABI layout");
+
+    /* Poison every public field so a partial init is visible. */
+    ctx.buf = (uint8_t*)0x1; ctx.cbuf = NULL;
+    ctx.cbuf = (const uint8_t*)0x2;
     ctx.bufSz = 0xDEAD;
     ctx.idx = 0xBEEF;
 
     ret = wc_CBOR_EncoderInit(&ctx, buf, sizeof(buf));
     TEST_ASSERT(ret == 0 && ctx.buf == buf && ctx.cbuf == NULL &&
                 ctx.bufSz == sizeof(buf) && ctx.idx == 0,
-                "encoder init sets encode side only");
+                "encoder initializer resets context");
     ret = wc_CBOR_EncodeUint(&ctx, 1000);
     TEST_ASSERT(ret == 0 && ctx.idx == 3, "encoder init usable");
 
     ret = wc_CBOR_DecoderInit(&ctx, buf, ctx.idx);
-    TEST_ASSERT(ret == 0 && ctx.cbuf == buf && ctx.buf == NULL &&
+    TEST_ASSERT(ret == 0 && ctx.buf == NULL && ctx.cbuf == buf &&
                 ctx.bufSz == 3 && ctx.idx == 0,
-                "decoder init sets decode side only");
+                "decoder initializer resets context");
     ret = wc_CBOR_DecodeUint(&ctx, &uval);
     TEST_ASSERT(ret == 0 && uval == 1000, "decoder init usable");
+    ret = wc_CBOR_EncodeUint(&ctx, 1u);
+    TEST_ASSERT(ret == WOLFCOSE_E_INVALID_ARG,
+                "encoder rejects decoder context");
+
+    /* Preserve source compatibility with callers that manually initialize
+     * the established encoder fields and leave stale decode state behind. */
+    ctx.buf = buf;
+    ctx.cbuf = &buf[1];
+    ctx.bufSz = sizeof(buf);
+    ctx.idx = 0u;
+    ret = wc_CBOR_EncodeUint(&ctx, 23u);
+    TEST_ASSERT(ret == 0 && ctx.idx == 1u && buf[0] == 0x17u,
+                "legacy manual encoder context remains usable");
 
     TEST_ASSERT(wc_CBOR_EncoderInit(NULL, buf, sizeof(buf)) ==
                 WOLFCOSE_E_INVALID_ARG, "encoder init null ctx");
@@ -1063,7 +1298,7 @@ static void test_cbor_ctx_init(void)
 
 static void test_cbor_skip_item(void)
 {
-    WOLFCOSE_CBOR_CTX ctx;
+    WOLFCOSE_CBOR_CTX ctx = { 0 };
     uint8_t buf[64];
     const uint8_t* item = NULL;
     size_t itemLen = 0;
@@ -1112,7 +1347,7 @@ static void test_cbor_skip_item(void)
         /* The captured bytes must parse standalone. */
         /* empty-brace-scan: allow - test-local temporary scope */
         {
-            WOLFCOSE_CBOR_CTX sub;
+            WOLFCOSE_CBOR_CTX sub = { 0 };
             size_t subCount = 0;
 
             (void)wc_CBOR_DecoderInit(&sub, item, itemLen);
@@ -1141,11 +1376,26 @@ static void test_cbor_skip_item(void)
         TEST_ASSERT(ret != 0 && item == NULL && itemLen == 0,
                     "skipitem truncated input fails");
     }
+
+    /* Invalid UTF-8 is rejected without publishing a partial capture. */
+    /* empty-brace-scan: allow - test-local temporary scope */
+    {
+        static const uint8_t invalidUtf8[] = {0x61u, 0xFFu};
+        const uint8_t* sentinel = &invalidUtf8[1];
+
+        item = sentinel;
+        itemLen = 17u;
+        (void)wc_CBOR_DecoderInit(&ctx, invalidUtf8, sizeof(invalidUtf8));
+        ret = wc_CBOR_SkipItem(&ctx, &item, &itemLen);
+        TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED &&
+                    item == sentinel && itemLen == 17u,
+                    "skipitem rejects invalid UTF-8 without output");
+    }
 }
 
 static void test_cbor_decode_label(void)
 {
-    WOLFCOSE_CBOR_CTX ctx;
+    WOLFCOSE_CBOR_CTX ctx = { 0 };
     WOLFCOSE_CBOR_LABEL label;
     uint8_t buf[64];
     static const uint8_t algText[] = "alg";
@@ -1255,6 +1505,18 @@ static void test_cbor_decode_label(void)
         TEST_ASSERT(ret == WOLFCOSE_E_CBOR_TYPE, "bstr rejected as label");
     }
 
+    /* A malformed text label is rejected before a label is published. */
+    /* empty-brace-scan: allow - test-local temporary scope */
+    {
+        static const uint8_t invalidUtf8[] = {0x61u, 0xFFu};
+
+        (void)memset(&label, 0xA5, sizeof(label));
+        (void)wc_CBOR_DecoderInit(&ctx, invalidUtf8, sizeof(invalidUtf8));
+        ret = wc_CBOR_DecodeLabel(&ctx, &label);
+        TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED,
+                    "label rejects invalid UTF-8 text");
+    }
+
     TEST_ASSERT(wc_CBOR_DecodeLabel(NULL, &label) == WOLFCOSE_E_INVALID_ARG,
                 "label null ctx");
     TEST_ASSERT(wc_CBOR_DecodeLabel(&ctx, NULL) == WOLFCOSE_E_INVALID_ARG,
@@ -1284,6 +1546,11 @@ int test_cbor(void)
     test_cbor_encode_bstr_null_with_len();
     test_cbor_encode_idx_past_bufsz();
     test_cbor_reject_non_preferred();
+    test_cbor_public_decode_strictness();
+    test_cbor_utf8_boundaries();
+#ifdef WOLFCOSE_FLOAT
+    test_cbor_float_writers();
+#endif
     test_cbor_errors();
     test_cbor_negative_map_keys();
 

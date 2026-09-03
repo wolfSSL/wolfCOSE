@@ -48,11 +48,13 @@ jobs:
         make -j$(nproc)
         make install
 
-    - name: Build wolfCOSE (-Werror=vla, -fstack-usage)
+    - name: Build full PSA/EAT wolfCOSE (-Werror=vla, -fstack-usage)
       run: |
         export WOLFSSL_DIR=$HOME/wolfssl-full
-        make CFLAGS="-std=c11 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wvla -Werror=vla -fstack-usage -I./include -I$WOLFSSL_DIR/include" \
+        EAT_FLAGS="-DWOLFCOSE_ENABLE_EAT_PSA -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT -DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 -DWOLFCOSE_ENABLE_EAT_PSA_MAC0 -DWOLFCOSE_ENABLE_EAT_PSA_ISSUE -DWOLFCOSE_ENABLE_EAT_PSA_SIGN1_ISSUE -DWOLFCOSE_ENABLE_EAT_PSA_MAC0_ISSUE -DWOLFCOSE_ENABLE_EAT_PSA_LEGACY -DWOLFCOSE_ENABLE_EAT_PSA_UEID_RESOLVER -DWOLFCOSE_ENABLE_EAT_PSA_COMPONENT_ITERATOR"
+        make CFLAGS="-std=c11 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wvla -Werror=vla -fstack-usage -I./include -I$WOLFSSL_DIR/include $EAT_FLAGS" \
              LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
+        grep -q "wc_CoseEatPsaToken_Verify" src/wolfcose_eat_psa.su
 
     - name: Enforce per-frame budget
       run: sh scripts/check_stack_usage.sh "$FRAME_BUDGET"

@@ -6,6 +6,7 @@
  */
 
 #include <wolfcose/wolfcose.h>
+#include <wolfcose/eat_psa.h>
 
 #define WOLFCOSE_MISRA_USE_API(name) total += sizeof(&(name))
 
@@ -113,6 +114,30 @@ static size_t wolfCose_MisraUsePublicApis(void)
 #ifdef WOLFCOSE_MAC_VERIFY
     WOLFCOSE_MISRA_USE_API(wc_CoseMac_Verify);
 #endif
+#ifdef WOLFCOSE_EAT_PSA_ISSUE
+    WOLFCOSE_MISRA_USE_API(wc_CoseEatPsaToken_EncodeClaims);
+    WOLFCOSE_MISRA_USE_API(wc_EatPsaToken_EncodeClaims);
+#endif
+#ifdef WOLFCOSE_EAT_PSA_SIGN1_ISSUE
+    WOLFCOSE_MISRA_USE_API(wc_CoseEatPsaToken_CreateSign1);
+    WOLFCOSE_MISRA_USE_API(wc_EatPsaToken_CreateSign1);
+#endif
+#ifdef WOLFCOSE_EAT_PSA_MAC0_ISSUE
+    WOLFCOSE_MISRA_USE_API(wc_CoseEatPsaToken_CreateMac0);
+    WOLFCOSE_MISRA_USE_API(wc_EatPsaToken_CreateMac0);
+#endif
+#ifdef WOLFCOSE_EAT_PSA_VERIFY
+    WOLFCOSE_MISRA_USE_API(wc_CoseEatPsaToken_Verify);
+    WOLFCOSE_MISRA_USE_API(wc_EatPsaToken_Verify);
+#endif
+#ifdef WOLFCOSE_EAT_PSA_UEID_RESOLVER
+    WOLFCOSE_MISRA_USE_API(wc_CoseEatPsaToken_VerifyByUeid);
+    WOLFCOSE_MISRA_USE_API(wc_EatPsaToken_VerifyByUeid);
+#endif
+#ifdef WOLFCOSE_EAT_PSA_COMPONENT_ITERATOR
+    WOLFCOSE_MISRA_USE_API(wc_CoseEatPsaToken_ForEachComponent);
+    WOLFCOSE_MISRA_USE_API(wc_EatPsaToken_ForEachComponent);
+#endif
 
     return total;
 }
@@ -137,7 +162,13 @@ int main(void)
         WOLFCOSE_CRV_ML_DSA_44,
         WOLFCOSE_CRV_ML_DSA_65,
         WOLFCOSE_CRV_ML_DSA_87,
-        (int32_t)LIBWOLFCOSE_VERSION_HEX
+        (int32_t)LIBWOLFCOSE_VERSION_HEX,
+#ifdef WOLFCOSE_EAT_PSA
+        WOLFCOSE_E_EAT_PSA_CLAIM,
+        WOLFCOSE_E_EAT_PSA_PROFILE,
+        WOLFCOSE_E_EAT_PSA_NONCE,
+        WOLFCOSE_E_EAT_PSA_KEY
+#endif
     };
     size_t used = wolfCose_MisraUsePublicApis();
 
@@ -146,6 +177,10 @@ int main(void)
         used = 0u;
     }
     used += sizeof(LIBWOLFCOSE_VERSION_STRING);
+#ifdef WOLFCOSE_EAT_PSA
+    used += sizeof(WOLFCOSE_EAT_PSA_PROFILE_TFM);
+    used += sizeof(WOLFCOSE_EAT_PSA_PROFILE_LEGACY);
+#endif
 #ifdef WOLFCOSE_RECIPIENTS
     used += 1u;
 #endif
@@ -156,5 +191,6 @@ int main(void)
     used += 1u;
 #endif
 
-    return (used == 0u) ? 1 : 0;
+    (void)used;
+    return 0;
 }
