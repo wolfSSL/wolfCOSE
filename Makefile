@@ -83,6 +83,7 @@ TOOL_BIN  = tools/wolfcose_tool
 DEMO_SRC  = examples/lifecycle_demo.c
 DEMO_BIN  = examples/lifecycle_demo
 ENC_DEMO  = examples/encrypt0_demo
+HPKE_DEMO = examples/hpke_demo
 MAC_DEMO  = examples/mac0_demo
 SIGN1_DEMO = examples/sign1_demo
 LEANV_DEMO = examples/sign1_verify_lean
@@ -103,7 +104,7 @@ SCEN_IOTFLEET    = examples/scenarios/iot_fleet_config
 SCEN_SENSOR      = examples/scenarios/sensor_attestation
 SCEN_BROADCAST   = examples/scenarios/group_broadcast_mac
 
-.PHONY: all shared test pkg-config-test ecdsa-policy-test rsapss-policy-test zero-alloc-check zeroize-test ecc-import-policy-test ext-sign-test ext-sign-demo ext-sign-force-failure coverage tool tool-test cmdline-test demo demos lean-verify mldsa-demo mldsa-verify comprehensive scenarios interop-tcose c99-check experimental-check clean FORCE
+.PHONY: all shared test pkg-config-test ecdsa-policy-test rsapss-policy-test zero-alloc-check zeroize-test ecc-import-policy-test ext-sign-test ext-sign-demo ext-sign-force-failure coverage tool tool-test cmdline-test demo demos hpke-demo lean-verify mldsa-demo mldsa-verify comprehensive scenarios interop-tcose c99-check c99-hpke-check experimental-check clean FORCE
 
 # --- Core library ---
 all: $(LIB_A)
@@ -129,14 +130,22 @@ src/%.o: src/%.c src/wolfcose_internal.h include/wolfcose/wolfcose.h $(BUILD_CON
 # under test. It must exercise the local ECDSA Sign1 signing path even when the
 # caller is testing a no-ECDSA or verify-only configuration.
 ECDSA_POLICY_OPTS ?= -include wolfssl/options.h
-ECDSA_POLICY_BASE_FLAGS = $(CFLAGS) -x c -fsyntax-only -Wno-error \
+WOLFCOSE_POLICY_DISABLE_HPKE_FLAGS = -UWOLFCOSE_ENABLE_HPKE_0 \
+                                      -UWOLFCOSE_ENABLE_HPKE_0_KE \
+                                      -UWOLFCOSE_ENABLE_HPKE_0_ENCRYPT \
+                                      -UWOLFCOSE_ENABLE_HPKE_0_DECRYPT \
+                                      -UWOLFCOSE_ENABLE_HPKE_0_KE_ENCRYPT \
+                                      -UWOLFCOSE_ENABLE_HPKE_0_KE_DECRYPT
+ECDSA_POLICY_BASE_FLAGS = $(CFLAGS) $(WOLFCOSE_POLICY_DISABLE_HPKE_FLAGS) \
+                          -x c -fsyntax-only -Wno-error \
                           $(ECDSA_POLICY_OPTS) -DHAVE_ECC \
                           -UWOLFCOSE_ENABLE_DETERMINISTIC_ECDSA \
                           -UWOLFCOSE_NO_ES256 -UWOLFCOSE_NO_SIGN1 \
                           -UWOLFCOSE_NO_SIGN1_SIGN -UWOLFCOSE_LEAN_VERIFY \
                           -UWOLFCOSE_LEAN_VERIFY_MLDSA \
                           -UWOLFCOSE_LEAN_MLDSA
-ECDSA_POLICY_NO_SUPPORT_FLAGS = $(CFLAGS) -x c -fsyntax-only -Wno-error \
+ECDSA_POLICY_NO_SUPPORT_FLAGS = $(CFLAGS) $(WOLFCOSE_POLICY_DISABLE_HPKE_FLAGS) \
+                                -x c -fsyntax-only -Wno-error \
                                 -DWOLFSSL_NO_OPTIONS_H -DHAVE_ECC \
                                 -UWOLFSSL_ECDSA_DETERMINISTIC_K \
                                 -UWOLFSSL_ECDSA_DETERMINISTIC_K_VARIANT \
@@ -249,18 +258,18 @@ ecdsa-policy-test:
 	echo "PASS: optional ECDSA nonce policy enforced"
 
 rsapss-policy-test:
-	$(CC) $(CFLAGS) -Werror=unused-function -fsyntax-only \
+	$(CC) $(CFLAGS) $(WOLFCOSE_POLICY_DISABLE_HPKE_FLAGS) -Werror=unused-function -fsyntax-only \
 	    -DWOLFCOSE_NO_SIGN1 -DWOLFCOSE_NO_SIGN src/wolfcose.c
-	$(CC) $(CFLAGS) -x c -fsyntax-only -DWOLFSSL_NO_OPTIONS_H \
+	$(CC) $(CFLAGS) $(WOLFCOSE_POLICY_DISABLE_HPKE_FLAGS) -x c -fsyntax-only -DWOLFSSL_NO_OPTIONS_H \
 	    -DWC_RSA_PSS -DWOLFCOSE_NO_KEY_ENCODE \
 	    -DWOLFCOSE_ENABLE_RSAPSS src/wolfcose.c
-	$(CC) $(CFLAGS) -x c -fsyntax-only -DWOLFSSL_NO_OPTIONS_H \
+	$(CC) $(CFLAGS) $(WOLFCOSE_POLICY_DISABLE_HPKE_FLAGS) -x c -fsyntax-only -DWOLFSSL_NO_OPTIONS_H \
 	    -DWC_RSA_PSS -DWOLFCOSE_LEAN_VERIFY \
 	    -DWOLFCOSE_ENABLE_RSAPSS src/wolfcose.c
 	@set -e; \
 	log_file=$$(mktemp "$${TMPDIR:-/tmp}/wolfcose-rsapss.XXXXXX"); \
 	trap 'rm -f "$$log_file"' 0 1 2 3 15; \
-	if $(CC) $(CFLAGS) -x c -fsyntax-only -DWOLFSSL_NO_OPTIONS_H \
+	if $(CC) $(CFLAGS) $(WOLFCOSE_POLICY_DISABLE_HPKE_FLAGS) -x c -fsyntax-only -DWOLFSSL_NO_OPTIONS_H \
 	    -UHAVE_ECC -UWOLFSSL_EXPORT_INT \
 	    -DWC_RSA_PSS -DWOLFCOSE_ENABLE_RSAPSS \
 	    -DWOLFSSL_RSA_VERIFY_ONLY -DWOLFCOSE_LEAN_VERIFY \
@@ -270,7 +279,7 @@ rsapss-policy-test:
 	fi; \
 	grep -q "RSA-PSS key validation requires WOLFSSL_EXPORT_INT" \
 	    "$$log_file"
-	$(CC) $(CFLAGS) -x c -fsyntax-only -DWOLFSSL_NO_OPTIONS_H \
+	$(CC) $(CFLAGS) $(WOLFCOSE_POLICY_DISABLE_HPKE_FLAGS) -x c -fsyntax-only -DWOLFSSL_NO_OPTIONS_H \
 	    -UHAVE_ECC -UWOLFSSL_EXPORT_INT \
 	    -DWC_RSA_PSS -DWOLFCOSE_ENABLE_RSAPSS \
 	    -DWOLFSSL_RSA_VERIFY_ONLY -DWOLFSSL_EXPORT_INT \
@@ -279,7 +288,7 @@ rsapss-policy-test:
 	log_file=$$(mktemp "$${TMPDIR:-/tmp}/wolfcose-rsapss.XXXXXX"); \
 	trap 'rm -f "$$log_file"' 0 1 2 3 15; \
 	for backend in WOLF_CRYPTO_CB WOLFSSL_MICROCHIP_TA100; do \
-	    if $(CC) $(CFLAGS) -x c -fsyntax-only -DWOLFSSL_NO_OPTIONS_H \
+	    if $(CC) $(CFLAGS) $(WOLFCOSE_POLICY_DISABLE_HPKE_FLAGS) -x c -fsyntax-only -DWOLFSSL_NO_OPTIONS_H \
 	        -UHAVE_ECC -UWOLFSSL_EXPORT_INT \
 	        -DWC_RSA_PSS -DWOLFCOSE_ENABLE_RSAPSS \
 	        -DWOLFSSL_RSA_VERIFY_ONLY -D$$backend \
@@ -386,6 +395,19 @@ demos: $(LIB_A)
 	./$(MAC_DEMO)
 	./$(SIGN1_DEMO)
 
+# --- Experimental COSE-HPKE example ---
+# The library is compiled directly because HPKE is intentionally opt-in and
+# the default libwolfcose.a does not contain the experimental paths.
+hpke-demo:
+	$(CC) $(CFLAGS) -DWOLFCOSE_EXPERIMENTAL \
+	    -DWOLFCOSE_ENABLE_HPKE_0_ENCRYPT \
+	    -DWOLFCOSE_ENABLE_HPKE_0_DECRYPT \
+	    -DWOLFCOSE_ENABLE_HPKE_0_KE_ENCRYPT \
+	    -DWOLFCOSE_ENABLE_HPKE_0_KE_DECRYPT \
+	    -o $(HPKE_DEMO) $(HPKE_DEMO).c $(SRC) $(LDFLAGS) $(LDLIBS)
+	@echo "=== Running experimental COSE-HPKE example ==="
+	./$(HPKE_DEMO)
+
 # --- Lean verify-only example (WOLFCOSE_LEAN_VERIFY) ---
 # Compiles the wolfCOSE sources directly with the lean macro instead of the full
 # prebuilt library, so the example exercises the minimal verify-only profile.
@@ -481,7 +503,7 @@ C99_FLAGS = -std=c99 -pedantic-errors -Werror -Wall -Wextra -Wshadow -Wconversio
             -Wvla -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 \
             -I./include $(C99_WOLFSSL_CFLAGS) $(EXTRA_CFLAGS)
 C99_SRC   = $(SRC) $(TEST_SRC) $(TOOL_SRC) $(DEMO_SRC) \
-            $(ENC_DEMO).c $(MAC_DEMO).c $(SIGN1_DEMO).c \
+            $(ENC_DEMO).c $(HPKE_DEMO).c $(MAC_DEMO).c $(SIGN1_DEMO).c \
             $(COMP_SIGN).c $(COMP_ENCRYPT).c $(COMP_MAC).c $(COMP_ERRORS).c \
             $(SCEN_FIRMWARE).c $(SCEN_MULTIPARTY).c $(SCEN_IOTFLEET).c \
             $(SCEN_SENSOR).c $(SCEN_BROADCAST).c $(EXTSIGN_DEMO).c
@@ -490,6 +512,26 @@ C99_SRC   = $(SRC) $(TEST_SRC) $(TOOL_SRC) $(DEMO_SRC) \
 # conditionally-compiled translation unit, not just the default subset.
 C99_CONFIGS = "" "-DWOLFCOSE_FLOAT" "-DWOLFCOSE_ENABLE_EXT_SIGN" \
     "-DWOLFCOSE_ENABLE_EXT_SIGN -DWOLFCOSE_NO_EDDSA -DWOLFCOSE_NO_ED448"
+HPKE_C99_CONFIG = -DWOLFCOSE_EXPERIMENTAL -DWOLFCOSE_BUILD_TOOL \
+    -DWOLFCOSE_ENABLE_HPKE_0_ENCRYPT \
+    -DWOLFCOSE_ENABLE_HPKE_0_DECRYPT \
+    -DWOLFCOSE_ENABLE_HPKE_0_KE_ENCRYPT \
+    -DWOLFCOSE_ENABLE_HPKE_0_KE_DECRYPT
+HPKE_C99_CONFIGS = \
+    "-DWOLFCOSE_EXPERIMENTAL -DWOLFCOSE_BUILD_TOOL -DWOLFCOSE_ENABLE_HPKE_0" \
+    "-DWOLFCOSE_EXPERIMENTAL -DWOLFCOSE_BUILD_TOOL -DWOLFCOSE_ENABLE_HPKE_0_KE" \
+    "-DWOLFCOSE_EXPERIMENTAL -DWOLFCOSE_BUILD_TOOL -DWOLFCOSE_ENABLE_HPKE_0_ENCRYPT" \
+    "-DWOLFCOSE_EXPERIMENTAL -DWOLFCOSE_BUILD_TOOL -DWOLFCOSE_ENABLE_HPKE_0_DECRYPT" \
+    "-DWOLFCOSE_EXPERIMENTAL -DWOLFCOSE_BUILD_TOOL -DWOLFCOSE_ENABLE_HPKE_0_KE_ENCRYPT" \
+    "-DWOLFCOSE_EXPERIMENTAL -DWOLFCOSE_BUILD_TOOL -DWOLFCOSE_ENABLE_HPKE_0_KE_DECRYPT" \
+    "$(HPKE_C99_CONFIG)" \
+    "$(HPKE_C99_CONFIG) -DNO_ECC256 -DHAVE_ALL_CURVES -DHAVE_ECC_KOBLITZ"
+# Prefer the explicitly selected HPKE backend over an unrelated host install.
+# Treat backend headers as system headers so this gate judges gated wolfCOSE
+# syntax, including when the selected wolfSSL version uses C11 extensions.
+# Re-add the common local prefix late because macOS Clang otherwise searches it
+# before a caller-selected -isystem directory.
+HPKE_C99_FLAGS = $(C99_FLAGS) -Wno-unused-function -isystem /usr/local/include
 
 c99-check:
 	@for cfg in $(C99_CONFIGS); do \
@@ -512,6 +554,14 @@ EXP_FLAGS = -std=c99 -pedantic-errors -I./include $(C99_WOLFSSL_CFLAGS) \
 # Include settings.h plus one declaration so the stub is a valid C99 TU.
 EXP_TU = printf '\#include <wolfcose/settings.h>\nint wolfcose_experimental_gate_check;\n'
 
+EXP_HPKE_ENABLES = \
+    WOLFCOSE_ENABLE_HPKE_0 \
+    WOLFCOSE_ENABLE_HPKE_0_KE \
+    WOLFCOSE_ENABLE_HPKE_0_ENCRYPT \
+    WOLFCOSE_ENABLE_HPKE_0_DECRYPT \
+    WOLFCOSE_ENABLE_HPKE_0_KE_ENCRYPT \
+    WOLFCOSE_ENABLE_HPKE_0_KE_DECRYPT
+
 experimental-check:
 	@echo "  EXP feature without acknowledgement (expect error)"
 	@if $(EXP_TU) | \
@@ -528,14 +578,38 @@ experimental-check:
 	@$(EXP_TU) | \
 	    $(CC) $(EXP_FLAGS) -DWOLFCOSE_ENABLE_EXPERIMENTAL_EXAMPLE \
 	    -DWOLFCOSE_EXPERIMENTAL -fsyntax-only -x c -
+	@for enable in $(EXP_HPKE_ENABLES); do \
+	    echo "  EXP COSE-HPKE $$enable without acknowledgement (expect error)"; \
+	    if $(EXP_TU) | $(CC) $(EXP_FLAGS) -D$$enable \
+	        -fsyntax-only -x c - 2>experimental-check.err; then \
+	        echo "FAIL: COSE-HPKE $$enable compiled without WOLFCOSE_EXPERIMENTAL"; \
+	        rm -f experimental-check.err; exit 1; \
+	    fi; \
+	    if ! grep -q WOLFCOSE_EXPERIMENTAL experimental-check.err; then \
+	        echo "FAIL: COSE-HPKE $$enable gate error did not mention WOLFCOSE_EXPERIMENTAL"; \
+	        cat experimental-check.err; rm -f experimental-check.err; exit 1; \
+	    fi; \
+	    rm -f experimental-check.err; \
+	done
 	@echo "  EXP normal build (expect pass, zero experimental code)"
 	@$(EXP_TU) | \
 	    $(CC) $(EXP_FLAGS) -fsyntax-only -x c -
 	@echo "PASS: WOLFCOSE_EXPERIMENTAL gate enforced"
 
+# Requires WOLFSSL_INC to name an HPKE-enabled wolfSSL installation. Keep this
+# separate from c99-check so the normal strict gate remains backend-neutral.
+c99-hpke-check:
+	@for cfg in $(HPKE_C99_CONFIGS); do \
+	  for f in $(C99_SRC); do \
+	    echo "  C99 HPKE $$cfg $$f"; \
+	    $(CC) $(HPKE_C99_FLAGS) $$cfg -fsyntax-only $$f || exit 1; \
+	  done; \
+	done
+	@echo "PASS: all experimental HPKE sources conform to ISO C99 (-pedantic-errors)"
+
 # --- Cleanup ---
 clean:
-	rm -f $(OBJ) $(TEST_BIN) $(TOOL_BIN) $(DEMO_BIN) $(ENC_DEMO) $(MAC_DEMO) \
+	rm -f $(OBJ) $(TEST_BIN) $(TOOL_BIN) $(DEMO_BIN) $(ENC_DEMO) $(HPKE_DEMO) $(MAC_DEMO) \
 	    $(EXTSIGN_DEMO) $(SIGN1_DEMO) $(COMP_SIGN) $(COMP_ENCRYPT) $(COMP_MAC) $(COMP_ERRORS) \
 	    $(SCEN_FIRMWARE) $(SCEN_MULTIPARTY) $(SCEN_IOTFLEET) $(SCEN_SENSOR) $(SCEN_BROADCAST) \
 	    $(INTEROP_DIR)/*.o $(INTEROP_DIR)/*.su $(INTEROP_BIN) \

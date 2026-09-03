@@ -42,8 +42,11 @@
 #include "../src/wolfcose_internal.h"  /* For testing internal helpers */
 #include "test_suite.h"
 #include <wolfssl/wolfcrypt/random.h>
-#ifdef WOLFCOSE_HAVE_ES256
+#if defined(WOLFCOSE_HAVE_ES256) || defined(WOLFCOSE_HAVE_HPKE_0)
     #include <wolfssl/wolfcrypt/ecc.h>
+#endif
+#if defined(WOLFCOSE_HAVE_HPKE_0)
+    #include <wolfssl/wolfcrypt/hpke.h>
 #endif
 #ifdef WOLFCOSE_HAVE_EDDSA
     #include <wolfssl/wolfcrypt/ed25519.h>
@@ -67,6 +70,7 @@
 #ifdef WOLFCOSE_TEST_LOG_ENABLE
     #include <stdio.h>
 #endif
+#include <stddef.h>
 #include <string.h>
 #ifdef WOLFCOSE_FORCE_FAILURE
     #include "force_failure.h"
@@ -97,6 +101,46 @@ static int g_failures = 0;
         TEST_LOG("  PASS: %s\n", (name));                      \
     }                                                          \
 } while (0)
+
+/* This replica is the public WOLFCOSE_HDR layout before COSE-HPKE was added.
+ * Keep the compatibility check in the default test build so a feature-gated
+ * addition cannot silently grow the ABI-visible structure. */
+typedef struct WOLFCOSE_HDR_PRE_HPKE {
+    int32_t        alg;
+    const uint8_t* kid;
+    size_t         kidLen;
+    const uint8_t* iv;
+    size_t         ivLen;
+    const uint8_t* partialIv;
+    size_t         partialIvLen;
+    int32_t        contentType;
+    uint8_t        flags;
+} WOLFCOSE_HDR_PRE_HPKE;
+
+static void test_cose_hdr_abi_layout(void)
+{
+    TEST_LOG("  [WOLFCOSE_HDR ABI layout]\n");
+    TEST_ASSERT(sizeof(WOLFCOSE_HDR) == sizeof(WOLFCOSE_HDR_PRE_HPKE),
+                "hpke preserves WOLFCOSE_HDR size");
+    TEST_ASSERT(offsetof(WOLFCOSE_HDR, alg) ==
+                offsetof(WOLFCOSE_HDR_PRE_HPKE, alg),
+                "hpke preserves WOLFCOSE_HDR alg offset");
+    TEST_ASSERT(offsetof(WOLFCOSE_HDR, kid) ==
+                offsetof(WOLFCOSE_HDR_PRE_HPKE, kid),
+                "hpke preserves WOLFCOSE_HDR kid offset");
+    TEST_ASSERT(offsetof(WOLFCOSE_HDR, iv) ==
+                offsetof(WOLFCOSE_HDR_PRE_HPKE, iv),
+                "hpke preserves WOLFCOSE_HDR iv offset");
+    TEST_ASSERT(offsetof(WOLFCOSE_HDR, partialIv) ==
+                offsetof(WOLFCOSE_HDR_PRE_HPKE, partialIv),
+                "hpke preserves WOLFCOSE_HDR partial IV offset");
+    TEST_ASSERT(offsetof(WOLFCOSE_HDR, contentType) ==
+                offsetof(WOLFCOSE_HDR_PRE_HPKE, contentType),
+                "hpke preserves WOLFCOSE_HDR content type offset");
+    TEST_ASSERT(offsetof(WOLFCOSE_HDR, flags) ==
+                offsetof(WOLFCOSE_HDR_PRE_HPKE, flags),
+                "hpke preserves WOLFCOSE_HDR flags offset");
+}
 
 #if (defined(WOLFCOSE_MAC) && defined(WOLFCOSE_HAVE_HMAC256)) || \
     (defined(WOLFCOSE_ENCRYPT) && defined(WOLFCOSE_HAVE_AESGCM))
@@ -196,6 +240,61 @@ static int find_recipient_direct_alg(const uint8_t* msg, size_t msgLen,
     return ret;
 }
 #endif
+
+#ifdef WOLFCOSE_HAVE_HPKE_0
+/* Decode fixed, public draft-vector literals without adding a wolfSSL
+ * Base16 feature requirement to HPKE test builds. */
+static int test_cose_hex_digit(uint8_t hex, uint8_t* digit)
+{
+    int ret = WOLFCOSE_SUCCESS;
+
+    if (digit == NULL) {
+        ret = WOLFCOSE_E_INVALID_ARG;
+    }
+    else if ((hex >= (uint8_t)'0') && (hex <= (uint8_t)'9')) {
+        *digit = (uint8_t)(hex - (uint8_t)'0');
+    }
+    else if ((hex >= (uint8_t)'a') && (hex <= (uint8_t)'f')) {
+        *digit = (uint8_t)(hex - (uint8_t)'a' + 10u);
+    }
+    else if ((hex >= (uint8_t)'A') && (hex <= (uint8_t)'F')) {
+        *digit = (uint8_t)(hex - (uint8_t)'A' + 10u);
+    }
+    else {
+        ret = WOLFCOSE_E_INVALID_ARG;
+    }
+
+    return ret;
+}
+
+static int test_cose_hex_decode(const uint8_t* hex, size_t hexLen,
+    uint8_t* out, size_t outSz, size_t* outLen)
+{
+    size_t i;
+    uint8_t high = 0u;
+    uint8_t low = 0u;
+    int ret = WOLFCOSE_SUCCESS;
+
+    if ((hex == NULL) || (out == NULL) || (outLen == NULL) ||
+        ((hexLen & 1u) != 0u) || (outSz < (hexLen / 2u))) {
+        ret = WOLFCOSE_E_INVALID_ARG;
+    }
+    for (i = 0u; (ret == WOLFCOSE_SUCCESS) && (i < hexLen); i += 2u) {
+        ret = test_cose_hex_digit(hex[i], &high);
+        if (ret == WOLFCOSE_SUCCESS) {
+            ret = test_cose_hex_digit(hex[i + 1u], &low);
+        }
+        if (ret == WOLFCOSE_SUCCESS) {
+            out[i / 2u] = (uint8_t)((high << 4) | low);
+        }
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        *outLen = hexLen / 2u;
+    }
+
+    return ret;
+}
+#endif /* WOLFCOSE_HAVE_HPKE_0 */
 
 /* ----- Internal helper tests ----- */
 static void test_wolfcose_force_zero(void)
@@ -9449,6 +9548,1584 @@ static void test_cose_encrypt_multi_recipient(void)
     wc_CoseKey_Free(&key2);
 }
 
+#endif /* WOLFCOSE_ENCRYPT && WOLFCOSE_HAVE_AESGCM && WOLFCOSE_KEY_WRAP */
+
+#if (defined(WOLFCOSE_HPKE_0_ENCRYPT) && \
+     defined(WOLFCOSE_HPKE_0_DECRYPT)) || \
+    (defined(WOLFCOSE_HPKE_0_KE_ENCRYPT) && \
+     defined(WOLFCOSE_HPKE_0_KE_DECRYPT))
+static int test_cose_hpke_ciphertext_len(const uint8_t* encoded,
+    size_t encodedLen, uint64_t expectedTag, size_t expectedItems,
+    size_t* ciphertextLen)
+{
+    WOLFCOSE_CBOR_CTX ctx;
+    uint64_t tag = 0u;
+    size_t items = 0u;
+    const uint8_t* ciphertext = NULL;
+    int ret;
+
+    if ((encoded == NULL) || (ciphertextLen == NULL)) {
+        return WOLFCOSE_E_INVALID_ARG;
+    }
+    (void)XMEMSET(&ctx, 0, sizeof(ctx));
+    ctx.cbuf = encoded;
+    ctx.bufSz = encodedLen;
+    ret = wc_CBOR_DecodeTag(&ctx, &tag);
+    if ((ret == WOLFCOSE_SUCCESS) && (tag != expectedTag)) {
+        ret = WOLFCOSE_E_COSE_BAD_HDR;
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CBOR_DecodeArrayStart(&ctx, &items);
+    }
+    if ((ret == WOLFCOSE_SUCCESS) && (items != expectedItems)) {
+        ret = WOLFCOSE_E_COSE_BAD_HDR;
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CBOR_Skip(&ctx);
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CBOR_Skip(&ctx);
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CBOR_DecodeBstr(&ctx, &ciphertext, ciphertextLen);
+    }
+    return ret;
+}
+#endif
+
+#if defined(WOLFCOSE_HPKE_0_ENCRYPT) && defined(WOLFCOSE_HPKE_0_DECRYPT)
+static void test_cose_hpke_encrypt0(void)
+{
+    WOLFCOSE_KEY recipientKey;
+    WOLFCOSE_KEY wrongKey;
+#if defined(HAVE_ECC_KOBLITZ)
+    WOLFCOSE_KEY nonP256Key;
+#endif
+    WOLFCOSE_HDR hdr;
+    ecc_key recipientEcc;
+    ecc_key wrongEcc;
+#if defined(HAVE_ECC_KOBLITZ)
+    ecc_key nonP256Ecc;
+#endif
+    WC_RNG rng;
+    int ret = WOLFCOSE_SUCCESS;
+    int rngInited = 0;
+    int recipientEccInited = 0;
+    int wrongEccInited = 0;
+#if defined(HAVE_ECC_KOBLITZ)
+    int nonP256EccInited = 0;
+#endif
+    int recipientKeyInited = 0;
+    int wrongKeyInited = 0;
+#if defined(HAVE_ECC_KOBLITZ)
+    int nonP256KeyInited = 0;
+#endif
+    uint8_t out[512];
+    uint8_t detached[128];
+    uint8_t plaintext[128];
+    uint8_t scratch[256];
+    size_t outLen = 0u;
+    size_t detachedLen = 0u;
+    size_t plaintextLen = 0u;
+    size_t ciphertextLen = 0u;
+    const uint8_t kid[] = "hpke-recipient";
+    const uint8_t payload[] = "COSE HPKE integrated encryption";
+    const uint8_t emptyPayload[] = { 0u };
+    const uint8_t aad[] = "hpke external aad";
+    const uint8_t wrongAad[] = "wrong hpke external aad";
+
+    TEST_LOG("  [COSE HPKE-0 Encrypt0]\n");
+    (void)XMEMSET(&recipientEcc, 0, sizeof(recipientEcc));
+    (void)XMEMSET(&wrongEcc, 0, sizeof(wrongEcc));
+#if defined(HAVE_ECC_KOBLITZ)
+    (void)XMEMSET(&nonP256Ecc, 0, sizeof(nonP256Ecc));
+#endif
+
+    ret = wc_InitRng(&rng);
+    TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke encrypt0 rng init");
+    if (ret == WOLFCOSE_SUCCESS) {
+        rngInited = 1;
+        ret = wc_ecc_init(&recipientEcc);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke encrypt0 recipient ecc init");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        recipientEccInited = 1;
+        ret = wc_ecc_make_key(&rng, 32, &recipientEcc);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke encrypt0 recipient key make");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_ecc_init(&wrongEcc);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke encrypt0 wrong ecc init");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        wrongEccInited = 1;
+        ret = wc_ecc_make_key(&rng, 32, &wrongEcc);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke encrypt0 wrong key make");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CoseKey_Init(&recipientKey);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke encrypt0 recipient key init");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        recipientKeyInited = 1;
+        ret = wc_CoseKey_SetEcc(&recipientKey, WOLFCOSE_CRV_P256,
+                                &recipientEcc);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke encrypt0 recipient key set");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        recipientKey.alg = WOLFCOSE_ALG_HPKE_0;
+        recipientKey.hasPrivate = 0u;
+        ret = wc_CoseKey_Init(&wrongKey);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke encrypt0 wrong key init");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        wrongKeyInited = 1;
+        ret = wc_CoseKey_SetEcc(&wrongKey, WOLFCOSE_CRV_P256, &wrongEcc);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke encrypt0 wrong key set");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        wrongKey.alg = WOLFCOSE_ALG_HPKE_0;
+    }
+#if defined(HAVE_ECC_KOBLITZ)
+    if (rngInited != 0) {
+        int curveRet;
+        size_t curveOutLen = sizeof(out);
+
+        curveRet = wc_ecc_init(&nonP256Ecc);
+        TEST_ASSERT(curveRet == WOLFCOSE_SUCCESS,
+                    "hpke encrypt0 non-P256 ecc init");
+        if (curveRet == WOLFCOSE_SUCCESS) {
+            nonP256EccInited = 1;
+            curveRet = wc_ecc_make_key_ex(&rng, 32, &nonP256Ecc,
+                                           ECC_SECP256K1);
+            TEST_ASSERT(curveRet == WOLFCOSE_SUCCESS,
+                        "hpke encrypt0 non-P256 key make");
+        }
+        if (curveRet == WOLFCOSE_SUCCESS) {
+            curveRet = wc_CoseKey_Init(&nonP256Key);
+            TEST_ASSERT(curveRet == WOLFCOSE_SUCCESS,
+                        "hpke encrypt0 non-P256 COSE key init");
+        }
+        if (curveRet == WOLFCOSE_SUCCESS) {
+            nonP256KeyInited = 1;
+            /* Deliberately bypass SetEcc: this verifies the HPKE boundary
+             * when caller metadata claims P-256 for a 32-byte Koblitz key. */
+            nonP256Key.kty = WOLFCOSE_KTY_EC2;
+            nonP256Key.crv = WOLFCOSE_CRV_P256;
+            nonP256Key.key.ecc = &nonP256Ecc;
+            nonP256Key.hasPrivate = 0u;
+            nonP256Key.alg = WOLFCOSE_ALG_HPKE_0;
+            curveRet = wc_CoseHpkeEncrypt0_Encrypt(&nonP256Key, kid,
+                sizeof(kid) - 1u, payload, sizeof(payload) - 1u,
+                NULL, 0u, NULL, aad, sizeof(aad) - 1u,
+                scratch, sizeof(scratch), out, sizeof(out), &curveOutLen,
+                &rng);
+            TEST_ASSERT(curveRet == WOLFCOSE_E_COSE_KEY_TYPE,
+                        "hpke encrypt0 non-P256 key rejected");
+            TEST_ASSERT(curveOutLen == 0u,
+                        "hpke encrypt0 non-P256 output length cleared");
+        }
+    }
+#endif
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CoseHpkeEncrypt0_Encrypt(&recipientKey, kid,
+            sizeof(kid) - 1u, payload, sizeof(payload) - 1u,
+            NULL, 0u, NULL, aad, sizeof(aad) - 1u,
+            scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke encrypt0 encrypt");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        uint8_t tinyOut[1];
+        size_t failedOutLen = sizeof(out);
+        int failedRet;
+
+        (void)XMEMSET(tinyOut, 0xa5, sizeof(tinyOut));
+        failedRet = wc_CoseHpkeEncrypt0_Encrypt(&recipientKey, kid,
+            sizeof(kid) - 1u, payload, sizeof(payload) - 1u,
+            NULL, 0u, NULL, aad, sizeof(aad) - 1u,
+            scratch, sizeof(scratch), tinyOut, sizeof(tinyOut),
+            &failedOutLen, &rng);
+        TEST_ASSERT(failedRet != WOLFCOSE_SUCCESS,
+                    "hpke encrypt0 undersized output rejected");
+        TEST_ASSERT((failedOutLen == 0u) && (tinyOut[0] == 0u),
+                    "hpke encrypt0 failed out length cleared");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        recipientKey.hasPrivate = 1u;
+        (void)XMEMSET(&hdr, 0, sizeof(hdr));
+        ret = wc_CoseHpkeEncrypt0_Decrypt(&recipientKey, out, outLen,
+            NULL, 0u, aad, sizeof(aad) - 1u,
+            scratch, sizeof(scratch), &hdr,
+            plaintext, sizeof(plaintext), &plaintextLen);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke encrypt0 decrypt");
+        TEST_ASSERT(plaintextLen == (sizeof(payload) - 1u),
+                    "hpke encrypt0 payload length");
+        TEST_ASSERT(memcmp(plaintext, payload, plaintextLen) == 0,
+                    "hpke encrypt0 payload matches");
+        TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_HPKE_0,
+                    "hpke encrypt0 protected algorithm");
+        TEST_ASSERT((hdr.kidLen == (sizeof(kid) - 1u)) &&
+                    (memcmp(hdr.kid, kid, hdr.kidLen) == 0),
+                    "hpke encrypt0 kid decoded");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CoseHpkeEncrypt0_Decrypt(&recipientKey, out, outLen,
+            NULL, 0u, wrongAad, sizeof(wrongAad) - 1u,
+            scratch, sizeof(scratch), &hdr,
+            plaintext, sizeof(plaintext), &plaintextLen);
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_DECRYPT_FAIL,
+                    "hpke encrypt0 wrong aad rejected");
+    }
+    if ((outLen > 0u) && (recipientKey.hasPrivate == 1u)) {
+        out[outLen - 1u] ^= 0x01u;
+        ret = wc_CoseHpkeEncrypt0_Decrypt(&recipientKey, out, outLen,
+            NULL, 0u, aad, sizeof(aad) - 1u,
+            scratch, sizeof(scratch), &hdr,
+            plaintext, sizeof(plaintext), &plaintextLen);
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_DECRYPT_FAIL,
+                    "hpke encrypt0 tampered ciphertext rejected");
+        out[outLen - 1u] ^= 0x01u;
+    }
+    if ((outLen > 0u) && (wrongKeyInited != 0)) {
+        ret = wc_CoseHpkeEncrypt0_Decrypt(&wrongKey, out, outLen,
+            NULL, 0u, aad, sizeof(aad) - 1u,
+            scratch, sizeof(scratch), &hdr,
+            plaintext, sizeof(plaintext), &plaintextLen);
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_DECRYPT_FAIL,
+                    "hpke encrypt0 wrong private key rejected");
+    }
+    if (recipientKeyInited != 0) {
+        recipientKey.hasPrivate = 0u;
+        ret = wc_CoseHpkeEncrypt0_Encrypt(&recipientKey, kid,
+            sizeof(kid) - 1u, payload, sizeof(payload) - 1u,
+            detached, sizeof(detached), &detachedLen,
+            aad, sizeof(aad) - 1u,
+            scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke encrypt0 detached encrypt");
+        if (ret == WOLFCOSE_SUCCESS) {
+            recipientKey.hasPrivate = 1u;
+            (void)XMEMSET(&hdr, 0, sizeof(hdr));
+            ret = wc_CoseHpkeEncrypt0_Decrypt(&recipientKey, out, outLen,
+                detached, detachedLen, aad, sizeof(aad) - 1u,
+                scratch, sizeof(scratch), &hdr,
+                plaintext, sizeof(plaintext), &plaintextLen);
+            TEST_ASSERT(ret == WOLFCOSE_SUCCESS,
+                        "hpke encrypt0 detached decrypt");
+            TEST_ASSERT((hdr.flags & WOLFCOSE_HDR_FLAG_DETACHED) != 0u,
+                        "hpke encrypt0 detached header flag");
+            TEST_ASSERT((plaintextLen == (sizeof(payload) - 1u)) &&
+                        (memcmp(plaintext, payload, plaintextLen) == 0),
+                        "hpke encrypt0 detached payload matches");
+        }
+    }
+    if (recipientKeyInited != 0) {
+        recipientKey.hasPrivate = 0u;
+        ret = wc_CoseHpkeEncrypt0_Encrypt(&recipientKey, kid,
+            sizeof(kid) - 1u, emptyPayload, 0u,
+            NULL, 0u, NULL, aad, sizeof(aad) - 1u,
+            scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS,
+                    "hpke encrypt0 empty attached encrypt");
+        if (ret == WOLFCOSE_SUCCESS) {
+            ret = test_cose_hpke_ciphertext_len(out, outLen,
+                WOLFCOSE_TAG_ENCRYPT0, 3u, &ciphertextLen);
+            TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (ciphertextLen == 16u),
+                        "hpke encrypt0 empty attached tag length");
+            recipientKey.hasPrivate = 1u;
+            (void)XMEMSET(&hdr, 0, sizeof(hdr));
+            ret = wc_CoseHpkeEncrypt0_Decrypt(&recipientKey, out, outLen,
+                NULL, 0u, aad, sizeof(aad) - 1u,
+                scratch, sizeof(scratch), &hdr,
+                plaintext, sizeof(plaintext), &plaintextLen);
+            TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (plaintextLen == 0u),
+                        "hpke encrypt0 empty attached decrypt");
+        }
+    }
+    if (recipientKeyInited != 0) {
+        recipientKey.hasPrivate = 0u;
+        ret = wc_CoseHpkeEncrypt0_Encrypt(&recipientKey, kid,
+            sizeof(kid) - 1u, emptyPayload, 0u,
+            detached, sizeof(detached), &detachedLen,
+            aad, sizeof(aad) - 1u,
+            scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (detachedLen == 16u),
+                    "hpke encrypt0 empty detached tag length");
+        if (ret == WOLFCOSE_SUCCESS) {
+            recipientKey.hasPrivate = 1u;
+            (void)XMEMSET(&hdr, 0, sizeof(hdr));
+            ret = wc_CoseHpkeEncrypt0_Decrypt(&recipientKey, out, outLen,
+                detached, detachedLen, aad, sizeof(aad) - 1u,
+                scratch, sizeof(scratch), &hdr,
+                plaintext, sizeof(plaintext), &plaintextLen);
+            TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (plaintextLen == 0u),
+                        "hpke encrypt0 empty detached decrypt");
+        }
+    }
+
+    if (wrongKeyInited != 0) {
+        wc_CoseKey_Free(&wrongKey);
+    }
+#if defined(HAVE_ECC_KOBLITZ)
+    if (nonP256KeyInited != 0) {
+        wc_CoseKey_Free(&nonP256Key);
+    }
+#endif
+    if (recipientKeyInited != 0) {
+        wc_CoseKey_Free(&recipientKey);
+    }
+    if (wrongEccInited != 0) {
+        (void)wc_ecc_free(&wrongEcc);
+    }
+#if defined(HAVE_ECC_KOBLITZ)
+    if (nonP256EccInited != 0) {
+        (void)wc_ecc_free(&nonP256Ecc);
+    }
+#endif
+    if (recipientEccInited != 0) {
+        (void)wc_ecc_free(&recipientEcc);
+    }
+    if (rngInited != 0) {
+        (void)wc_FreeRng(&rng);
+    }
+}
+#endif /* WOLFCOSE_HPKE_0_ENCRYPT && WOLFCOSE_HPKE_0_DECRYPT */
+
+#if defined(WOLFCOSE_HPKE_0_ENCRYPT) && defined(WOLFCOSE_HPKE_0_DECRYPT)
+/* draft-ietf-cose-hpke-26 permits an integrated HPKE `alg` to be absent.
+ * Build a valid base-mode message directly with wolfCrypt so this test covers
+ * the omitted-header wire form, not merely a parser mutation. */
+static void test_cose_hpke_encrypt0_optional_alg(void)
+{
+    static const uint8_t encContext[] = "Encrypt0";
+    static const uint8_t payload[] = "HPKE without a protected algorithm";
+    WOLFCOSE_KEY recipientKey;
+    WOLFCOSE_HDR hdr;
+    WC_RNG rng;
+    ecc_key recipientEcc;
+    ecc_key ephemeralEcc;
+    Hpke hpke;
+    WOLFCOSE_CBOR_CTX ctx;
+    uint8_t emptyHdr = 0u;
+    uint8_t scratch[256];
+    uint8_t enc[65];
+    uint8_t ciphertext[sizeof(payload) - 1u + 16u];
+    uint8_t encoded[256];
+    uint8_t plaintext[sizeof(payload)];
+    size_t encStructLen = 0u;
+    size_t encodedLen = 0u;
+    word16 encLen = (word16)sizeof(enc);
+    int ret = WOLFCOSE_SUCCESS;
+    int rngInited = 0;
+    int recipientEccInited = 0;
+    int ephemeralEccInited = 0;
+    int keyInited = 0;
+    enum {
+        HPKE_HDR_CASE_UNPROTECTED_ALG = 0x01u,
+        HPKE_HDR_CASE_NO_EK           = 0x02u,
+        HPKE_HDR_CASE_SHORT_EK        = 0x04u,
+        HPKE_HDR_CASE_DUPLICATE_EK    = 0x08u,
+        HPKE_HDR_CASE_NON_BSTR_EK     = 0x10u,
+        HPKE_HDR_CASE_PSK_ID          = 0x20u,
+        HPKE_HDR_CASE_PROTECTED_EK    = 0x40u,
+        HPKE_HDR_CASE_DETACHED        = 0x80u
+    };
+    typedef struct WOLFCOSE_HPKE_HDR_CASE {
+        uint32_t flags;
+        int expected;
+        const char* name;
+    } WOLFCOSE_HPKE_HDR_CASE;
+    static const WOLFCOSE_HPKE_HDR_CASE cases[] = {
+        { 0u, WOLFCOSE_SUCCESS, "hpke optional protected alg accepted" },
+        { HPKE_HDR_CASE_UNPROTECTED_ALG, WOLFCOSE_E_COSE_BAD_HDR,
+          "hpke unprotected alg rejected" },
+        { HPKE_HDR_CASE_NO_EK, WOLFCOSE_E_COSE_BAD_HDR,
+          "hpke missing ek rejected" },
+        { HPKE_HDR_CASE_SHORT_EK, WOLFCOSE_E_COSE_BAD_HDR,
+          "hpke short ek rejected" },
+        { HPKE_HDR_CASE_DUPLICATE_EK, WOLFCOSE_E_CBOR_MALFORMED,
+          "hpke duplicate ek rejected" },
+        { HPKE_HDR_CASE_NON_BSTR_EK, WOLFCOSE_E_CBOR_TYPE,
+          "hpke non-bstr ek rejected" },
+        { HPKE_HDR_CASE_PSK_ID, WOLFCOSE_E_COSE_BAD_HDR,
+          "hpke psk id rejected" },
+        { HPKE_HDR_CASE_NO_EK | HPKE_HDR_CASE_PROTECTED_EK,
+          WOLFCOSE_E_COSE_BAD_HDR, "hpke protected ek rejected" },
+        { HPKE_HDR_CASE_DETACHED, WOLFCOSE_E_DETACHED_PAYLOAD,
+          "hpke detached ciphertext required" }
+    };
+    static const uint8_t pskId[] = { 0u };
+    static const uint8_t nonBstrEk[] = "not-an-enc";
+    size_t caseIndex;
+
+    TEST_LOG("  [COSE HPKE Encrypt0 optional algorithm]\n");
+    (void)XMEMSET(&recipientKey, 0, sizeof(recipientKey));
+    (void)XMEMSET(&recipientEcc, 0, sizeof(recipientEcc));
+    (void)XMEMSET(&ephemeralEcc, 0, sizeof(ephemeralEcc));
+    (void)XMEMSET(&hpke, 0, sizeof(hpke));
+
+    ret = wc_InitRng(&rng);
+    TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke optional alg rng init");
+    if (ret == WOLFCOSE_SUCCESS) {
+        rngInited = 1;
+        ret = wc_ecc_init(&recipientEcc);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS,
+                    "hpke optional alg recipient ecc init");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        recipientEccInited = 1;
+        ret = wc_ecc_make_key_ex(&rng, 32, &recipientEcc, ECC_SECP256R1);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS,
+                    "hpke optional alg recipient key make");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CoseKey_Init(&recipientKey);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke optional alg cose key init");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        keyInited = 1;
+        ret = wc_CoseKey_SetEcc(&recipientKey, WOLFCOSE_CRV_P256,
+                                &recipientEcc);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke optional alg cose key set");
+        recipientKey.alg = WOLFCOSE_ALG_HPKE_0;
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_HpkeInit(&hpke, DHKEM_P256_HKDF_SHA256, HKDF_SHA256,
+                          HPKE_AES_128_GCM, NULL);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke optional alg init");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_ecc_init(&ephemeralEcc);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS,
+                    "hpke optional alg ephemeral ecc init");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ephemeralEccInited = 1;
+        ret = wc_ecc_make_key_ex(&rng, 32, &ephemeralEcc, ECC_SECP256R1);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS,
+                    "hpke optional alg ephemeral key make");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_HpkeSerializePublicKey(&hpke, &ephemeralEcc, enc, &encLen);
+        TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (encLen == sizeof(enc)),
+                    "hpke optional alg encapsulated key");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        (void)XMEMSET(&ctx, 0, sizeof(ctx));
+        ctx.buf = scratch;
+        ctx.bufSz = sizeof(scratch);
+        ret = wc_CBOR_EncodeArrayStart(&ctx, 3u);
+        if (ret == WOLFCOSE_SUCCESS) {
+            ret = wc_CBOR_EncodeTstr(&ctx, encContext,
+                                     sizeof(encContext) - 1u);
+        }
+        if (ret == WOLFCOSE_SUCCESS) {
+            ret = wc_CBOR_EncodeBstr(&ctx, &emptyHdr, 0u);
+        }
+        if (ret == WOLFCOSE_SUCCESS) {
+            ret = wc_CBOR_EncodeBstr(&ctx, NULL, 0u);
+        }
+        if (ret == WOLFCOSE_SUCCESS) {
+            encStructLen = ctx.idx;
+        }
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS,
+                    "hpke optional alg Encrypt0 structure");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_HpkeSealBase(&hpke, &ephemeralEcc, &recipientEcc,
+            NULL, 0u, scratch, (word32)encStructLen,
+            (byte*)payload, (word32)(sizeof(payload) - 1u), ciphertext);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke optional alg seal");
+    }
+
+    for (caseIndex = 0u;
+         (ret == WOLFCOSE_SUCCESS) && (caseIndex <
+          (sizeof(cases) / sizeof(cases[0])));
+         caseIndex++) {
+        WOLFCOSE_CBOR_CTX protectedCtx;
+        WOLFCOSE_HDR clearedHdr;
+        const uint8_t* protectedCase = &emptyHdr;
+        size_t protectedCaseLen = 0u;
+        size_t mapEntries = 0u;
+        uint8_t protectedHdr[96];
+        uint8_t clearedPlaintext[sizeof(plaintext)];
+        int decRet = WOLFCOSE_SUCCESS;
+        size_t plaintextLen = sizeof(plaintext);
+
+        if ((cases[caseIndex].flags & HPKE_HDR_CASE_PROTECTED_EK) != 0u) {
+            (void)XMEMSET(&protectedCtx, 0, sizeof(protectedCtx));
+            protectedCtx.buf = protectedHdr;
+            protectedCtx.bufSz = sizeof(protectedHdr);
+            decRet = wc_CBOR_EncodeMapStart(&protectedCtx, 1u);
+            if (decRet == WOLFCOSE_SUCCESS) {
+                decRet = wc_CBOR_EncodeInt(&protectedCtx,
+                                            WOLFCOSE_HDR_HPKE_EK);
+            }
+            if (decRet == WOLFCOSE_SUCCESS) {
+                decRet = wc_CBOR_EncodeBstr(&protectedCtx, enc, sizeof(enc));
+            }
+            if (decRet == WOLFCOSE_SUCCESS) {
+                protectedCase = protectedHdr;
+                protectedCaseLen = protectedCtx.idx;
+            }
+        }
+
+        (void)XMEMSET(&ctx, 0, sizeof(ctx));
+        ctx.buf = encoded;
+        ctx.bufSz = sizeof(encoded);
+        if (decRet == WOLFCOSE_SUCCESS) {
+            decRet = wc_CBOR_EncodeTag(&ctx, WOLFCOSE_TAG_ENCRYPT0);
+        }
+        if (decRet == WOLFCOSE_SUCCESS) {
+            decRet = wc_CBOR_EncodeArrayStart(&ctx, 3u);
+        }
+        if (decRet == WOLFCOSE_SUCCESS) {
+            decRet = wc_CBOR_EncodeBstr(&ctx, protectedCase,
+                                        protectedCaseLen);
+        }
+        if ((cases[caseIndex].flags & HPKE_HDR_CASE_NO_EK) == 0u) {
+            mapEntries++;
+        }
+        if ((cases[caseIndex].flags & HPKE_HDR_CASE_UNPROTECTED_ALG) != 0u) {
+            mapEntries++;
+        }
+        if ((cases[caseIndex].flags & HPKE_HDR_CASE_DUPLICATE_EK) != 0u) {
+            mapEntries++;
+        }
+        if ((cases[caseIndex].flags & HPKE_HDR_CASE_PSK_ID) != 0u) {
+            mapEntries++;
+        }
+        if (decRet == WOLFCOSE_SUCCESS) {
+            decRet = wc_CBOR_EncodeMapStart(&ctx, mapEntries);
+        }
+        if ((decRet == WOLFCOSE_SUCCESS) &&
+            ((cases[caseIndex].flags & HPKE_HDR_CASE_UNPROTECTED_ALG) != 0u)) {
+            decRet = wc_CBOR_EncodeInt(&ctx, WOLFCOSE_HDR_ALG);
+        }
+        if ((decRet == WOLFCOSE_SUCCESS) &&
+            ((cases[caseIndex].flags & HPKE_HDR_CASE_UNPROTECTED_ALG) != 0u)) {
+            decRet = wc_CBOR_EncodeInt(&ctx, WOLFCOSE_ALG_HPKE_0);
+        }
+        if ((decRet == WOLFCOSE_SUCCESS) &&
+            ((cases[caseIndex].flags & HPKE_HDR_CASE_NO_EK) == 0u)) {
+            decRet = wc_CBOR_EncodeInt(&ctx, WOLFCOSE_HDR_HPKE_EK);
+        }
+        if ((decRet == WOLFCOSE_SUCCESS) &&
+            ((cases[caseIndex].flags & HPKE_HDR_CASE_NO_EK) == 0u) &&
+            ((cases[caseIndex].flags & HPKE_HDR_CASE_NON_BSTR_EK) != 0u)) {
+            decRet = wc_CBOR_EncodeTstr(&ctx, nonBstrEk,
+                                        sizeof(nonBstrEk) - 1u);
+        }
+        if ((decRet == WOLFCOSE_SUCCESS) &&
+            ((cases[caseIndex].flags & HPKE_HDR_CASE_NO_EK) == 0u) &&
+            ((cases[caseIndex].flags & HPKE_HDR_CASE_NON_BSTR_EK) == 0u)) {
+            size_t ekLen = sizeof(enc);
+
+            if ((cases[caseIndex].flags & HPKE_HDR_CASE_SHORT_EK) != 0u) {
+                ekLen--;
+            }
+            decRet = wc_CBOR_EncodeBstr(&ctx, enc, ekLen);
+        }
+        if ((decRet == WOLFCOSE_SUCCESS) &&
+            ((cases[caseIndex].flags & HPKE_HDR_CASE_DUPLICATE_EK) != 0u)) {
+            decRet = wc_CBOR_EncodeInt(&ctx, WOLFCOSE_HDR_HPKE_EK);
+        }
+        if ((decRet == WOLFCOSE_SUCCESS) &&
+            ((cases[caseIndex].flags & HPKE_HDR_CASE_DUPLICATE_EK) != 0u)) {
+            decRet = wc_CBOR_EncodeBstr(&ctx, enc, sizeof(enc));
+        }
+        if ((decRet == WOLFCOSE_SUCCESS) &&
+            ((cases[caseIndex].flags & HPKE_HDR_CASE_PSK_ID) != 0u)) {
+            decRet = wc_CBOR_EncodeInt(&ctx, -5);
+        }
+        if ((decRet == WOLFCOSE_SUCCESS) &&
+            ((cases[caseIndex].flags & HPKE_HDR_CASE_PSK_ID) != 0u)) {
+            decRet = wc_CBOR_EncodeBstr(&ctx, pskId, sizeof(pskId));
+        }
+        if (decRet == WOLFCOSE_SUCCESS) {
+            if ((cases[caseIndex].flags & HPKE_HDR_CASE_DETACHED) != 0u) {
+                decRet = wc_CBOR_EncodeNull(&ctx);
+            }
+            else {
+                decRet = wc_CBOR_EncodeBstr(&ctx, ciphertext,
+                                             sizeof(ciphertext));
+            }
+        }
+        if (decRet == WOLFCOSE_SUCCESS) {
+            encodedLen = ctx.idx;
+            (void)XMEMSET(&hdr, 0xa5, sizeof(hdr));
+            (void)XMEMSET(plaintext, 0xa5, sizeof(plaintext));
+            decRet = wc_CoseHpkeEncrypt0_Decrypt(&recipientKey,
+                encoded, encodedLen, NULL, 0u, NULL, 0u,
+                scratch, sizeof(scratch), &hdr, plaintext, sizeof(plaintext),
+                &plaintextLen);
+        }
+        TEST_ASSERT(decRet == cases[caseIndex].expected, cases[caseIndex].name);
+        if (cases[caseIndex].expected == WOLFCOSE_SUCCESS) {
+            TEST_ASSERT(decRet == WOLFCOSE_SUCCESS,
+                        "hpke optional protected alg accepted");
+            TEST_ASSERT((hdr.alg == WOLFCOSE_ALG_UNSET) &&
+                        (plaintextLen == (sizeof(payload) - 1u)) &&
+                        (memcmp(plaintext, payload, plaintextLen) == 0),
+                        "hpke optional protected alg payload");
+        }
+        else {
+            (void)XMEMSET(&clearedHdr, 0, sizeof(clearedHdr));
+            (void)XMEMSET(clearedPlaintext, 0, sizeof(clearedPlaintext));
+            TEST_ASSERT((plaintextLen == 0u) &&
+                        (memcmp(&hdr, &clearedHdr, sizeof(hdr)) == 0) &&
+                        (memcmp(plaintext, clearedPlaintext,
+                                sizeof(plaintext)) == 0),
+                        "hpke malformed header clears outputs");
+        }
+    }
+
+    if (keyInited != 0) {
+        wc_CoseKey_Free(&recipientKey);
+    }
+    if (ephemeralEccInited != 0) {
+        (void)wc_ecc_free(&ephemeralEcc);
+    }
+    if (recipientEccInited != 0) {
+        (void)wc_ecc_free(&recipientEcc);
+    }
+    if (rngInited != 0) {
+        (void)wc_FreeRng(&rng);
+    }
+    (void)XMEMSET(&hpke, 0, sizeof(hpke));
+}
+#endif /* WOLFCOSE_HPKE_0_ENCRYPT && WOLFCOSE_HPKE_0_DECRYPT */
+
+#if defined(WOLFCOSE_HPKE_0_KE_ENCRYPT) && \
+    defined(WOLFCOSE_HPKE_0_KE_DECRYPT)
+/* The multi-recipient draft permits an omitted recipient `alg`, and its
+ * Recipient_structure authenticates an unprotected content algorithm. Build
+ * two valid empty-protected recipients so recipient index 1 also covers
+ * skipped-entry classification. */
+static void test_cose_hpke_key_encryption_optional_alg(void)
+{
+    static const uint8_t hpkeRecipientContext[] = "HPKE Recipient";
+    static const uint8_t payload[] = "HPKE key encryption without alg";
+    static const uint8_t keyData[16] = {
+        0x00u, 0x01u, 0x02u, 0x03u, 0x04u, 0x05u, 0x06u, 0x07u,
+        0x08u, 0x09u, 0x0au, 0x0bu, 0x0cu, 0x0du, 0x0eu, 0x0fu
+    };
+    static const uint8_t iv[12] = {
+        0x11u, 0x12u, 0x13u, 0x14u, 0x15u, 0x16u,
+        0x17u, 0x18u, 0x19u, 0x1au, 0x1bu, 0x1cu
+    };
+    WOLFCOSE_KEY recipientKey;
+    WOLFCOSE_RECIPIENT hpkeRecipient;
+    WOLFCOSE_HDR hdr;
+    WC_RNG rng;
+    ecc_key recipientEcc;
+    ecc_key ephemeralEcc;
+    Hpke hpke;
+    Aes aes;
+    WOLFCOSE_CBOR_CTX ctx;
+    uint8_t emptyHdr = 0u;
+    uint8_t aad[32];
+    uint8_t scratch[256];
+    uint8_t enc[65];
+    uint8_t bodyCiphertext[sizeof(payload) - 1u + WOLFCOSE_AES_GCM_TAG_SZ];
+    uint8_t wrappedCek[sizeof(keyData) + 16u + 8u];
+    uint8_t encoded[1024];
+    uint8_t plaintext[sizeof(payload)];
+    size_t aadLen = 0u;
+    size_t encodedLen = 0u;
+    size_t recipientInfoLen = 0u;
+    size_t wrappedCekLen = sizeof(keyData) + 16u;
+    word16 encLen = (word16)sizeof(enc);
+    int ret = WOLFCOSE_SUCCESS;
+    int rngInited = 0;
+    int recipientEccInited = 0;
+    int ephemeralEccInited = 0;
+    int recipientKeyInited = 0;
+    int aesInited = 0;
+    enum {
+        HPKE_KE_HDR_CASE_UNPROTECTED_ALG = 0x01u,
+        HPKE_KE_HDR_CASE_NO_EK           = 0x02u,
+        HPKE_KE_HDR_CASE_SHORT_EK        = 0x04u,
+        HPKE_KE_HDR_CASE_DUPLICATE_EK    = 0x08u,
+        HPKE_KE_HDR_CASE_NON_BSTR_EK     = 0x10u,
+        HPKE_KE_HDR_CASE_PSK_ID          = 0x20u,
+        HPKE_KE_HDR_CASE_PROTECTED_EK    = 0x40u,
+        HPKE_KE_HDR_CASE_SKIP_ZERO_ALG   = 0x80u,
+        HPKE_KE_HDR_CASE_SKIP_TEXT_ALG   = 0x100u
+    };
+    typedef struct WOLFCOSE_HPKE_KE_HDR_CASE {
+        uint32_t flags;
+        int expected;
+        const char* name;
+    } WOLFCOSE_HPKE_KE_HDR_CASE;
+    static const WOLFCOSE_HPKE_KE_HDR_CASE cases[] = {
+        { 0u, WOLFCOSE_SUCCESS,
+          "hpke ke optional recipient alg and body alg accepted" },
+        { HPKE_KE_HDR_CASE_UNPROTECTED_ALG, WOLFCOSE_E_COSE_BAD_HDR,
+          "hpke ke unprotected alg rejected" },
+        { HPKE_KE_HDR_CASE_SKIP_ZERO_ALG, WOLFCOSE_E_COSE_BAD_ALG,
+          "hpke ke skipped zero alg rejected" },
+        { HPKE_KE_HDR_CASE_SKIP_TEXT_ALG, WOLFCOSE_E_COSE_BAD_ALG,
+          "hpke ke skipped text alg rejected" },
+        { HPKE_KE_HDR_CASE_NO_EK, WOLFCOSE_E_COSE_BAD_HDR,
+          "hpke ke missing ek rejected" },
+        { HPKE_KE_HDR_CASE_SHORT_EK, WOLFCOSE_E_COSE_BAD_HDR,
+          "hpke ke short ek rejected" },
+        { HPKE_KE_HDR_CASE_DUPLICATE_EK, WOLFCOSE_E_CBOR_MALFORMED,
+          "hpke ke duplicate ek rejected" },
+        { HPKE_KE_HDR_CASE_NON_BSTR_EK, WOLFCOSE_E_CBOR_TYPE,
+          "hpke ke non-bstr ek rejected" },
+        { HPKE_KE_HDR_CASE_PSK_ID, WOLFCOSE_E_COSE_BAD_HDR,
+          "hpke ke psk id rejected" },
+        { HPKE_KE_HDR_CASE_NO_EK | HPKE_KE_HDR_CASE_PROTECTED_EK,
+          WOLFCOSE_E_COSE_BAD_HDR, "hpke ke protected ek rejected" }
+    };
+    static const uint8_t pskId[] = { 0u };
+    static const uint8_t nonBstrEk[] = "not-an-enc";
+    static const uint8_t invalidAlg[] = "invalid";
+    size_t caseIndex;
+    size_t i;
+
+    TEST_LOG("  [COSE HPKE key-encryption optional algorithm]\n");
+    (void)XMEMSET(&recipientKey, 0, sizeof(recipientKey));
+    (void)XMEMSET(&recipientEcc, 0, sizeof(recipientEcc));
+    (void)XMEMSET(&ephemeralEcc, 0, sizeof(ephemeralEcc));
+    (void)XMEMSET(&hpke, 0, sizeof(hpke));
+    (void)XMEMSET(&aes, 0, sizeof(aes));
+
+    (void)XMEMSET(&ctx, 0, sizeof(ctx));
+    ctx.buf = aad;
+    ctx.bufSz = sizeof(aad);
+    ret = wc_CBOR_EncodeArrayStart(&ctx, 3u);
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CBOR_EncodeTstr(&ctx, WOLFCOSE_CTX_ENCRYPT,
+                                 sizeof(WOLFCOSE_CTX_ENCRYPT));
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CBOR_EncodeBstr(&ctx, NULL, 0u);
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CBOR_EncodeBstr(&ctx, NULL, 0u);
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        aadLen = ctx.idx;
+    }
+    TEST_ASSERT(ret == WOLFCOSE_SUCCESS,
+                "hpke ke unprotected body alg Enc_structure");
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_AesInit(&aes, NULL, INVALID_DEVID);
+        if (ret == 0) {
+            aesInited = 1;
+            ret = wc_AesGcmSetKey(&aes, keyData, sizeof(keyData));
+        }
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_AesGcmEncrypt(&aes, bodyCiphertext, payload,
+            (word32)(sizeof(payload) - 1u), iv, (word32)sizeof(iv),
+            &bodyCiphertext[sizeof(payload) - 1u],
+            (word32)WOLFCOSE_AES_GCM_TAG_SZ, aad, (word32)aadLen);
+    }
+    TEST_ASSERT(ret == WOLFCOSE_SUCCESS,
+                "hpke ke unprotected body alg encrypt");
+    if (aesInited != 0) {
+        (void)wc_AesFree(&aes);
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_InitRng(&rng);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke ke optional rng init");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        rngInited = 1;
+        ret = wc_ecc_init(&recipientEcc);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS,
+                    "hpke ke optional recipient ecc init");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        recipientEccInited = 1;
+        ret = wc_ecc_make_key_ex(&rng, 32, &recipientEcc, ECC_SECP256R1);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS,
+                    "hpke ke optional recipient key make");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CoseKey_Init(&recipientKey);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS,
+                    "hpke ke optional recipient cose key init");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        recipientKeyInited = 1;
+        ret = wc_CoseKey_SetEcc(&recipientKey, WOLFCOSE_CRV_P256,
+                                &recipientEcc);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS,
+                    "hpke ke optional recipient cose key set");
+        recipientKey.alg = WOLFCOSE_ALG_HPKE_0_KE;
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_HpkeInit(&hpke, DHKEM_P256_HKDF_SHA256, HKDF_SHA256,
+                          HPKE_AES_128_GCM, NULL);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke ke optional init");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_ecc_init(&ephemeralEcc);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS,
+                    "hpke ke optional ephemeral ecc init");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ephemeralEccInited = 1;
+        ret = wc_ecc_make_key_ex(&rng, 32, &ephemeralEcc, ECC_SECP256R1);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS,
+                    "hpke ke optional ephemeral key make");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_HpkeSerializePublicKey(&hpke, &ephemeralEcc, enc, &encLen);
+        TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (encLen == sizeof(enc)),
+                    "hpke ke optional encapsulated key");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        (void)XMEMSET(&ctx, 0, sizeof(ctx));
+        ctx.buf = scratch;
+        ctx.bufSz = sizeof(scratch);
+        ret = wc_CBOR_EncodeArrayStart(&ctx, 4u);
+        if (ret == WOLFCOSE_SUCCESS) {
+            ret = wc_CBOR_EncodeTstr(&ctx, hpkeRecipientContext,
+                                     sizeof(hpkeRecipientContext) - 1u);
+        }
+        if (ret == WOLFCOSE_SUCCESS) {
+            ret = wc_CBOR_EncodeInt(&ctx, WOLFCOSE_ALG_A128GCM);
+        }
+        if (ret == WOLFCOSE_SUCCESS) {
+            ret = wc_CBOR_EncodeBstr(&ctx, &emptyHdr, 0u);
+        }
+        if (ret == WOLFCOSE_SUCCESS) {
+            ret = wc_CBOR_EncodeBstr(&ctx, NULL, 0u);
+        }
+        if (ret == WOLFCOSE_SUCCESS) {
+            recipientInfoLen = ctx.idx;
+        }
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS,
+                    "hpke ke optional Recipient structure");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_HpkeSealBase(&hpke, &ephemeralEcc, &recipientEcc,
+            scratch, (word32)recipientInfoLen, NULL, 0u,
+            (byte*)keyData, (word32)sizeof(keyData), wrappedCek);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke ke optional seal");
+    }
+
+    for (caseIndex = 0u;
+         (ret == WOLFCOSE_SUCCESS) && (caseIndex <
+          (sizeof(cases) / sizeof(cases[0])));
+         caseIndex++) {
+        WOLFCOSE_CBOR_CTX protectedCtx;
+        WOLFCOSE_HDR clearedHdr;
+        const uint8_t* protectedCase = &emptyHdr;
+        size_t protectedCaseLen = 0u;
+        uint8_t protectedHdr[96];
+        uint8_t clearedPlaintext[sizeof(plaintext)];
+        int decRet = WOLFCOSE_SUCCESS;
+        size_t bodyAlgOffset = 0u;
+        size_t wrappedCekLenOffset = 0u;
+        size_t wrappedCekDataEnd = 0u;
+        size_t plaintextLen = sizeof(plaintext);
+
+        if ((cases[caseIndex].flags & HPKE_KE_HDR_CASE_PROTECTED_EK) != 0u) {
+            (void)XMEMSET(&protectedCtx, 0, sizeof(protectedCtx));
+            protectedCtx.buf = protectedHdr;
+            protectedCtx.bufSz = sizeof(protectedHdr);
+            decRet = wc_CBOR_EncodeMapStart(&protectedCtx, 1u);
+            if (decRet == WOLFCOSE_SUCCESS) {
+                decRet = wc_CBOR_EncodeInt(&protectedCtx,
+                                            WOLFCOSE_HDR_HPKE_EK);
+            }
+            if (decRet == WOLFCOSE_SUCCESS) {
+                decRet = wc_CBOR_EncodeBstr(&protectedCtx, enc, sizeof(enc));
+            }
+            if (decRet == WOLFCOSE_SUCCESS) {
+                protectedCase = protectedHdr;
+                protectedCaseLen = protectedCtx.idx;
+            }
+        }
+
+        (void)XMEMSET(&ctx, 0, sizeof(ctx));
+        ctx.buf = encoded;
+        ctx.bufSz = sizeof(encoded);
+        if (decRet == WOLFCOSE_SUCCESS) {
+            decRet = wc_CBOR_EncodeTag(&ctx, WOLFCOSE_TAG_ENCRYPT);
+        }
+        if (decRet == WOLFCOSE_SUCCESS) {
+            decRet = wc_CBOR_EncodeArrayStart(&ctx, 4u);
+        }
+        if (decRet == WOLFCOSE_SUCCESS) {
+            decRet = wc_CBOR_EncodeBstr(&ctx, &emptyHdr, 0u);
+        }
+        if (decRet == WOLFCOSE_SUCCESS) {
+            decRet = wc_CBOR_EncodeMapStart(&ctx, 2u);
+        }
+        if (decRet == WOLFCOSE_SUCCESS) {
+            decRet = wc_CBOR_EncodeInt(&ctx, WOLFCOSE_HDR_ALG);
+        }
+        if (decRet == WOLFCOSE_SUCCESS) {
+            bodyAlgOffset = ctx.idx;
+            decRet = wc_CBOR_EncodeInt(&ctx, WOLFCOSE_ALG_A128GCM);
+        }
+        if (decRet == WOLFCOSE_SUCCESS) {
+            decRet = wc_CBOR_EncodeInt(&ctx, WOLFCOSE_HDR_IV);
+        }
+        if (decRet == WOLFCOSE_SUCCESS) {
+            decRet = wc_CBOR_EncodeBstr(&ctx, iv, sizeof(iv));
+        }
+        if (decRet == WOLFCOSE_SUCCESS) {
+            decRet = wc_CBOR_EncodeBstr(&ctx, bodyCiphertext,
+                                        sizeof(bodyCiphertext));
+        }
+        if (decRet == WOLFCOSE_SUCCESS) {
+            decRet = wc_CBOR_EncodeArrayStart(&ctx, 2u);
+        }
+        for (i = 0u; (decRet == WOLFCOSE_SUCCESS) && (i < 2u); i++) {
+            uint32_t flags = cases[caseIndex].flags;
+            const uint8_t* recipientProtected = &emptyHdr;
+            size_t recipientProtectedLen = 0u;
+            size_t mapEntries = 0u;
+
+            if (i == 0u) {
+                flags &= HPKE_KE_HDR_CASE_SKIP_ZERO_ALG |
+                         HPKE_KE_HDR_CASE_SKIP_TEXT_ALG;
+            }
+            else {
+                flags &= ~(uint32_t)(HPKE_KE_HDR_CASE_SKIP_ZERO_ALG |
+                                      HPKE_KE_HDR_CASE_SKIP_TEXT_ALG);
+            }
+            if (i == 1u) {
+                recipientProtected = protectedCase;
+                recipientProtectedLen = protectedCaseLen;
+            }
+            decRet = wc_CBOR_EncodeArrayStart(&ctx, 3u);
+            if (decRet == WOLFCOSE_SUCCESS) {
+                decRet = wc_CBOR_EncodeBstr(&ctx, recipientProtected,
+                                            recipientProtectedLen);
+            }
+            if ((flags & HPKE_KE_HDR_CASE_NO_EK) == 0u) {
+                mapEntries++;
+            }
+            if ((flags & HPKE_KE_HDR_CASE_UNPROTECTED_ALG) != 0u) {
+                mapEntries++;
+            }
+            if ((flags & (HPKE_KE_HDR_CASE_SKIP_ZERO_ALG |
+                          HPKE_KE_HDR_CASE_SKIP_TEXT_ALG)) != 0u) {
+                mapEntries++;
+            }
+            if ((flags & HPKE_KE_HDR_CASE_DUPLICATE_EK) != 0u) {
+                mapEntries++;
+            }
+            if ((flags & HPKE_KE_HDR_CASE_PSK_ID) != 0u) {
+                mapEntries++;
+            }
+            if (decRet == WOLFCOSE_SUCCESS) {
+                decRet = wc_CBOR_EncodeMapStart(&ctx, mapEntries);
+            }
+            if ((decRet == WOLFCOSE_SUCCESS) &&
+                ((flags & HPKE_KE_HDR_CASE_UNPROTECTED_ALG) != 0u)) {
+                decRet = wc_CBOR_EncodeInt(&ctx, WOLFCOSE_HDR_ALG);
+            }
+            if ((decRet == WOLFCOSE_SUCCESS) &&
+                ((flags & HPKE_KE_HDR_CASE_UNPROTECTED_ALG) != 0u)) {
+                decRet = wc_CBOR_EncodeInt(&ctx, WOLFCOSE_ALG_HPKE_0_KE);
+            }
+            if ((decRet == WOLFCOSE_SUCCESS) &&
+                ((flags & HPKE_KE_HDR_CASE_SKIP_ZERO_ALG) != 0u)) {
+                decRet = wc_CBOR_EncodeInt(&ctx, WOLFCOSE_HDR_ALG);
+            }
+            if ((decRet == WOLFCOSE_SUCCESS) &&
+                ((flags & HPKE_KE_HDR_CASE_SKIP_ZERO_ALG) != 0u)) {
+                decRet = wc_CBOR_EncodeInt(&ctx, 0);
+            }
+            if ((decRet == WOLFCOSE_SUCCESS) &&
+                ((flags & HPKE_KE_HDR_CASE_SKIP_TEXT_ALG) != 0u)) {
+                decRet = wc_CBOR_EncodeInt(&ctx, WOLFCOSE_HDR_ALG);
+            }
+            if ((decRet == WOLFCOSE_SUCCESS) &&
+                ((flags & HPKE_KE_HDR_CASE_SKIP_TEXT_ALG) != 0u)) {
+                decRet = wc_CBOR_EncodeTstr(&ctx, invalidAlg,
+                                            sizeof(invalidAlg) - 1u);
+            }
+            if ((decRet == WOLFCOSE_SUCCESS) &&
+                ((flags & HPKE_KE_HDR_CASE_NO_EK) == 0u)) {
+                decRet = wc_CBOR_EncodeInt(&ctx, WOLFCOSE_HDR_HPKE_EK);
+            }
+            if ((decRet == WOLFCOSE_SUCCESS) &&
+                ((flags & HPKE_KE_HDR_CASE_NO_EK) == 0u) &&
+                ((flags & HPKE_KE_HDR_CASE_NON_BSTR_EK) != 0u)) {
+                decRet = wc_CBOR_EncodeTstr(&ctx, nonBstrEk,
+                                            sizeof(nonBstrEk) - 1u);
+            }
+            if ((decRet == WOLFCOSE_SUCCESS) &&
+                ((flags & HPKE_KE_HDR_CASE_NO_EK) == 0u) &&
+                ((flags & HPKE_KE_HDR_CASE_NON_BSTR_EK) == 0u)) {
+                size_t ekLen = sizeof(enc);
+
+                if ((flags & HPKE_KE_HDR_CASE_SHORT_EK) != 0u) {
+                    ekLen--;
+                }
+                decRet = wc_CBOR_EncodeBstr(&ctx, enc, ekLen);
+            }
+            if ((decRet == WOLFCOSE_SUCCESS) &&
+                ((flags & HPKE_KE_HDR_CASE_DUPLICATE_EK) != 0u)) {
+                decRet = wc_CBOR_EncodeInt(&ctx, WOLFCOSE_HDR_HPKE_EK);
+            }
+            if ((decRet == WOLFCOSE_SUCCESS) &&
+                ((flags & HPKE_KE_HDR_CASE_DUPLICATE_EK) != 0u)) {
+                decRet = wc_CBOR_EncodeBstr(&ctx, enc, sizeof(enc));
+            }
+            if ((decRet == WOLFCOSE_SUCCESS) &&
+                ((flags & HPKE_KE_HDR_CASE_PSK_ID) != 0u)) {
+                decRet = wc_CBOR_EncodeInt(&ctx, -5);
+            }
+            if ((decRet == WOLFCOSE_SUCCESS) &&
+                ((flags & HPKE_KE_HDR_CASE_PSK_ID) != 0u)) {
+                decRet = wc_CBOR_EncodeBstr(&ctx, pskId, sizeof(pskId));
+            }
+            if (decRet == WOLFCOSE_SUCCESS) {
+                if (i == 1u) {
+                    wrappedCekLenOffset = ctx.idx;
+                }
+                decRet = wc_CBOR_EncodeBstr(&ctx, wrappedCek,
+                                            wrappedCekLen);
+                if ((decRet == WOLFCOSE_SUCCESS) && (i == 1u)) {
+                    wrappedCekDataEnd = ctx.idx;
+                }
+            }
+        }
+        if (decRet == WOLFCOSE_SUCCESS) {
+            encodedLen = ctx.idx;
+            hpkeRecipient.algId = WOLFCOSE_ALG_HPKE_0_KE;
+            hpkeRecipient.key = &recipientKey;
+            hpkeRecipient.kid = NULL;
+            hpkeRecipient.kidLen = 0u;
+            (void)XMEMSET(&hdr, 0xa5, sizeof(hdr));
+            (void)XMEMSET(plaintext, 0xa5, sizeof(plaintext));
+            decRet = wc_CoseEncrypt_Decrypt(&hpkeRecipient, 1u, encoded,
+                encodedLen, NULL, 0u, NULL, 0u, scratch, sizeof(scratch),
+                &hdr, plaintext, sizeof(plaintext), &plaintextLen);
+        }
+        TEST_ASSERT(decRet == cases[caseIndex].expected, cases[caseIndex].name);
+        if (cases[caseIndex].expected == WOLFCOSE_SUCCESS) {
+            TEST_ASSERT(decRet == WOLFCOSE_SUCCESS,
+                        "hpke ke optional recipient alg accepted");
+            TEST_ASSERT((plaintextLen == (sizeof(payload) - 1u)) &&
+                        (memcmp(plaintext, payload, plaintextLen) == 0),
+                        "hpke ke unprotected body alg payload");
+            if (cases[caseIndex].flags == 0u) {
+                int tamperedRet = WOLFCOSE_SUCCESS;
+                size_t tamperedPlaintextLen = sizeof(plaintext);
+                const size_t expandedCekLen = wrappedCekLen + 8u;
+
+                if ((bodyAlgOffset < encodedLen) &&
+                    ((wrappedCekLenOffset + 1u) < encodedLen) &&
+                    (wrappedCekDataEnd <= encodedLen) &&
+                    ((encodedLen + 8u) <= sizeof(encoded)) &&
+                    (encoded[bodyAlgOffset] == 0x01u) &&
+                    (encoded[wrappedCekLenOffset] == 0x58u) &&
+                    (encoded[wrappedCekLenOffset + 1u] ==
+                     (uint8_t)wrappedCekLen)) {
+                    XMEMMOVE(&encoded[wrappedCekDataEnd + 8u],
+                        &encoded[wrappedCekDataEnd],
+                        encodedLen - wrappedCekDataEnd);
+                    (void)XMEMSET(&encoded[wrappedCekDataEnd], 0, 8u);
+                    encoded[bodyAlgOffset] = 0x02u;
+                    encoded[wrappedCekLenOffset + 1u] =
+                        (uint8_t)expandedCekLen;
+                    encodedLen += 8u;
+                    (void)XMEMSET(&hdr, 0xa5, sizeof(hdr));
+                    (void)XMEMSET(plaintext, 0xa5, sizeof(plaintext));
+                    tamperedRet = wc_CoseEncrypt_Decrypt(&hpkeRecipient, 1u,
+                        encoded, encodedLen, NULL, 0u, NULL, 0u, scratch,
+                        sizeof(scratch), &hdr, plaintext, sizeof(plaintext),
+                        &tamperedPlaintextLen);
+                }
+                TEST_ASSERT(tamperedRet != WOLFCOSE_SUCCESS,
+                            "hpke ke content alg tamper rejected");
+                (void)XMEMSET(&clearedHdr, 0, sizeof(clearedHdr));
+                (void)XMEMSET(clearedPlaintext, 0, sizeof(clearedPlaintext));
+                TEST_ASSERT((tamperedPlaintextLen == 0u) &&
+                            (memcmp(&hdr, &clearedHdr, sizeof(hdr)) == 0) &&
+                            (memcmp(plaintext, clearedPlaintext,
+                                    sizeof(plaintext)) == 0),
+                            "hpke ke content alg tamper clears outputs");
+            }
+        }
+        else {
+            (void)XMEMSET(&clearedHdr, 0, sizeof(clearedHdr));
+            (void)XMEMSET(clearedPlaintext, 0, sizeof(clearedPlaintext));
+            TEST_ASSERT((plaintextLen == 0u) &&
+                        (memcmp(&hdr, &clearedHdr, sizeof(hdr)) == 0) &&
+                        (memcmp(plaintext, clearedPlaintext,
+                                sizeof(plaintext)) == 0),
+                        "hpke ke malformed header clears outputs");
+        }
+    }
+
+    if (recipientKeyInited != 0) {
+        wc_CoseKey_Free(&recipientKey);
+    }
+    if (ephemeralEccInited != 0) {
+        (void)wc_ecc_free(&ephemeralEcc);
+    }
+    if (recipientEccInited != 0) {
+        (void)wc_ecc_free(&recipientEcc);
+    }
+    if (rngInited != 0) {
+        (void)wc_FreeRng(&rng);
+    }
+    (void)XMEMSET(&hpke, 0, sizeof(hpke));
+}
+#endif /* WOLFCOSE_HPKE_0_KE_ENCRYPT && WOLFCOSE_HPKE_0_KE_DECRYPT */
+
+#if defined(WOLFCOSE_HPKE_0_DECRYPT)
+/* draft-ietf-cose-hpke-26, Section 5.1, Figure 2 and Figure 4. */
+static void test_cose_hpke_encrypt0_draft_vector(void)
+{
+    static const uint8_t encodedHex[] =
+        "d08344a1011823a20443626f622358410457229bdd99407b384a9e59fa15"
+        "53224d58b106e9ebebdaa06d2126bd96757674847669966ecb0dcdf21af5"
+        "623f19f0b799b0cddf3ee930b739dd474f6282de0158253f3c1595e9d252"
+        "e816215a9ce73f47ba4b57acb06ecc39ca5a03a14108bbe7807af5688d61";
+    static const uint8_t xHex[] =
+        "02a8e3315f96bc7355dbf85740c6d8e53fb070cd8ba5c419be49a91d789ef55c";
+    static const uint8_t yHex[] =
+        "96b6621abf5ca532e042dc5c346c1ef0c9186b83cb122e50a46f1458de023d35";
+    static const uint8_t dHex[] =
+        "eca39300147c91a2a65d17e00ea278b57a14178245bf5686d9a404cca1816b8e";
+    /* The draft's stated plaintext omits the trailing LF carried by its
+     * published ciphertext. Test the bytes on the wire. */
+    static const uint8_t expected[] = "This is the content.\n";
+    WOLFCOSE_KEY recipientKey;
+    WOLFCOSE_HDR hdr;
+    ecc_key eccKey;
+    uint8_t encoded[160];
+    uint8_t x[32];
+    uint8_t y[32];
+    uint8_t d[32];
+    uint8_t scratch[256];
+    uint8_t plaintext[64];
+    size_t plaintextLen = 0u;
+    size_t encodedLen = sizeof(encoded);
+    size_t xLen = sizeof(x);
+    size_t yLen = sizeof(y);
+    size_t dLen = sizeof(d);
+    int ret = WOLFCOSE_SUCCESS;
+    int eccInited = 0;
+    int keyInited = 0;
+
+    TEST_LOG("  [COSE HPKE Encrypt0 draft vector]\n");
+    (void)XMEMSET(&recipientKey, 0, sizeof(recipientKey));
+    (void)XMEMSET(&hdr, 0, sizeof(hdr));
+
+    ret = test_cose_hex_decode(encodedHex, sizeof(encodedHex) - 1u,
+                               encoded, sizeof(encoded), &encodedLen);
+    TEST_ASSERT(ret == 0, "hpke encrypt0 vector decode");
+    if (ret == 0) {
+        ret = test_cose_hex_decode(xHex, sizeof(xHex) - 1u,
+                                   x, sizeof(x), &xLen);
+    }
+    if (ret == 0) {
+        ret = test_cose_hex_decode(yHex, sizeof(yHex) - 1u,
+                                   y, sizeof(y), &yLen);
+    }
+    if (ret == 0) {
+        ret = test_cose_hex_decode(dHex, sizeof(dHex) - 1u,
+                                   d, sizeof(d), &dLen);
+    }
+    TEST_ASSERT((ret == 0) && (xLen == sizeof(x)) &&
+                (yLen == sizeof(y)) && (dLen == sizeof(d)),
+                "hpke encrypt0 vector key decode");
+    if (ret == 0) {
+        ret = wc_ecc_init(&eccKey);
+        TEST_ASSERT(ret == 0, "hpke encrypt0 vector ecc init");
+        if (ret == 0) {
+            eccInited = 1;
+        }
+    }
+    if (ret == 0) {
+        ret = wc_ecc_import_unsigned(&eccKey, x, y, d, ECC_SECP256R1);
+        TEST_ASSERT(ret == 0, "hpke encrypt0 vector key import");
+    }
+    if (ret == 0) {
+        ret = wc_CoseKey_Init(&recipientKey);
+        TEST_ASSERT(ret == 0, "hpke encrypt0 vector cose key init");
+        if (ret == 0) {
+            keyInited = 1;
+        }
+    }
+    if (ret == 0) {
+        ret = wc_CoseKey_SetEcc(&recipientKey, WOLFCOSE_CRV_P256, &eccKey);
+        TEST_ASSERT(ret == 0, "hpke encrypt0 vector cose key set");
+        recipientKey.alg = WOLFCOSE_ALG_HPKE_0;
+    }
+    if (ret == 0) {
+        ret = wc_CoseHpkeEncrypt0_Decrypt(&recipientKey, encoded, encodedLen,
+            NULL, 0u, NULL, 0u, scratch, sizeof(scratch), &hdr,
+            plaintext, sizeof(plaintext), &plaintextLen);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS,
+                    "hpke encrypt0 draft vector decrypt");
+        TEST_ASSERT((plaintextLen == (sizeof(expected) - 1u)) &&
+                    (memcmp(plaintext, expected, plaintextLen) == 0),
+                    "hpke encrypt0 draft vector plaintext");
+        TEST_ASSERT((hdr.alg == WOLFCOSE_ALG_HPKE_0) &&
+                    (hdr.kidLen == 3u),
+                    "hpke encrypt0 draft vector headers");
+    }
+
+    if (keyInited != 0) {
+        wc_CoseKey_Free(&recipientKey);
+    }
+    if (eccInited != 0) {
+        (void)wc_ecc_free(&eccKey);
+    }
+}
+#endif /* WOLFCOSE_HPKE_0_DECRYPT */
+
+#if defined(WOLFCOSE_HPKE_0_KE_ENCRYPT) && \
+    defined(WOLFCOSE_HPKE_0_KE_DECRYPT)
+static void test_cose_hpke_key_encryption(void)
+{
+    WOLFCOSE_KEY recipientKey1;
+    WOLFCOSE_KEY recipientKey2;
+    WOLFCOSE_KEY wrongKey;
+    WOLFCOSE_RECIPIENT recipients[2];
+    WOLFCOSE_RECIPIENT wrongRecipient;
+    WOLFCOSE_HDR hdr;
+    ecc_key recipientEcc1;
+    ecc_key recipientEcc2;
+    ecc_key wrongEcc;
+    WC_RNG rng;
+    int ret = WOLFCOSE_SUCCESS;
+    int rngInited = 0;
+    int recipientEcc1Inited = 0;
+    int recipientEcc2Inited = 0;
+    int wrongEccInited = 0;
+    int recipientKey1Inited = 0;
+    int recipientKey2Inited = 0;
+    int wrongKeyInited = 0;
+    uint8_t out[1024];
+    uint8_t plaintext[128];
+    uint8_t scratch[512];
+    size_t outLen = 0u;
+    size_t plaintextLen = 0u;
+    size_t ciphertextLen = 0u;
+    size_t i;
+    int foundKid = 0;
+    const uint8_t kid1[] = "hpke-recipient-1";
+    const uint8_t kid2[] = "hpke-recipient-2";
+    const uint8_t payload[] = "COSE HPKE key encryption";
+    const uint8_t emptyPayload[] = { 0u };
+    const uint8_t iv[12] = {
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c
+    };
+    const uint8_t aad[] = "COSE Encrypt external aad";
+
+    TEST_LOG("  [COSE HPKE-0-KE Multi-Recipient]\n");
+    (void)XMEMSET(&recipientEcc1, 0, sizeof(recipientEcc1));
+    (void)XMEMSET(&recipientEcc2, 0, sizeof(recipientEcc2));
+    (void)XMEMSET(&wrongEcc, 0, sizeof(wrongEcc));
+
+    ret = wc_InitRng(&rng);
+    TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke ke rng init");
+    if (ret == WOLFCOSE_SUCCESS) {
+        rngInited = 1;
+        ret = wc_ecc_init(&recipientEcc1);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke ke recipient 1 ecc init");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        recipientEcc1Inited = 1;
+        ret = wc_ecc_make_key(&rng, 32, &recipientEcc1);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke ke recipient 1 key make");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_ecc_init(&recipientEcc2);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke ke recipient 2 ecc init");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        recipientEcc2Inited = 1;
+        ret = wc_ecc_make_key(&rng, 32, &recipientEcc2);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke ke recipient 2 key make");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_ecc_init(&wrongEcc);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke ke wrong ecc init");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        wrongEccInited = 1;
+        ret = wc_ecc_make_key(&rng, 32, &wrongEcc);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke ke wrong key make");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CoseKey_Init(&recipientKey1);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke ke recipient 1 key init");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        recipientKey1Inited = 1;
+        ret = wc_CoseKey_SetEcc(&recipientKey1, WOLFCOSE_CRV_P256,
+                                &recipientEcc1);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke ke recipient 1 key set");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CoseKey_Init(&recipientKey2);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke ke recipient 2 key init");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        recipientKey2Inited = 1;
+        ret = wc_CoseKey_SetEcc(&recipientKey2, WOLFCOSE_CRV_P256,
+                                &recipientEcc2);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke ke recipient 2 key set");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CoseKey_Init(&wrongKey);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke ke wrong key init");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        wrongKeyInited = 1;
+        ret = wc_CoseKey_SetEcc(&wrongKey, WOLFCOSE_CRV_P256, &wrongEcc);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke ke wrong key set");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        recipientKey1.alg = WOLFCOSE_ALG_HPKE_0_KE;
+        recipientKey2.alg = WOLFCOSE_ALG_HPKE_0_KE;
+        wrongKey.alg = WOLFCOSE_ALG_HPKE_0_KE;
+        recipientKey1.hasPrivate = 0u;
+        recipientKey2.hasPrivate = 0u;
+        recipients[0].algId = WOLFCOSE_ALG_HPKE_0_KE;
+        recipients[0].key = &recipientKey1;
+        recipients[0].kid = kid1;
+        recipients[0].kidLen = sizeof(kid1) - 1u;
+        recipients[1].algId = WOLFCOSE_ALG_HPKE_0_KE;
+        recipients[1].key = &recipientKey2;
+        recipients[1].kid = kid2;
+        recipients[1].kidLen = sizeof(kid2) - 1u;
+
+        ret = wc_CoseEncrypt_Encrypt(recipients, 2,
+            WOLFCOSE_ALG_A128GCM, iv, sizeof(iv),
+            payload, sizeof(payload) - 1u,
+            NULL, 0u, aad, sizeof(aad) - 1u,
+            scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke ke encrypt");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        recipientKey1.hasPrivate = 1u;
+        recipientKey2.hasPrivate = 1u;
+        (void)XMEMSET(&hdr, 0, sizeof(hdr));
+        ret = wc_CoseEncrypt_Decrypt(&recipients[0], 0, out, outLen,
+            NULL, 0u, aad, sizeof(aad) - 1u,
+            scratch, sizeof(scratch), &hdr,
+            plaintext, sizeof(plaintext), &plaintextLen);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke ke recipient 1 decrypt");
+        TEST_ASSERT((plaintextLen == (sizeof(payload) - 1u)) &&
+                    (memcmp(plaintext, payload, plaintextLen) == 0),
+                    "hpke ke recipient 1 payload matches");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        (void)XMEMSET(&hdr, 0, sizeof(hdr));
+        ret = wc_CoseEncrypt_Decrypt(&recipients[1], 1, out, outLen,
+            NULL, 0u, aad, sizeof(aad) - 1u,
+            scratch, sizeof(scratch), &hdr,
+            plaintext, sizeof(plaintext), &plaintextLen);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke ke recipient 2 decrypt");
+        TEST_ASSERT((plaintextLen == (sizeof(payload) - 1u)) &&
+                    (memcmp(plaintext, payload, plaintextLen) == 0),
+                    "hpke ke recipient 2 payload matches");
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        wrongRecipient.algId = WOLFCOSE_ALG_HPKE_0_KE;
+        wrongRecipient.key = &wrongKey;
+        wrongRecipient.kid = kid1;
+        wrongRecipient.kidLen = sizeof(kid1) - 1u;
+        ret = wc_CoseEncrypt_Decrypt(&wrongRecipient, 0, out, outLen,
+            NULL, 0u, aad, sizeof(aad) - 1u,
+            scratch, sizeof(scratch), &hdr,
+            plaintext, sizeof(plaintext), &plaintextLen);
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_DECRYPT_FAIL,
+                    "hpke ke wrong private key rejected");
+    }
+    if (outLen >= (sizeof(kid1) - 1u)) {
+        for (i = 0u; i <= (outLen - (sizeof(kid1) - 1u)); i++) {
+            if (memcmp(&out[i], kid1, sizeof(kid1) - 1u) == 0) {
+                foundKid = 1;
+                out[i] ^= 0x01u;
+                break;
+            }
+        }
+        TEST_ASSERT(foundKid != 0, "hpke ke recipient kid located");
+        if (foundKid != 0) {
+            ret = wc_CoseEncrypt_Decrypt(&recipients[0], 0, out, outLen,
+                NULL, 0u, aad, sizeof(aad) - 1u,
+                scratch, sizeof(scratch), &hdr,
+                plaintext, sizeof(plaintext), &plaintextLen);
+            TEST_ASSERT(ret == WOLFCOSE_E_COSE_DECRYPT_FAIL,
+                        "hpke ke recipient protected header bound");
+            out[i] ^= 0x01u;
+        }
+    }
+    if ((recipientKey1Inited != 0) && (recipientKey2Inited != 0)) {
+        int emptyRet;
+
+        recipientKey1.hasPrivate = 0u;
+        recipientKey2.hasPrivate = 0u;
+        ret = wc_CoseEncrypt_Encrypt(recipients, 2,
+            WOLFCOSE_ALG_A128GCM, iv, sizeof(iv),
+            emptyPayload, 0u, NULL, 0u, aad, sizeof(aad) - 1u,
+            scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke ke empty encrypt");
+        if (ret == WOLFCOSE_SUCCESS) {
+            emptyRet = test_cose_hpke_ciphertext_len(out, outLen,
+                WOLFCOSE_TAG_ENCRYPT, 4u, &ciphertextLen);
+            TEST_ASSERT((emptyRet == WOLFCOSE_SUCCESS) &&
+                        (ciphertextLen == 16u),
+                        "hpke ke empty tag length");
+            recipientKey1.hasPrivate = 1u;
+            recipientKey2.hasPrivate = 1u;
+            for (i = 0u; i < 2u; i++) {
+                (void)XMEMSET(&hdr, 0, sizeof(hdr));
+                plaintextLen = sizeof(plaintext);
+                emptyRet = wc_CoseEncrypt_Decrypt(&recipients[i], i,
+                    out, outLen, NULL, 0u, aad, sizeof(aad) - 1u,
+                    scratch, sizeof(scratch), &hdr,
+                    plaintext, sizeof(plaintext), &plaintextLen);
+                TEST_ASSERT((emptyRet == WOLFCOSE_SUCCESS) &&
+                            (plaintextLen == 0u),
+                            "hpke ke empty recipient decrypt");
+            }
+        }
+    }
+
+    if (wrongKeyInited != 0) {
+        wc_CoseKey_Free(&wrongKey);
+    }
+    if (recipientKey2Inited != 0) {
+        wc_CoseKey_Free(&recipientKey2);
+    }
+    if (recipientKey1Inited != 0) {
+        wc_CoseKey_Free(&recipientKey1);
+    }
+    if (wrongEccInited != 0) {
+        (void)wc_ecc_free(&wrongEcc);
+    }
+    if (recipientEcc2Inited != 0) {
+        (void)wc_ecc_free(&recipientEcc2);
+    }
+    if (recipientEcc1Inited != 0) {
+        (void)wc_ecc_free(&recipientEcc1);
+    }
+    if (rngInited != 0) {
+        (void)wc_FreeRng(&rng);
+    }
+}
+#endif /* WOLFCOSE_HPKE_0_KE_ENCRYPT && WOLFCOSE_HPKE_0_KE_DECRYPT */
+
+#if defined(WOLFCOSE_HPKE_0_KE_DECRYPT)
+/* draft-ietf-cose-hpke-26, Section 5.2, encodes a 16-byte IV for
+ * A128GCM. RFC 9053 fixes the COSE AES-GCM nonce size at 96 bits, so reject
+ * the non-conforming draft vector before attempting to unwrap its CEK. */
+static void test_cose_hpke_key_encryption_draft_vector_rejected(void)
+{
+    static const uint8_t encodedHex[] =
+        "d8608443a10101a1055089115f10ecc1c7fd834442cb87929bc15825534d"
+        "b92f5366e3cadd096774a9576bb8d8867e75ea38c329ecfc7b8793c5a4ae"
+        "9603e5b0b6818349a201182e0443626f62a12358410417cd85837981ddb1"
+        "4963061ab5fb7308988eb922f87cf6cf6ef83556f7657922c9815947e41b"
+        "9bc932e48c6f1c4677d9a5506a30d694587628b5193a4cde2f3f58204b50"
+        "8a340e463c317f4e62fb8d08c887cac4788087ad022562d05855a50ca4a0";
+    static const uint8_t xHex[] =
+        "d832916778598ea6203af974c97b45970ac0266fc6a3b7f213ba9f8b591b9297";
+    static const uint8_t yHex[] =
+        "8d9410599a8e83d00eb46d67b34d4dac8fbd4b8b1f08864599659cee9ef09184";
+    static const uint8_t dHex[] =
+        "b1162c568efcba91c8e4e82f66e36b45aa10bc55228cf65ecd3bb29cfb09f989";
+    WOLFCOSE_KEY recipientKey;
+    WOLFCOSE_RECIPIENT recipient;
+    WOLFCOSE_HDR hdr;
+    ecc_key eccKey;
+    uint8_t encoded[256];
+    uint8_t x[32];
+    uint8_t y[32];
+    uint8_t d[32];
+    uint8_t scratch[256];
+    uint8_t plaintext[64];
+    size_t plaintextLen = 0u;
+    size_t encodedLen = sizeof(encoded);
+    size_t xLen = sizeof(x);
+    size_t yLen = sizeof(y);
+    size_t dLen = sizeof(d);
+    int ret = WOLFCOSE_SUCCESS;
+    int eccInited = 0;
+    int keyInited = 0;
+
+    TEST_LOG("  [COSE HPKE key-encryption draft vector rejection]\n");
+    (void)XMEMSET(&recipientKey, 0, sizeof(recipientKey));
+    (void)XMEMSET(&hdr, 0, sizeof(hdr));
+
+    ret = test_cose_hex_decode(encodedHex, sizeof(encodedHex) - 1u,
+                               encoded, sizeof(encoded), &encodedLen);
+    TEST_ASSERT(ret == 0, "hpke ke vector decode");
+    if (ret == 0) {
+        ret = test_cose_hex_decode(xHex, sizeof(xHex) - 1u,
+                                   x, sizeof(x), &xLen);
+    }
+    if (ret == 0) {
+        ret = test_cose_hex_decode(yHex, sizeof(yHex) - 1u,
+                                   y, sizeof(y), &yLen);
+    }
+    if (ret == 0) {
+        ret = test_cose_hex_decode(dHex, sizeof(dHex) - 1u,
+                                   d, sizeof(d), &dLen);
+    }
+    TEST_ASSERT((ret == 0) && (xLen == sizeof(x)) &&
+                (yLen == sizeof(y)) && (dLen == sizeof(d)),
+                "hpke ke vector key decode");
+    if (ret == 0) {
+        ret = wc_ecc_init(&eccKey);
+        TEST_ASSERT(ret == 0, "hpke ke vector ecc init");
+        if (ret == 0) {
+            eccInited = 1;
+        }
+    }
+    if (ret == 0) {
+        ret = wc_ecc_import_unsigned(&eccKey, x, y, d, ECC_SECP256R1);
+        TEST_ASSERT(ret == 0, "hpke ke vector key import");
+    }
+    if (ret == 0) {
+        ret = wc_CoseKey_Init(&recipientKey);
+        TEST_ASSERT(ret == 0, "hpke ke vector cose key init");
+        if (ret == 0) {
+            keyInited = 1;
+        }
+    }
+    if (ret == 0) {
+        ret = wc_CoseKey_SetEcc(&recipientKey, WOLFCOSE_CRV_P256, &eccKey);
+        TEST_ASSERT(ret == 0, "hpke ke vector cose key set");
+        recipientKey.alg = WOLFCOSE_ALG_HPKE_0_KE;
+    }
+    if (ret == 0) {
+        recipient.algId = WOLFCOSE_ALG_HPKE_0_KE;
+        recipient.key = &recipientKey;
+        recipient.kid = NULL;
+        recipient.kidLen = 0u;
+        ret = wc_CoseEncrypt_Decrypt(&recipient, 0u, encoded, encodedLen,
+            NULL, 0u, NULL, 0u, scratch, sizeof(scratch), &hdr,
+            plaintext, sizeof(plaintext), &plaintextLen);
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_HDR,
+                    "hpke ke draft vector rejects 16-byte GCM IV");
+    }
+
+    if (keyInited != 0) {
+        wc_CoseKey_Free(&recipientKey);
+    }
+    if (eccInited != 0) {
+        (void)wc_ecc_free(&eccKey);
+    }
+}
+#endif /* WOLFCOSE_HPKE_0_KE_DECRYPT */
+
+#if defined(WOLFCOSE_ENCRYPT) && defined(WOLFCOSE_HAVE_AESGCM) && \
+    defined(WOLFCOSE_KEY_WRAP)
+
 static void test_cose_encrypt_with_aad(void)
 {
     WOLFCOSE_KEY key;
@@ -11863,7 +13540,7 @@ static void test_cose_encrypt_direct_wrong_key_type(void)
 }
 #endif /* WOLFCOSE_HAVE_ES256 */
 
-#endif /* WOLFCOSE_ENCRYPT && WOLFCOSE_HAVE_AESGCM */
+#endif /* WOLFCOSE_ENCRYPT && WOLFCOSE_HAVE_AESGCM && WOLFCOSE_KEY_WRAP */
 
 /* ----- COSE_Mac Multi-Recipient Tests (RFC 9052 Section 6.1) ----- */
 #if defined(WOLFCOSE_MAC) && defined(WOLFCOSE_HAVE_HMAC256)
@@ -23602,6 +25279,7 @@ int test_cose(void)
     g_failures = 0;
 
     /* Internal helper tests */
+    test_cose_hdr_abi_layout();
     test_wolfcose_force_zero();
 #if defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_SIGN1_SIGN)
     test_cose_sign1_size_and_untagged();
@@ -23707,6 +25385,13 @@ int test_cose(void)
     test_cose_encrypt0_detached();
 #if defined(SIZE_MAX) && (SIZE_MAX > 0xFFFFFFFFUL)
     test_cose_encrypt0_word32_overflow_guard();
+#endif
+#if defined(WOLFCOSE_HPKE_0_ENCRYPT) && defined(WOLFCOSE_HPKE_0_DECRYPT)
+    test_cose_hpke_encrypt0();
+    test_cose_hpke_encrypt0_optional_alg();
+#endif
+#if defined(WOLFCOSE_HPKE_0_DECRYPT)
+    test_cose_hpke_encrypt0_draft_vector();
 #endif
 #endif
 
@@ -23842,6 +25527,14 @@ int test_cose(void)
 #ifdef WOLFCOSE_HAVE_ES256
     test_cose_encrypt_direct_wrong_key_type();
 #endif
+#endif
+#if defined(WOLFCOSE_HPKE_0_KE_ENCRYPT) && \
+    defined(WOLFCOSE_HPKE_0_KE_DECRYPT)
+    test_cose_hpke_key_encryption();
+    test_cose_hpke_key_encryption_optional_alg();
+#endif
+#if defined(WOLFCOSE_HPKE_0_KE_DECRYPT)
+    test_cose_hpke_key_encryption_draft_vector_rejected();
 #endif
 
     /* Multi-recipient MAC tests */

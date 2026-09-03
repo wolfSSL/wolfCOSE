@@ -1,0 +1,92 @@
+name: Experimental COSE-HPKE
+
+on:
+  push:
+    branches: [ 'main', 'release/**' ]
+  pull_request:
+    branches: [ '**' ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cose-hpke:
+    name: HPKE P0 unit, example, and CLI coverage
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y autoconf automake libtool
+
+    - name: Build HPKE-enabled wolfSSL
+      run: |
+        git clone --depth 1 https://github.com/wolfSSL/wolfssl.git "$HOME/wolfssl"
+        cd "$HOME/wolfssl"
+        ./autogen.sh
+        ./configure --enable-ecc --enable-ed25519 --enable-ed448 \
+                    --enable-curve25519 --enable-curve448 \
+                    --enable-ecccustcurves=all \
+                    --enable-aesgcm --enable-aesccm \
+                    --enable-sha384 --enable-sha512 \
+                    --enable-keygen --enable-hkdf --enable-aeskeywrap \
+                    --enable-chacha --enable-poly1305 --enable-mldsa \
+                    --enable-rsapss --enable-hpke \
+                    --prefix="$HOME/wolfssl-install"
+        make -j"$(nproc)"
+        make install
+
+    - name: Run experimental HPKE unit tests
+      run: |
+        export WOLFSSL_DIR="$HOME/wolfssl-install"
+        export LD_LIBRARY_PATH="$WOLFSSL_DIR/lib"
+        HPKE_FLAGS="-DWOLFCOSE_EXPERIMENTAL \
+          -DWOLFCOSE_ENABLE_HPKE_0_ENCRYPT \
+          -DWOLFCOSE_ENABLE_HPKE_0_DECRYPT \
+          -DWOLFCOSE_ENABLE_HPKE_0_KE_ENCRYPT \
+          -DWOLFCOSE_ENABLE_HPKE_0_KE_DECRYPT"
+        WOLFCOSE_CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 \
+          -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wvla \
+          -Werror=vla -DHAVE_ECC_KOBLITZ -I./include \
+          -I$WOLFSSL_DIR/include $HPKE_FLAGS"
+        make clean
+        make test CFLAGS="$WOLFCOSE_CFLAGS" \
+          LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
+
+    - name: Run experimental HPKE example
+      run: |
+        export WOLFSSL_DIR="$HOME/wolfssl-install"
+        export LD_LIBRARY_PATH="$WOLFSSL_DIR/lib"
+        WOLFCOSE_CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 \
+          -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wvla \
+          -Werror=vla -I./include -I$WOLFSSL_DIR/include"
+        make clean
+        make hpke-demo CFLAGS="$WOLFCOSE_CFLAGS" \
+          LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
+
+    - name: Run experimental HPKE strict C99 check
+      run: |
+        export WOLFSSL_DIR="$HOME/wolfssl-install"
+        make c99-hpke-check WOLFSSL_INC="$WOLFSSL_DIR/include"
+
+    - name: Run experimental HPKE CLI commands
+      run: |
+        export WOLFSSL_DIR="$HOME/wolfssl-install"
+        export LD_LIBRARY_PATH="$WOLFSSL_DIR/lib"
+        HPKE_FLAGS="-DWOLFCOSE_EXPERIMENTAL \
+          -DWOLFCOSE_ENABLE_HPKE_0_ENCRYPT \
+          -DWOLFCOSE_ENABLE_HPKE_0_DECRYPT \
+          -DWOLFCOSE_ENABLE_HPKE_0_KE_ENCRYPT \
+          -DWOLFCOSE_ENABLE_HPKE_0_KE_DECRYPT"
+        WOLFCOSE_CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 \
+          -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wvla \
+          -Werror=vla -I./include -I$WOLFSSL_DIR/include $HPKE_FLAGS"
+        make clean
+        EXPECT_HPKE=true EXPECT_PQC=true make cmdline-test \
+          CFLAGS="$WOLFCOSE_CFLAGS" \
+          LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"

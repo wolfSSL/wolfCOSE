@@ -2,7 +2,8 @@
 
 wolfCOSE has two configuration modes. The default is an opt-out full build: every algorithm wolfSSL provides is enabled, and you strip what you don't need with `WOLFCOSE_NO_*` defines. Alternatively, `WOLFCOSE_LEAN` switches to an opt-in core build and you add extensions with `WOLFCOSE_ENABLE_*`. See [Lean Configuration Layer](#lean-configuration-layer).
 
-Draft, pre-RFC features are held behind a separate acknowledgement, `WOLFCOSE_EXPERIMENTAL`; see [Experimental Features](#experimental-features).
+Draft, pre-RFC features are held behind a separate acknowledgement,
+`WOLFCOSE_EXPERIMENTAL`; see [Experimental Features](Experimental.md).
 
 ## Experimental Features
 
@@ -38,6 +39,11 @@ cc -DWOLFCOSE_ENABLE_EXPERIMENTAL_EXAMPLE ...
 
 **Graduation policy.** When a draft is published as an RFC, its `WOLFCOSE_EXPERIMENTAL` requirement is removed in a focused follow-up and the feature becomes an ordinary gate (default-on full build, `WOLFCOSE_ENABLE_<X>` under `WOLFCOSE_LEAN`, `WOLFCOSE_NO_<X>` to strip), following the [Algorithm Gates](#algorithm-gates) convention.
 
+COSE-HPKE is currently an experimental feature. It stays off in every build and
+requires the master acknowledgement plus the relevant operation gate. See
+[Experimental Features](Experimental.md) for its current draft status, scope,
+and graduation plan.
+
 ## Lean Configuration Layer
 
 Defining `WOLFCOSE_LEAN` keeps only the core — `COSE_Sign1`/`Encrypt0`/`Mac0` with ES256, AES-GCM, and HMAC-SHA256 — and turns every other algorithm into an opt-in. This is the recommended starting point for constrained targets.
@@ -48,6 +54,9 @@ Defining `WOLFCOSE_LEAN` keeps only the core — `COSE_Sign1`/`Encrypt0`/`Mac0` 
 | `WOLFCOSE_ENABLE_<X>` | Opt in a single extension (see list below) |
 
 Extension names for `WOLFCOSE_ENABLE_<X>`: `ES384`, `ES512`, `EDDSA`, `ED448`, `RSAPSS`, `MLDSA`, `HMAC384`, `HMAC512`, `AESCCM`, `CHACHA20`, `AESMAC`, `AESWRAP`, `ECDH_ES`, `SIGN` (multi-signer), `ENCRYPT` (multi-recipient), `MAC` (multi-recipient).
+
+COSE-HPKE uses its own explicit gates rather than this generic extension rule,
+so it never becomes enabled merely because wolfSSL provides HPKE.
 
 An extension is compiled in when it is explicitly enabled (`WOLFCOSE_ENABLE_<X>`), or — in a non-lean build — when wolfSSL provides the primitive and it is not opted out with `WOLFCOSE_NO_<X>`. Enabling an extension wolfSSL cannot provide is a compile error. The resolved state is exposed internally as read-only `WOLFCOSE_HAVE_<X>` gates (e.g. `WOLFCOSE_HAVE_MLDSA`); sources, tests, and examples compile against those, so you set `WOLFCOSE_ENABLE_*`/`WOLFCOSE_NO_*`, not `WOLFCOSE_HAVE_*`.
 
@@ -210,6 +219,106 @@ off by default.
 | `WOLFCOSE_ENABLE_ECDH_ES` | Opt in ECDH-ES under `WOLFCOSE_LEAN` | - |
 
 Resolved internally as read-only `WOLFCOSE_KEY_WRAP`, `WOLFCOSE_ECDH`, and `WOLFCOSE_ECDH_WRAP` gates. Requires the matching wolfSSL feature (`HAVE_AES_KEYWRAP`; `HAVE_ECC` + `HAVE_HKDF` for ECDH-ES) and at least one multi-recipient message type enabled. AES Key Wrap also requires wolfSSL 5.9.0 or later; older releases used a comparison whose timing behavior depended on the compiler and `XMEMCMP` configuration. Define `WOLFCOSE_NO_AESWRAP` when building the otherwise supported wolfSSL 5.8.x series.
+
+---
+
+## COSE-HPKE (experimental)
+
+COSE-HPKE implements the P0 subset of
+[draft-ietf-cose-hpke-26](https://datatracker.ietf.org/doc/draft-ietf-cose-hpke/).
+It is deliberately disabled by default in both full and lean builds because the
+COSE binding and its IANA values are still an Internet-Draft. HPKE itself is
+standardized by RFC 9180, but the COSE profile is not yet an RFC.
+
+P0 fixes every cryptographic choice: `DHKEM(P-256, HKDF-SHA256)`,
+`HKDF-SHA256`, and `AES-128-GCM`, in HPKE base mode only. There are no hidden
+P-384, P-521, X25519, PSK, authenticated, or alternate-AEAD paths to enable.
+That keeps each enabled wire operation auditable and lets targets compile out
+all unsupported suites.
+
+P0 is intended for confidential provisioning, configuration, and credential
+delivery. It can encrypt a payload directly to one recipient, or encrypt the
+content once and independently protect its content-encryption key for multiple
+recipients. Base mode provides recipient-only confidentiality; pair the result
+with a COSE signature or MAC when the sender must be authenticated.
+
+| Define | Description | Default |
+|--------|-------------|---------|
+| `WOLFCOSE_EXPERIMENTAL` | Required acknowledgement for every COSE-HPKE enable; alone enables no HPKE code | off |
+| `WOLFCOSE_ENABLE_HPKE_0` | Enable both send and receive for single-recipient integrated `COSE_Encrypt0` HPKE-0 | off |
+| `WOLFCOSE_ENABLE_HPKE_0_ENCRYPT` | Enable only integrated Encrypt0 send | off |
+| `WOLFCOSE_ENABLE_HPKE_0_DECRYPT` | Enable only integrated Encrypt0 receive | off |
+| `WOLFCOSE_ENABLE_HPKE_0_KE` | Enable both send and receive for multi-recipient `COSE_Encrypt` HPKE-0-KE | off |
+| `WOLFCOSE_ENABLE_HPKE_0_KE_ENCRYPT` | Enable only multi-recipient HPKE key-encryption send | off |
+| `WOLFCOSE_ENABLE_HPKE_0_KE_DECRYPT` | Enable only multi-recipient HPKE key-encryption receive | off |
+| `WOLFCOSE_NO_HPKE_0` | Prohibit all HPKE-0 enables; conflicts with any HPKE-0 enable | off |
+| `WOLFCOSE_NO_HPKE_0_ENCRYPT` / `WOLFCOSE_NO_HPKE_0_DECRYPT` | Compile out the corresponding integrated Encrypt0 direction | off |
+| `WOLFCOSE_NO_HPKE_0_KE_ENCRYPT` / `WOLFCOSE_NO_HPKE_0_KE_DECRYPT` | Compile out the corresponding multi-recipient key-encryption direction | off |
+
+Every HPKE `ENABLE_*` macro requires `WOLFCOSE_EXPERIMENTAL`; selecting an HPKE
+operation without the acknowledgement is a compile error. The convenience
+gates respect their per-direction `NO_*` gates. Defining an individual
+`ENABLE_*` and its matching `NO_*` is a compile error; defining
+`WOLFCOSE_NO_HPKE_0` with any enable is also a compile error.
+
+An enabled HPKE operation requires wolfSSL `HAVE_HPKE`, `HAVE_ECC` with P-256,
+SHA-256, and `HAVE_AESGCM`. Integrated mode also needs the matching
+`COSE_Encrypt0` direction. Key-encryption mode additionally needs the matching
+`COSE_Encrypt` direction and recipient support; under `WOLFCOSE_LEAN`, add
+`WOLFCOSE_ENABLE_ENCRYPT` before enabling an HPKE-0-KE operation.
+
+Build the wolfSSL backend with HPKE, ECC P-256, AES-GCM, SHA-256, and key
+generation. For example, a cryptography-only backend can use:
+
+```bash
+./configure --enable-cryptonly --enable-hpke --enable-ecc --enable-aesgcm \
+    --enable-keygen
+```
+
+The public identifiers are provisional draft values: `HPKE-0` is algorithm 35,
+`HPKE-0-KE` is algorithm 46, and `ek` is header label -4. Applications must
+treat them as draft values and update when the COSE-HPKE RFC or IANA registry
+changes. P0 accepts only base mode: `psk_id`, a PSK, and external HPKE `info`
+are intentionally not exposed. Application external AAD is still bound through
+the normal COSE `Enc_structure` API argument.
+
+For integrated mode, call `wc_CoseHpkeEncrypt0_Encrypt()` and
+`wc_CoseHpkeEncrypt0_Decrypt()`. It encrypts payloads directly for one
+recipient. For key-encryption mode, use `wc_CoseEncrypt_Encrypt()` and
+`wc_CoseEncrypt_Decrypt()` with every `WOLFCOSE_RECIPIENT.algId` set to
+`WOLFCOSE_ALG_HPKE_0_KE`; wolfCOSE generates one CEK, encrypts the content
+once, and HPKE-wraps that CEK separately for every recipient. HPKE base mode
+does not authenticate the sender, so add a COSE signature or MAC when sender
+authentication is required.
+
+Draft P0 permits the HPKE `alg` header parameter to be absent. The integrated
+decrypt API is already pinned to HPKE-0; for key-encryption decrypt, set the
+selected `WOLFCOSE_RECIPIENT.algId` to `WOLFCOSE_ALG_HPKE_0_KE` so wolfCOSE can
+pin the omitted value safely. When an integrated or recipient HPKE `alg` is
+present, it must be in the protected header. wolfCOSE rejects an unprotected
+HPKE `alg` rather than accepting an unauthenticated key-management choice. For
+HPKE-0-KE, the outer `COSE_Encrypt` content algorithm may be unprotected: the
+HPKE Recipient_structure binds it as `next_layer_alg`, so a modification makes
+HPKE CEK recovery fail. P0 requires the 65-byte P-256 `ek` in the unprotected
+header, rejects it in the protected header, and rejects `psk_id` because PSK
+mode is not implemented.
+
+```bash
+# Single-recipient integrated HPKE: send and receive.
+make EXTRA_CFLAGS="-DWOLFCOSE_EXPERIMENTAL -DWOLFCOSE_ENABLE_HPKE_0"
+
+# Receive-only provisioning target: no HPKE sender code.
+make EXTRA_CFLAGS="-DWOLFCOSE_EXPERIMENTAL -DWOLFCOSE_ENABLE_HPKE_0_DECRYPT"
+
+# Multi-recipient provisioning server, including the lean COSE_Encrypt gate.
+make EXTRA_CFLAGS="-DWOLFCOSE_LEAN -DWOLFCOSE_EXPERIMENTAL -DWOLFCOSE_ENABLE_ENCRYPT \
+    -DWOLFCOSE_ENABLE_HPKE_0_KE_ENCRYPT"
+```
+
+Draft -26's published Section 5.2 key-encryption sample encodes a 16-byte
+`A128GCM` IV. RFC 9053 fixes the COSE AES-GCM nonce at 12 bytes, so wolfCOSE
+rejects that malformed sample and requires a 12-byte IV for all COSE content
+encryption.
 
 ---
 
@@ -416,6 +525,7 @@ wolfCOSE requires these wolfSSL features for full functionality:
 | `WOLFSSL_SHA512` | SHA-512 for ES512, HMAC-512 |
 | `HAVE_AES_KEYWRAP` | AES Key Wrap distribution |
 | `HAVE_HKDF` | ECDH-ES key derivation |
+| `HAVE_HPKE` + `HAVE_ECC` P-256 + SHA-256 + `HAVE_AESGCM` | Experimental COSE-HPKE P0 |
 
 ---
 

@@ -22,6 +22,26 @@
       ],
       "expected": 2,
       "range_sha256": "5ea3030e1870253ae4805cb405bf516807cac046c242467fe45648727321b261"
+    },
+    {
+      "id": "D-11.8-002",
+      "rule": "11.8",
+      "path": "src/wolfcose.c",
+      "symbol": "wolfCose_Hpke0Seal",
+      "anchors": [
+        "            (byte*)plaintext, (word32)plaintextLen, ciphertext);"
+      ],
+      "expected": 1
+    },
+    {
+      "id": "D-11.8-003",
+      "rule": "11.8",
+      "path": "src/wolfcose.c",
+      "symbol": "wolfCose_Hpke0Open",
+      "anchors": [
+        "            (byte*)ciphertext, (word32)ciphertextBodyLen, plaintext);"
+      ],
+      "expected": 1
     }
   ]
 }

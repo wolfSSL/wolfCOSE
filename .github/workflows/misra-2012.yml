@@ -43,7 +43,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-install
-        key: wolfssl-ubuntu-24.04-v4-${{ env.WOLFSSL_REF }}
+        key: wolfssl-ubuntu-24.04-v5-${{ env.WOLFSSL_REF }}
 
     - name: Build wolfSSL
       if: steps.cache-wolfssl.outputs.cache-hit != 'true'
@@ -59,7 +59,7 @@ jobs:
                     --enable-curve25519 --enable-aesgcm --enable-aesccm \
                     --enable-sha384 --enable-sha512 --enable-keygen \
                     --enable-rsapss --enable-chacha --enable-poly1305 \
-                    --enable-mldsa \
+                    --enable-mldsa --enable-hpke \
                     --prefix=$HOME/wolfssl-install
         make -j$(nproc)
         make install
@@ -82,6 +82,11 @@ jobs:
         # a full production build does. Only true user inputs are supplied.
         cc -std=c99 -Wall -Wextra -Wpedantic -Werror \
            -DWOLFCOSE_FLOAT -DWOLFCOSE_ENABLE_EXT_SIGN \
+           -DWOLFCOSE_EXPERIMENTAL \
+           -DWOLFCOSE_ENABLE_HPKE_0_ENCRYPT \
+           -DWOLFCOSE_ENABLE_HPKE_0_DECRYPT \
+           -DWOLFCOSE_ENABLE_HPKE_0_KE_ENCRYPT \
+           -DWOLFCOSE_ENABLE_HPKE_0_KE_DECRYPT \
            -I include -I "$HOME/wolfssl-install/include" \
            -fsyntax-only tests/misra_consumer.c
 
@@ -107,8 +112,14 @@ jobs:
                  -DWOLFSSL_AES_DIRECT \
                  -DHAVE_HKDF \
                  -DHAVE_AES_CBC \
+                 -DHAVE_HPKE \
                  -DWOLFCOSE_FLOAT \
                  -DWOLFCOSE_ENABLE_EXT_SIGN \
+                 -DWOLFCOSE_EXPERIMENTAL \
+                 -DWOLFCOSE_ENABLE_HPKE_0_ENCRYPT \
+                 -DWOLFCOSE_ENABLE_HPKE_0_DECRYPT \
+                 -DWOLFCOSE_ENABLE_HPKE_0_KE_ENCRYPT \
+                 -DWOLFCOSE_ENABLE_HPKE_0_KE_DECRYPT \
                  -I include -I src -I $HOME/wolfssl-install/include \
                  src/wolfcose.c src/wolfcose_cbor.c \
                  tests/misra_consumer.c \

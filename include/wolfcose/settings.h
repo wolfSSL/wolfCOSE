@@ -493,6 +493,108 @@ extern "C" {
     #endif
 #endif
 
+/* ----- COSE-HPKE (draft-ietf-cose-hpke-26) -----
+ *
+ * HPKE is deliberately opt-in in every build.  The P0 implementation supports
+ * only the draft's HPKE-0 ciphersuite: DHKEM(P-256, HKDF-SHA256),
+ * HKDF-SHA256, and AES-128-GCM in base mode.  Each wire operation has a
+ * separate enable gate so send-only and receive-only targets do not carry the
+ * other direction.  The two convenience switches enable both directions for
+ * their respective COSE construction.
+ */
+#if (defined(WOLFCOSE_ENABLE_HPKE_0) || \
+     defined(WOLFCOSE_ENABLE_HPKE_0_KE) || \
+     defined(WOLFCOSE_ENABLE_HPKE_0_ENCRYPT) || \
+     defined(WOLFCOSE_ENABLE_HPKE_0_DECRYPT) || \
+     defined(WOLFCOSE_ENABLE_HPKE_0_KE_ENCRYPT) || \
+     defined(WOLFCOSE_ENABLE_HPKE_0_KE_DECRYPT)) && \
+    !defined(WOLFCOSE_EXPERIMENTAL)
+    #error "COSE-HPKE selects experimental draft code (spec not yet a finalized RFC); also define WOLFCOSE_EXPERIMENTAL to acknowledge"
+#endif
+
+#if defined(WOLFCOSE_ENABLE_HPKE_0)
+    #if defined(WOLFCOSE_NO_HPKE_0)
+        #error "WOLFCOSE_ENABLE_HPKE_0 conflicts with WOLFCOSE_NO_HPKE_0"
+    #endif
+    #if !defined(WOLFCOSE_NO_HPKE_0_ENCRYPT)
+        #define WOLFCOSE_ENABLE_HPKE_0_ENCRYPT
+    #endif
+    #if !defined(WOLFCOSE_NO_HPKE_0_DECRYPT)
+        #define WOLFCOSE_ENABLE_HPKE_0_DECRYPT
+    #endif
+#endif
+
+#if defined(WOLFCOSE_ENABLE_HPKE_0_KE)
+    #if defined(WOLFCOSE_NO_HPKE_0)
+        #error "WOLFCOSE_ENABLE_HPKE_0_KE conflicts with WOLFCOSE_NO_HPKE_0"
+    #endif
+    #if !defined(WOLFCOSE_NO_HPKE_0_KE_ENCRYPT)
+        #define WOLFCOSE_ENABLE_HPKE_0_KE_ENCRYPT
+    #endif
+    #if !defined(WOLFCOSE_NO_HPKE_0_KE_DECRYPT)
+        #define WOLFCOSE_ENABLE_HPKE_0_KE_DECRYPT
+    #endif
+#endif
+
+#if defined(WOLFCOSE_NO_HPKE_0) && \
+    (defined(WOLFCOSE_ENABLE_HPKE_0_ENCRYPT) || \
+     defined(WOLFCOSE_ENABLE_HPKE_0_DECRYPT) || \
+     defined(WOLFCOSE_ENABLE_HPKE_0_KE_ENCRYPT) || \
+     defined(WOLFCOSE_ENABLE_HPKE_0_KE_DECRYPT))
+    #error "WOLFCOSE_NO_HPKE_0 conflicts with an HPKE-0 operation enable"
+#endif
+
+#if (defined(WOLFCOSE_ENABLE_HPKE_0_ENCRYPT) && \
+     defined(WOLFCOSE_NO_HPKE_0_ENCRYPT)) || \
+    (defined(WOLFCOSE_ENABLE_HPKE_0_DECRYPT) && \
+     defined(WOLFCOSE_NO_HPKE_0_DECRYPT)) || \
+    (defined(WOLFCOSE_ENABLE_HPKE_0_KE_ENCRYPT) && \
+     defined(WOLFCOSE_NO_HPKE_0_KE_ENCRYPT)) || \
+    (defined(WOLFCOSE_ENABLE_HPKE_0_KE_DECRYPT) && \
+     defined(WOLFCOSE_NO_HPKE_0_KE_DECRYPT))
+    #error "An HPKE-0 operation cannot be both enabled and disabled"
+#endif
+
+#if defined(WOLFCOSE_ENABLE_HPKE_0_ENCRYPT) || \
+    defined(WOLFCOSE_ENABLE_HPKE_0_DECRYPT) || \
+    defined(WOLFCOSE_ENABLE_HPKE_0_KE_ENCRYPT) || \
+    defined(WOLFCOSE_ENABLE_HPKE_0_KE_DECRYPT)
+    #if !defined(HAVE_HPKE) || !defined(HAVE_ECC) || \
+        !defined(HAVE_AESGCM) || defined(NO_SHA256) || \
+        (defined(NO_ECC256) && !defined(HAVE_ALL_CURVES))
+        #error "HPKE-0 requires wolfSSL HAVE_HPKE, HAVE_ECC, P-256, SHA-256, and HAVE_AESGCM"
+    #endif
+    #define WOLFCOSE_HAVE_HPKE_0
+#endif
+
+#if defined(WOLFCOSE_ENABLE_HPKE_0_ENCRYPT)
+    #if !defined(WOLFCOSE_ENCRYPT0_ENCRYPT)
+        #error "WOLFCOSE_ENABLE_HPKE_0_ENCRYPT requires COSE_Encrypt0 encrypt"
+    #endif
+    #define WOLFCOSE_HPKE_0_ENCRYPT
+#endif
+
+#if defined(WOLFCOSE_ENABLE_HPKE_0_DECRYPT)
+    #if !defined(WOLFCOSE_ENCRYPT0_DECRYPT)
+        #error "WOLFCOSE_ENABLE_HPKE_0_DECRYPT requires COSE_Encrypt0 decrypt"
+    #endif
+    #define WOLFCOSE_HPKE_0_DECRYPT
+#endif
+
+#if defined(WOLFCOSE_ENABLE_HPKE_0_KE_ENCRYPT)
+    #if !defined(WOLFCOSE_ENCRYPT_ENCRYPT) || !defined(WOLFCOSE_RECIPIENTS)
+        #error "WOLFCOSE_ENABLE_HPKE_0_KE_ENCRYPT requires COSE_Encrypt recipients and encrypt"
+    #endif
+    #define WOLFCOSE_HPKE_0_KE_ENCRYPT
+#endif
+
+#if defined(WOLFCOSE_ENABLE_HPKE_0_KE_DECRYPT)
+    #if !defined(WOLFCOSE_ENCRYPT_DECRYPT) || !defined(WOLFCOSE_RECIPIENTS)
+        #error "WOLFCOSE_ENABLE_HPKE_0_KE_DECRYPT requires COSE_Encrypt recipients and decrypt"
+    #endif
+    #define WOLFCOSE_HPKE_0_KE_DECRYPT
+#endif
+
 /* ----- COSE_Key serialization — core ----- */
 #ifndef WOLFCOSE_NO_KEY_ENCODE
     #define WOLFCOSE_KEY_ENCODE

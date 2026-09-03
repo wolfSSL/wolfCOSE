@@ -33,6 +33,7 @@ It uses [wolfSSL](https://www.wolfssl.com/) as the cryptographic backend and is 
 | [[Algorithms]] | Complete list of supported algorithms with COSE IDs |
 | [[API Reference]] | Full API documentation for all functions |
 | [[Macros]] | Configuration macros and compile-time options |
+| [[Experimental]] | Draft feature status, supported scope, and graduation plan |
 | [[Footprint]] | Size and speed numbers, desktop and on-device |
 | [[Testing]] | Unit tests, coverage, and failure injection |
 | [[Project Structure]] | Source code layout and file descriptions |

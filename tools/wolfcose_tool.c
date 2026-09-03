@@ -28,11 +28,22 @@
  *   verify  -k <keyfile> -i <cose_file>
  *   enc     -k <keyfile> -a <alg> -i <plaintext> -o <cose_file>
  *   dec     -k <keyfile> -i <cose_file> -o <plaintext>
+ *   hpke0-enc -k <public-key> -i <plaintext> -o <cose_file>
+ *   hpke0-dec -k <private-key> -i <cose_file> -o <plaintext>
+ *   hpke-ke-enc -a <alg> -k <public-key> [-k <public-key> ...] -i <plaintext> -o <cose_file>
+ *   hpke-ke-dec -k <private-key> [-r <recipient-index>] -i <cose_file> -o <plaintext>
  *   info    -i <cose_file>
  *
  * Key files: raw COSE_Key CBOR format.
  * Exit codes: 0=success, 1=usage, 2=crypto failure, 3=I/O error.
  */
+
+/* Request the POSIX interfaces used by the optional HPKE key-output guard
+ * before any system header on POSIX hosts. */
+#if (defined(__unix__) || defined(__APPLE__) || defined(__MACH__) || \
+     defined(__CYGWIN__)) && !defined(_XOPEN_SOURCE)
+    #define _XOPEN_SOURCE 700
+#endif
 
 #ifdef HAVE_CONFIG_H
     #include <config.h>
@@ -43,8 +54,18 @@
 #include <wolfssl/wolfcrypt/settings.h>
 
 #include <wolfcose/wolfcose.h>
+
+#if !defined(WOLFCOSE_TOOL_HAVE_POSIX_FS)
+    #if defined(__unix__) || defined(__APPLE__) || defined(__MACH__) || \
+        defined(__CYGWIN__)
+        #define WOLFCOSE_TOOL_HAVE_POSIX_FS 1
+    #else
+        #define WOLFCOSE_TOOL_HAVE_POSIX_FS 0
+    #endif
+#endif
+
 #include <wolfssl/wolfcrypt/random.h>
-#ifdef WOLFCOSE_HAVE_ECDSA
+#if defined(WOLFCOSE_HAVE_ECDSA) || defined(WOLFCOSE_HAVE_HPKE_0)
     #include <wolfssl/wolfcrypt/ecc.h>
 #endif
 #ifdef WOLFCOSE_HAVE_EDDSA
@@ -63,6 +84,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(WOLFCOSE_HAVE_HPKE_0)
+    #include <errno.h>
+    #if (WOLFCOSE_TOOL_HAVE_POSIX_FS == 1)
+        #include <fcntl.h>
+        #include <limits.h>
+        #include <sys/stat.h>
+        #include <unistd.h>
+    #endif
+#endif
 
 #ifndef WOLFCOSE_TOOL_MAX_MSG
     #define WOLFCOSE_TOOL_MAX_MSG  8192
@@ -76,6 +106,52 @@
         /* RSA-2048 private COSE_Key: n,e,d,p,q,qInv plus export scratch */
         #define WOLFCOSE_TOOL_MAX_KEY  4096
     #endif
+#endif
+
+#if defined(WOLFCOSE_HAVE_HPKE_0) && \
+    (WOLFCOSE_TOOL_HAVE_POSIX_FS == 1)
+/* PATH_MAX is optional in POSIX headers. This fallback matches the minimum
+ * practical path size supported by the command-line tool. */
+    #ifndef PATH_MAX
+        #define WOLFCOSE_TOOL_PATH_MAX 4096u
+    #else
+        #define WOLFCOSE_TOOL_PATH_MAX PATH_MAX
+    #endif
+#endif
+
+/* Bounds the command-line multi-recipient HPKE helper without limiting the
+ * library API. Integrators can reduce this for constrained tools. */
+#if defined(WOLFCOSE_HAVE_HPKE_0)
+#ifndef WOLFCOSE_TOOL_MAX_HPKE_RECIPIENTS
+    #define WOLFCOSE_TOOL_MAX_HPKE_RECIPIENTS 4u
+#endif
+#if (WOLFCOSE_TOOL_MAX_HPKE_RECIPIENTS < 1u)
+    #error "WOLFCOSE_TOOL_MAX_HPKE_RECIPIENTS must be at least one"
+#endif
+#endif
+
+#if defined(WOLFCOSE_HPKE_0_ENCRYPT) || defined(WOLFCOSE_HPKE_0_DECRYPT)
+/* Direct HPKE-0 adds protected and unprotected headers, a P-256 enc value,
+ * an AEAD tag, and CBOR framing. */
+#define WOLFCOSE_TOOL_HPKE_0_ENCODED_MAX \
+    ((size_t)WOLFCOSE_TOOL_MAX_MSG + 128u)
+#endif
+
+#if defined(WOLFCOSE_HPKE_0_KE_ENCRYPT) || \
+    defined(WOLFCOSE_HPKE_0_KE_DECRYPT)
+/* Each HPKE-0-KE recipient carries a fixed P-256 enc value and wrapped CEK. */
+#define WOLFCOSE_TOOL_HPKE_0_KE_ENCODED_MAX \
+    ((size_t)WOLFCOSE_TOOL_MAX_MSG + 64u + \
+     (128u * (size_t)WOLFCOSE_TOOL_MAX_HPKE_RECIPIENTS))
+#endif
+
+#if defined(WOLFCOSE_HPKE_0_KE_ENCRYPT) || \
+    defined(WOLFCOSE_HPKE_0_KE_DECRYPT)
+    #define WOLFCOSE_TOOL_MAX_COSE_MSG WOLFCOSE_TOOL_HPKE_0_KE_ENCODED_MAX
+#elif defined(WOLFCOSE_HPKE_0_ENCRYPT) || defined(WOLFCOSE_HPKE_0_DECRYPT)
+    #define WOLFCOSE_TOOL_MAX_COSE_MSG WOLFCOSE_TOOL_HPKE_0_ENCODED_MAX
+#else
+    #define WOLFCOSE_TOOL_MAX_COSE_MSG WOLFCOSE_TOOL_MAX_MSG
 #endif
 
 #define EXIT_USAGE   1
@@ -100,11 +176,29 @@ static void usage(void)
         "Usage: wolfcose_tool <command> [options]\n"
         "\n"
         "Commands:\n"
+#if defined(WOLFCOSE_HAVE_HPKE_0)
+        "  keygen  -a <alg> -o <keyfile> [-p <public-keyfile>]\n"
+#else
         "  keygen  -a <alg> -o <keyfile>\n"
+#endif
         "  sign    -k <keyfile> -a <alg> -i <payload> -o <cose_file>\n"
         "  verify  -k <keyfile> -i <cose_file>\n"
         "  enc     -k <keyfile> -a <alg> -i <plaintext> -o <cose_file>\n"
         "  dec     -k <keyfile> -i <cose_file> -o <plaintext>\n"
+#if defined(WOLFCOSE_HPKE_0_ENCRYPT)
+        "  hpke0-enc -k <public-key> -i <plaintext> -o <cose_file>\n"
+#endif
+#if defined(WOLFCOSE_HPKE_0_DECRYPT)
+        "  hpke0-dec -k <private-key> -i <cose_file> -o <plaintext>\n"
+#endif
+#if defined(WOLFCOSE_HPKE_0_KE_ENCRYPT)
+        "  hpke-ke-enc -a <alg> -k <public-key> [-k <public-key> ...]"
+        " -i <plaintext> -o <cose_file>\n"
+#endif
+#if defined(WOLFCOSE_HPKE_0_KE_DECRYPT)
+        "  hpke-ke-dec -k <private-key> [-r <recipient-index>]"
+        " -i <cose_file> -o <plaintext>\n"
+#endif
         "  mac     -k <keyfile> -a <alg> -i <payload> -o <cose_file>\n"
         "  macverify -k <keyfile> -i <cose_file>\n"
         "  info    -i <cose_file>\n"
@@ -113,6 +207,9 @@ static void usage(void)
         "Algorithms: ES256, EdDSA, Ed448, PS256, PS384, PS512,\n"
         "            ML-DSA-44, ML-DSA-65, ML-DSA-87,\n"
         "            A128GCM, A192GCM, A256GCM, ChaCha20, AES-CCM,\n"
+#if defined(WOLFCOSE_HAVE_HPKE_0)
+        "            HPKE-0, HPKE-0-KE,\n"
+#endif
         "            HMAC256, HMAC384, HMAC512\n");
 }
 
@@ -184,6 +281,17 @@ static int parse_alg(const char* name, int32_t* alg)
         *alg = WOLFCOSE_ALG_HMAC512;
     }
 #endif
+#if defined(WOLFCOSE_HPKE_0_ENCRYPT) || defined(WOLFCOSE_HPKE_0_DECRYPT)
+    else if (strcmp(name, "HPKE-0") == 0) {
+        *alg = WOLFCOSE_ALG_HPKE_0;
+    }
+#endif
+#if defined(WOLFCOSE_HPKE_0_KE_ENCRYPT) || \
+    defined(WOLFCOSE_HPKE_0_KE_DECRYPT)
+    else if (strcmp(name, "HPKE-0-KE") == 0) {
+        *alg = WOLFCOSE_ALG_HPKE_0_KE;
+    }
+#endif
     else {
         fprintf(stderr, "Unknown algorithm: %s\n", name);
         return -1;
@@ -191,12 +299,13 @@ static int parse_alg(const char* name, int32_t* alg)
     return 0;
 }
 
-/* Read entire file into buffer, return bytes read */
+/* Read an entire file into buffer, rejecting data beyond the caller's bound. */
 static int read_file(const char* path, uint8_t* buf, size_t bufSz,
                       size_t* outLen)
 {
     FILE* f;
     size_t n;
+    int extra = EOF;
 
     f = fopen(path, "rb");
     if (f == NULL) {
@@ -204,9 +313,17 @@ static int read_file(const char* path, uint8_t* buf, size_t bufSz,
         return EXIT_IO;
     }
     n = fread(buf, 1, bufSz, f);
-    if (n == 0 && ferror(f)) {
+    if (n == bufSz) {
+        extra = fgetc(f);
+    }
+    if (ferror(f)) {
         fclose(f);
         fprintf(stderr, "Read error: %s\n", path);
+        return EXIT_IO;
+    }
+    if (extra != EOF) {
+        fclose(f);
+        fprintf(stderr, "Input too large: %s\n", path);
         return EXIT_IO;
     }
     fclose(f);
@@ -232,6 +349,476 @@ static int write_file(const char* path, const uint8_t* buf, size_t len)
     fclose(f);
     return 0;
 }
+
+#if defined(WOLFCOSE_HAVE_HPKE_0)
+#if (WOLFCOSE_TOOL_HAVE_POSIX_FS == 1)
+/* Resolve an output path without allowing a final symlink. Existing paths
+ * resolve fully; a new leaf is made canonical by resolving its parent. This
+ * lets the key generator reject aliases before either destination is created. */
+static int tool_hpke_canonical_output_path(const char* path,
+    char* canonical, size_t canonicalSz)
+{
+    char parent[WOLFCOSE_TOOL_PATH_MAX];
+    char resolvedParent[WOLFCOSE_TOOL_PATH_MAX];
+    const char* leaf;
+    const char* slash;
+    size_t parentLen;
+    size_t resolvedParentLen;
+    size_t leafLen;
+    struct stat pathStat;
+    int ret = 0;
+
+    if ((path == NULL) || (path[0] == '\0') || (canonical == NULL) ||
+        (canonicalSz == 0u)) {
+        ret = -1;
+    }
+    else if ((lstat(path, &pathStat) == 0) && S_ISLNK(pathStat.st_mode)) {
+        fprintf(stderr, "Refusing HPKE key output symlink: %s\n", path);
+        ret = -1;
+    }
+    else if (realpath(path, canonical) != NULL) {
+        /* Existing non-symlink path resolved successfully. */
+    }
+    else {
+        slash = strrchr(path, '/');
+        if (slash == NULL) {
+            parent[0] = '.';
+            parent[1] = '\0';
+            leaf = path;
+        }
+        else if (slash == path) {
+            parent[0] = '/';
+            parent[1] = '\0';
+            leaf = slash + 1;
+        }
+        else {
+            parentLen = (size_t)(slash - path);
+            if (parentLen >= sizeof(parent)) {
+                ret = -1;
+            }
+            else {
+                (void)XMEMCPY(parent, path, parentLen);
+                parent[parentLen] = '\0';
+                leaf = slash + 1;
+            }
+        }
+
+        if ((ret == 0) && (leaf[0] == '\0')) {
+            ret = -1;
+        }
+        if ((ret == 0) && (realpath(parent, resolvedParent) == NULL)) {
+            ret = -1;
+        }
+        if (ret == 0) {
+            resolvedParentLen = strlen(resolvedParent);
+            leafLen = strlen(leaf);
+            if ((resolvedParentLen > (SIZE_MAX - leafLen - 2u)) ||
+                ((resolvedParentLen + leafLen + 2u) > canonicalSz)) {
+                ret = -1;
+            }
+            else if ((resolvedParentLen == 1u) &&
+                     (resolvedParent[0] == '/')) {
+                (void)XMEMCPY(canonical, resolvedParent,
+                              resolvedParentLen);
+                (void)XMEMCPY(&canonical[resolvedParentLen], leaf, leafLen);
+                canonical[resolvedParentLen + leafLen] = '\0';
+            }
+            else {
+                (void)XMEMCPY(canonical, resolvedParent,
+                              resolvedParentLen);
+                canonical[resolvedParentLen] = '/';
+                (void)XMEMCPY(&canonical[resolvedParentLen + 1u], leaf,
+                              leafLen);
+                canonical[resolvedParentLen + leafLen + 1u] = '\0';
+            }
+        }
+    }
+
+    if (ret != 0) {
+        fprintf(stderr, "Invalid HPKE key output path: %s\n", path);
+    }
+    return ret;
+}
+
+/* Return one when paths name distinct, new outputs, zero when they collide,
+ * and negative when either path cannot be resolved safely. For two absent
+ * leaves, create a temporary zero-length reservation and ask the filesystem
+ * whether the second spelling resolves to it. */
+static int tool_hpke_key_paths_distinct(const char* privatePath,
+    const char* publicPath)
+{
+    char privateCanonical[WOLFCOSE_TOOL_PATH_MAX];
+    char publicCanonical[WOLFCOSE_TOOL_PATH_MAX];
+    struct stat privateStat;
+    struct stat publicStat;
+    int privateExists;
+    int publicExists;
+    int reservationFd = -1;
+    int ret;
+
+    ret = tool_hpke_canonical_output_path(privatePath, privateCanonical,
+                                          sizeof(privateCanonical));
+    if ((ret == 0) && (publicPath != NULL)) {
+        ret = tool_hpke_canonical_output_path(publicPath, publicCanonical,
+                                              sizeof(publicCanonical));
+    }
+    if (ret != 0) {
+        return -1;
+    }
+    if ((publicPath != NULL) &&
+        (strcmp(privateCanonical, publicCanonical) == 0)) {
+        return 0;
+    }
+    privateExists = (stat(privateCanonical, &privateStat) == 0) ? 1 : 0;
+    if ((privateExists == 0) && (errno != ENOENT)) {
+        return -1;
+    }
+    if (privateExists != 0) {
+        return -1;
+    }
+    if (publicPath == NULL) {
+        return 1;
+    }
+    publicExists = (stat(publicCanonical, &publicStat) == 0) ? 1 : 0;
+    if ((publicExists == 0) && (errno != ENOENT)) {
+        return -1;
+    }
+    if (publicExists != 0) {
+        return -1;
+    }
+
+    reservationFd = open(privateCanonical, O_WRONLY | O_CREAT | O_EXCL, 0600);
+    if (reservationFd < 0) {
+        return -1;
+    }
+    if (close(reservationFd) != 0) {
+        (void)unlink(privateCanonical);
+        return -1;
+    }
+    if (stat(publicCanonical, &publicStat) == 0) {
+        ret = ((stat(privateCanonical, &privateStat) == 0) &&
+               (privateStat.st_dev == publicStat.st_dev) &&
+               (privateStat.st_ino == publicStat.st_ino)) ? 0 : -1;
+    }
+    else if (errno == ENOENT) {
+        ret = 1;
+    }
+    else {
+        ret = -1;
+    }
+    if (unlink(privateCanonical) != 0) {
+        ret = -1;
+    }
+    if (ret == 0) {
+        return 0;
+    }
+    if (ret < 0) {
+        return -1;
+    }
+    return 1;
+}
+
+static int tool_hpke_write_all(int fd, const uint8_t* buf, size_t len)
+{
+    size_t offset = 0u;
+
+    while (offset < len) {
+        ssize_t written = write(fd, &buf[offset], len - offset);
+
+        if (written > 0) {
+            offset += (size_t)written;
+        }
+        else if ((written < 0) && (errno == EINTR)) {
+            continue;
+        }
+        else {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+/* Stage a key in the target directory so a link creates only a complete file. */
+static int tool_hpke_stage_key(const char* outputPath, const uint8_t* buf,
+    size_t len, char* temporaryPath, size_t temporaryPathSz)
+{
+    static const char suffix[] = ".wolfcose-tmp.XXXXXX";
+    size_t outputPathLen;
+    int fd;
+    int ret;
+
+    if ((outputPath == NULL) || (temporaryPath == NULL) ||
+        (temporaryPathSz < sizeof(suffix))) {
+        return -1;
+    }
+    temporaryPath[0] = '\0';
+    outputPathLen = strlen(outputPath);
+    if (outputPathLen > (temporaryPathSz - sizeof(suffix))) {
+        return -1;
+    }
+    (void)XMEMCPY(temporaryPath, outputPath, outputPathLen);
+    (void)XMEMCPY(&temporaryPath[outputPathLen], suffix, sizeof(suffix));
+
+    fd = mkstemp(temporaryPath);
+    if (fd < 0) {
+        temporaryPath[0] = '\0';
+        return -1;
+    }
+    ret = tool_hpke_write_all(fd, buf, len);
+    if ((ret == 0) && (fsync(fd) != 0)) {
+        ret = -1;
+    }
+    if (close(fd) != 0) {
+        ret = -1;
+    }
+    if (ret != 0) {
+        (void)unlink(temporaryPath);
+        temporaryPath[0] = '\0';
+    }
+    return ret;
+}
+
+/* Publish complete new key files without truncating any existing destination. */
+static int tool_hpke_write_key_pair(const char* privatePath,
+    const uint8_t* privateBuf, size_t privateLen, const char* publicPath,
+    const uint8_t* publicBuf, size_t publicLen)
+{
+    char privateCanonical[WOLFCOSE_TOOL_PATH_MAX];
+    char publicCanonical[WOLFCOSE_TOOL_PATH_MAX];
+    char privateTemporary[WOLFCOSE_TOOL_PATH_MAX];
+    char publicTemporary[WOLFCOSE_TOOL_PATH_MAX];
+    int privateInstalled = 0;
+    int publicInstalled = 0;
+    int ret = EXIT_IO;
+
+    privateTemporary[0] = '\0';
+    publicTemporary[0] = '\0';
+    if (tool_hpke_canonical_output_path(privatePath, privateCanonical,
+                                        sizeof(privateCanonical)) != 0) {
+        goto exit;
+    }
+    if ((publicPath != NULL) &&
+        (tool_hpke_canonical_output_path(publicPath, publicCanonical,
+                                         sizeof(publicCanonical)) != 0)) {
+        goto exit;
+    }
+    if (tool_hpke_stage_key(privateCanonical, privateBuf, privateLen,
+                            privateTemporary, sizeof(privateTemporary)) != 0) {
+        goto exit;
+    }
+    if ((publicPath != NULL) &&
+        (tool_hpke_stage_key(publicCanonical, publicBuf, publicLen,
+                             publicTemporary, sizeof(publicTemporary)) != 0)) {
+        goto exit;
+    }
+    if (link(privateTemporary, privateCanonical) != 0) {
+        goto exit;
+    }
+    privateInstalled = 1;
+    if ((publicPath != NULL) &&
+        (link(publicTemporary, publicCanonical) != 0)) {
+        goto exit;
+    }
+    if (publicPath != NULL) {
+        publicInstalled = 1;
+    }
+    ret = 0;
+
+exit:
+    if ((ret != 0) && (publicInstalled != 0)) {
+        (void)unlink(publicCanonical);
+    }
+    if ((ret != 0) && (privateInstalled != 0)) {
+        (void)unlink(privateCanonical);
+    }
+    if (privateTemporary[0] != '\0') {
+        (void)unlink(privateTemporary);
+    }
+    if (publicTemporary[0] != '\0') {
+        (void)unlink(publicTemporary);
+    }
+    return ret;
+}
+#else
+static int tool_hpke_key_paths_distinct(const char* privatePath,
+    const char* publicPath)
+{
+    if (privatePath == NULL) {
+        return -1;
+    }
+    if ((publicPath != NULL) && (strcmp(privatePath, publicPath) == 0)) {
+        return 0;
+    }
+    return 1;
+}
+
+static int tool_hpke_write_key_pair(const char* privatePath,
+    const uint8_t* privateBuf, size_t privateLen, const char* publicPath,
+    const uint8_t* publicBuf, size_t publicLen)
+{
+    (void)publicBuf;
+    (void)publicLen;
+    if (publicPath != NULL) {
+        fprintf(stderr, "HPKE public key export requires POSIX filesystem support\n");
+        return EXIT_USAGE;
+    }
+    return write_file(privatePath, privateBuf, privateLen);
+}
+#endif /* WOLFCOSE_TOOL_HAVE_POSIX_FS */
+
+/* Generate a P-256 HPKE key pair and optionally export its public half. */
+static int tool_hpke_keygen(int32_t alg, const char* outPath,
+                            const char* publicPath)
+{
+    WC_RNG rng;
+    ecc_key ecc;
+    WOLFCOSE_KEY coseKey;
+    uint8_t privateBuf[WOLFCOSE_TOOL_MAX_KEY];
+    uint8_t publicBuf[WOLFCOSE_TOOL_MAX_KEY];
+    size_t privateLen = 0u;
+    size_t publicLen = 0u;
+    int rngInit = 0;
+    int eccInit = 0;
+    int ret;
+
+    if (outPath == NULL) {
+        fprintf(stderr, "HPKE key generation requires a private output path\n");
+        return EXIT_USAGE;
+    }
+#if (WOLFCOSE_TOOL_HAVE_POSIX_FS == 0)
+    if (publicPath != NULL) {
+        fprintf(stderr, "HPKE public key export requires POSIX filesystem support\n");
+        return EXIT_USAGE;
+    }
+#endif
+
+    ret = tool_hpke_key_paths_distinct(outPath, publicPath);
+    if (ret <= 0) {
+        if (ret == 0) {
+            fprintf(stderr, "HPKE private and public key paths must differ\n");
+            return EXIT_USAGE;
+        }
+        fprintf(stderr, "HPKE key output paths must be new and non-symlinked\n");
+        return EXIT_IO;
+    }
+
+    ret = wc_InitRng(&rng);
+    if (ret == 0) {
+        rngInit = 1;
+        ret = wc_ecc_init(&ecc);
+    }
+    if (ret == 0) {
+        eccInit = 1;
+        ret = wc_ecc_make_key(&rng, 32, &ecc);
+    }
+    if (ret == 0) {
+        wc_CoseKey_Init(&coseKey);
+        ret = wc_CoseKey_SetEcc(&coseKey, WOLFCOSE_CRV_P256, &ecc);
+        coseKey.alg = alg;
+    }
+    if (ret == 0) {
+        ret = wc_CoseKey_Encode(&coseKey, privateBuf, sizeof(privateBuf),
+                                &privateLen);
+    }
+    if ((ret == 0) && (publicPath != NULL)) {
+        ret = wc_CoseKey_Encode_ex(&coseKey, publicBuf, sizeof(publicBuf),
+                                   &publicLen, WOLFCOSE_KEY_PUBLIC_ONLY);
+    }
+
+    if (eccInit != 0) {
+        wc_ecc_free(&ecc);
+    }
+    if (rngInit != 0) {
+        wc_FreeRng(&rng);
+    }
+    if (ret != 0) {
+        fprintf(stderr, "HPKE key generation failed: %d\n", ret);
+        tool_force_zero(privateBuf, sizeof(privateBuf));
+        tool_force_zero(publicBuf, sizeof(publicBuf));
+        return EXIT_CRYPTO;
+    }
+
+    ret = tool_hpke_write_key_pair(outPath, privateBuf, privateLen,
+                                   publicPath, publicBuf, publicLen);
+    tool_force_zero(privateBuf, sizeof(privateBuf));
+    tool_force_zero(publicBuf, sizeof(publicBuf));
+    if (ret == 0) {
+        printf("Generated HPKE private key: %s (%zu bytes)\n", outPath,
+               privateLen);
+        if (publicPath != NULL) {
+            printf("Generated HPKE public key: %s (%zu bytes)\n", publicPath,
+                   publicLen);
+        }
+    }
+    return ret;
+}
+
+/* Decode an EC2 P-256 COSE_Key and enforce its HPKE algorithm binding. */
+static int tool_hpke_load_key(const char* path, int32_t alg,
+                              WOLFCOSE_KEY* coseKey, ecc_key* ecc)
+{
+    uint8_t keyBuf[WOLFCOSE_TOOL_MAX_KEY];
+    size_t keyLen = 0u;
+    int eccInit = 0;
+    int ret;
+
+    ret = read_file(path, keyBuf, sizeof(keyBuf), &keyLen);
+    if (ret != 0) {
+        return ret;
+    }
+    wc_CoseKey_Init(coseKey);
+    ret = wc_ecc_init(ecc);
+    if (ret == 0) {
+        eccInit = 1;
+        ret = wc_CoseKey_SetEcc(coseKey, WOLFCOSE_CRV_P256, ecc);
+    }
+    if (ret == 0) {
+        ret = wc_CoseKey_Decode(coseKey, keyBuf, keyLen);
+    }
+    tool_force_zero(keyBuf, sizeof(keyBuf));
+    if ((ret == 0) && (coseKey->alg != alg)) {
+        fprintf(stderr, "HPKE key has an unexpected algorithm binding\n");
+        ret = WOLFCOSE_E_COSE_BAD_ALG;
+    }
+    if (ret != 0) {
+        fprintf(stderr, "HPKE key decode failed: %d\n", ret);
+        if (eccInit != 0) {
+            wc_ecc_free(ecc);
+        }
+        return EXIT_CRYPTO;
+    }
+    return 0;
+}
+
+/* Return the nonce size required by the selected content encryption suite. */
+#if defined(WOLFCOSE_HPKE_0_KE_ENCRYPT)
+static int tool_content_nonce_len(int32_t alg, size_t* nonceLen)
+{
+    if ((alg == WOLFCOSE_ALG_AES_CCM_16_64_128) ||
+        (alg == WOLFCOSE_ALG_AES_CCM_16_64_256) ||
+        (alg == WOLFCOSE_ALG_AES_CCM_16_128_128) ||
+        (alg == WOLFCOSE_ALG_AES_CCM_16_128_256)) {
+        *nonceLen = 13u;
+    }
+    else if ((alg == WOLFCOSE_ALG_AES_CCM_64_64_128) ||
+             (alg == WOLFCOSE_ALG_AES_CCM_64_64_256) ||
+             (alg == WOLFCOSE_ALG_AES_CCM_64_128_128) ||
+             (alg == WOLFCOSE_ALG_AES_CCM_64_128_256)) {
+        *nonceLen = 7u;
+    }
+    else if ((alg == WOLFCOSE_ALG_A128GCM) ||
+             (alg == WOLFCOSE_ALG_A192GCM) ||
+             (alg == WOLFCOSE_ALG_A256GCM) ||
+             (alg == WOLFCOSE_ALG_CHACHA20_POLY1305)) {
+        *nonceLen = 12u;
+    }
+    else {
+        return EXIT_USAGE;
+    }
+    return 0;
+}
+#endif /* WOLFCOSE_HPKE_0_KE_ENCRYPT */
+#endif /* WOLFCOSE_HAVE_HPKE_0 */
 
 /* ----- keygen: generate a COSE key and write to file ----- */
 static int tool_keygen(int32_t alg, const char* algStr, const char* outPath)
@@ -908,6 +1495,243 @@ static int tool_dec(const char* keyPath, const char* inPath,
 }
 #endif /* WOLFCOSE_HAVE_AESGCM || WOLFCOSE_HAVE_AESCCM || (WOLFCOSE_HAVE_CHACHA20) */
 
+/* ----- hpke0-enc: COSE HPKE-0 integrated encryption ----- */
+#if defined(WOLFCOSE_HPKE_0_ENCRYPT)
+static int tool_hpke0_enc(const char* keyPath, const char* inPath,
+                          const char* outPath)
+{
+    WOLFCOSE_KEY recipientKey;
+    ecc_key recipientEcc;
+    WC_RNG rng;
+    uint8_t msgBuf[WOLFCOSE_TOOL_MAX_MSG];
+    uint8_t outBuf[WOLFCOSE_TOOL_HPKE_0_ENCODED_MAX];
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    size_t msgLen = 0u;
+    size_t outLen = 0u;
+    int eccLoaded = 0;
+    int rngInit = 0;
+    int ret;
+
+    ret = tool_hpke_load_key(keyPath, WOLFCOSE_ALG_HPKE_0, &recipientKey,
+                             &recipientEcc);
+    if (ret != 0) {
+        return ret;
+    }
+    eccLoaded = 1;
+    ret = read_file(inPath, msgBuf, sizeof(msgBuf), &msgLen);
+    if (ret != 0) {
+        goto exit;
+    }
+    ret = wc_InitRng(&rng);
+    if (ret == 0) {
+        rngInit = 1;
+        ret = wc_CoseHpkeEncrypt0_Encrypt(&recipientKey, NULL, 0u, msgBuf,
+            msgLen, NULL, 0u, NULL, NULL, 0u, scratch, sizeof(scratch),
+            outBuf, sizeof(outBuf), &outLen, &rng);
+    }
+    if (ret != 0) {
+        fprintf(stderr, "HPKE-0 encrypt failed: %d\n", ret);
+        ret = EXIT_CRYPTO;
+        goto exit;
+    }
+    ret = write_file(outPath, outBuf, outLen);
+    if (ret == 0) {
+        printf("HPKE-0 encrypted: %zu byte plaintext -> %zu byte "
+               "COSE_Encrypt0\n", msgLen, outLen);
+    }
+
+exit:
+    if (rngInit != 0) {
+        wc_FreeRng(&rng);
+    }
+    if (eccLoaded != 0) {
+        wc_ecc_free(&recipientEcc);
+    }
+    return ret;
+}
+#endif /* WOLFCOSE_HPKE_0_ENCRYPT */
+
+/* ----- hpke0-dec: COSE HPKE-0 integrated decryption ----- */
+#if defined(WOLFCOSE_HPKE_0_DECRYPT)
+static int tool_hpke0_dec(const char* keyPath, const char* inPath,
+                          const char* outPath)
+{
+    WOLFCOSE_KEY recipientKey;
+    ecc_key recipientEcc;
+    WOLFCOSE_HDR hdr;
+    uint8_t msgBuf[WOLFCOSE_TOOL_HPKE_0_ENCODED_MAX];
+    uint8_t plainBuf[WOLFCOSE_TOOL_MAX_MSG];
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    size_t msgLen = 0u;
+    size_t plainLen = 0u;
+    int eccLoaded = 0;
+    int ret;
+
+    ret = tool_hpke_load_key(keyPath, WOLFCOSE_ALG_HPKE_0, &recipientKey,
+                             &recipientEcc);
+    if (ret != 0) {
+        return ret;
+    }
+    eccLoaded = 1;
+    ret = read_file(inPath, msgBuf, sizeof(msgBuf), &msgLen);
+    if (ret != 0) {
+        goto exit;
+    }
+    ret = wc_CoseHpkeEncrypt0_Decrypt(&recipientKey, msgBuf, msgLen, NULL,
+        0u, NULL, 0u, scratch, sizeof(scratch), &hdr, plainBuf,
+        sizeof(plainBuf), &plainLen);
+    if (ret != 0) {
+        fprintf(stderr, "HPKE-0 decrypt failed: %d\n", ret);
+        ret = EXIT_CRYPTO;
+        goto exit;
+    }
+    ret = write_file(outPath, plainBuf, plainLen);
+    if (ret == 0) {
+        printf("HPKE-0 decrypted: %zu byte COSE_Encrypt0 -> %zu byte "
+               "plaintext\n", msgLen, plainLen);
+    }
+
+exit:
+    if (eccLoaded != 0) {
+        wc_ecc_free(&recipientEcc);
+    }
+    return ret;
+}
+#endif /* WOLFCOSE_HPKE_0_DECRYPT */
+
+/* ----- hpke-ke-enc: HPKE-0-KE multi-recipient COSE_Encrypt ----- */
+#if defined(WOLFCOSE_HPKE_0_KE_ENCRYPT)
+static int tool_hpke_ke_enc(const char* const* keyPaths, size_t keyCount,
+                            int32_t contentAlg, const char* inPath,
+                            const char* outPath)
+{
+    WOLFCOSE_KEY recipientKey[WOLFCOSE_TOOL_MAX_HPKE_RECIPIENTS];
+    WOLFCOSE_RECIPIENT recipients[WOLFCOSE_TOOL_MAX_HPKE_RECIPIENTS];
+    ecc_key recipientEcc[WOLFCOSE_TOOL_MAX_HPKE_RECIPIENTS];
+    WC_RNG rng;
+    uint8_t msgBuf[WOLFCOSE_TOOL_MAX_MSG];
+    uint8_t outBuf[WOLFCOSE_TOOL_HPKE_0_KE_ENCODED_MAX];
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    uint8_t iv[13];
+    size_t msgLen = 0u;
+    size_t outLen = 0u;
+    size_t ivLen = 0u;
+    size_t eccCount = 0u;
+    size_t i;
+    int rngInit = 0;
+    int ret;
+
+    if ((keyCount == 0u) || (keyCount > WOLFCOSE_TOOL_MAX_HPKE_RECIPIENTS)) {
+        fprintf(stderr, "HPKE-0-KE supports 1 to %u recipient keys\n",
+                (unsigned int)WOLFCOSE_TOOL_MAX_HPKE_RECIPIENTS);
+        return EXIT_USAGE;
+    }
+    ret = tool_content_nonce_len(contentAlg, &ivLen);
+    if (ret != 0) {
+        fprintf(stderr, "Unsupported HPKE-0-KE content algorithm\n");
+        return ret;
+    }
+    ret = read_file(inPath, msgBuf, sizeof(msgBuf), &msgLen);
+    if (ret != 0) {
+        return ret;
+    }
+    (void)memset(recipients, 0, sizeof(recipients));
+    for (i = 0u; (ret == 0) && (i < keyCount); i++) {
+        ret = tool_hpke_load_key(keyPaths[i], WOLFCOSE_ALG_HPKE_0_KE,
+                                 &recipientKey[i], &recipientEcc[i]);
+        if (ret == 0) {
+            eccCount++;
+            recipients[i].algId = WOLFCOSE_ALG_HPKE_0_KE;
+            recipients[i].key = &recipientKey[i];
+        }
+    }
+    if (ret == 0) {
+        ret = wc_InitRng(&rng);
+        if (ret == 0) {
+            rngInit = 1;
+            ret = wc_RNG_GenerateBlock(&rng, iv, (word32)ivLen);
+        }
+    }
+    if (ret == 0) {
+        ret = wc_CoseEncrypt_Encrypt(recipients, keyCount, contentAlg, iv,
+            ivLen, msgBuf, msgLen, NULL, 0u, NULL, 0u, scratch,
+            sizeof(scratch), outBuf, sizeof(outBuf), &outLen, &rng);
+    }
+    if (ret != 0) {
+        fprintf(stderr, "HPKE-0-KE encrypt failed: %d\n", ret);
+        ret = EXIT_CRYPTO;
+        goto exit;
+    }
+    ret = write_file(outPath, outBuf, outLen);
+    if (ret == 0) {
+        printf("HPKE-0-KE encrypted: %zu byte plaintext -> %zu byte "
+               "COSE_Encrypt (%zu recipients)\n", msgLen, outLen, keyCount);
+    }
+
+exit:
+    if (rngInit != 0) {
+        wc_FreeRng(&rng);
+    }
+    while (eccCount > 0u) {
+        eccCount--;
+        wc_ecc_free(&recipientEcc[eccCount]);
+    }
+    return ret;
+}
+#endif /* WOLFCOSE_HPKE_0_KE_ENCRYPT */
+
+/* ----- hpke-ke-dec: HPKE-0-KE multi-recipient COSE_Encrypt decryption ----- */
+#if defined(WOLFCOSE_HPKE_0_KE_DECRYPT)
+static int tool_hpke_ke_dec(const char* keyPath, size_t recipientIndex,
+                            const char* inPath, const char* outPath)
+{
+    WOLFCOSE_KEY recipientKey;
+    WOLFCOSE_RECIPIENT recipient;
+    WOLFCOSE_HDR hdr;
+    ecc_key recipientEcc;
+    uint8_t msgBuf[WOLFCOSE_TOOL_HPKE_0_KE_ENCODED_MAX];
+    uint8_t plainBuf[WOLFCOSE_TOOL_MAX_MSG];
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    size_t msgLen = 0u;
+    size_t plainLen = 0u;
+    int eccLoaded = 0;
+    int ret;
+
+    ret = tool_hpke_load_key(keyPath, WOLFCOSE_ALG_HPKE_0_KE, &recipientKey,
+                             &recipientEcc);
+    if (ret != 0) {
+        return ret;
+    }
+    eccLoaded = 1;
+    ret = read_file(inPath, msgBuf, sizeof(msgBuf), &msgLen);
+    if (ret != 0) {
+        goto exit;
+    }
+    (void)memset(&recipient, 0, sizeof(recipient));
+    recipient.algId = WOLFCOSE_ALG_HPKE_0_KE;
+    recipient.key = &recipientKey;
+    ret = wc_CoseEncrypt_Decrypt(&recipient, recipientIndex, msgBuf, msgLen,
+        NULL, 0u, NULL, 0u, scratch, sizeof(scratch), &hdr, plainBuf,
+        sizeof(plainBuf), &plainLen);
+    if (ret != 0) {
+        fprintf(stderr, "HPKE-0-KE decrypt failed: %d\n", ret);
+        ret = EXIT_CRYPTO;
+        goto exit;
+    }
+    ret = write_file(outPath, plainBuf, plainLen);
+    if (ret == 0) {
+        printf("HPKE-0-KE decrypted recipient %zu: %zu byte COSE_Encrypt -> "
+               "%zu byte plaintext\n", recipientIndex, msgLen, plainLen);
+    }
+
+exit:
+    if (eccLoaded != 0) {
+        wc_ecc_free(&recipientEcc);
+    }
+    return ret;
+}
+#endif /* WOLFCOSE_HPKE_0_KE_DECRYPT */
+
 /* ----- mac: COSE_Mac0 create ----- */
 #if defined(WOLFCOSE_HAVE_HMAC)
 static int tool_mac(const char* keyPath, int32_t alg,
@@ -999,7 +1823,7 @@ static int tool_macverify(const char* keyPath, const char* inPath)
 static int tool_info(const char* inPath)
 {
     int ret;
-    uint8_t msgBuf[WOLFCOSE_TOOL_MAX_MSG];
+    uint8_t msgBuf[WOLFCOSE_TOOL_MAX_COSE_MSG];
     size_t msgLen = 0;
     WOLFCOSE_CBOR_CTX ctx;
     WOLFCOSE_CBOR_ITEM item;
@@ -1440,6 +2264,154 @@ static int test_enc_roundtrip(const char* name, int32_t alg,
 }
 #endif
 
+/* HPKE-0 integrated-encryption round trip. */
+#if defined(WOLFCOSE_HPKE_0_ENCRYPT) && defined(WOLFCOSE_HPKE_0_DECRYPT)
+static int test_hpke0_roundtrip(void)
+{
+    static const uint8_t payload[] = "wolfCOSE HPKE-0 roundtrip";
+    WC_RNG rng;
+    ecc_key recipientEcc;
+    WOLFCOSE_KEY recipientKey;
+    WOLFCOSE_HDR hdr;
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    uint8_t cose[512];
+    uint8_t plaintext[sizeof(payload)];
+    size_t coseLen = 0u;
+    size_t plaintextLen = 0u;
+    int rngInit = 0;
+    int eccInit = 0;
+    int ret;
+
+    printf("  %-12s enc/dec   ... ", "HPKE-0");
+    ret = wc_InitRng(&rng);
+    if (ret == 0) {
+        rngInit = 1;
+        ret = wc_ecc_init(&recipientEcc);
+    }
+    if (ret == 0) {
+        eccInit = 1;
+        ret = wc_ecc_make_key(&rng, 32, &recipientEcc);
+    }
+    if (ret == 0) {
+        wc_CoseKey_Init(&recipientKey);
+        ret = wc_CoseKey_SetEcc(&recipientKey, WOLFCOSE_CRV_P256,
+                                &recipientEcc);
+        recipientKey.alg = WOLFCOSE_ALG_HPKE_0;
+        recipientKey.hasPrivate = 0u;
+    }
+    if (ret == 0) {
+        ret = wc_CoseHpkeEncrypt0_Encrypt(&recipientKey, NULL, 0u, payload,
+            sizeof(payload) - 1u, NULL, 0u, NULL, NULL, 0u, scratch,
+            sizeof(scratch), cose, sizeof(cose), &coseLen, &rng);
+    }
+    if (ret == 0) {
+        recipientKey.hasPrivate = 1u;
+        ret = wc_CoseHpkeEncrypt0_Decrypt(&recipientKey, cose, coseLen,
+            NULL, 0u, NULL, 0u, scratch, sizeof(scratch), &hdr, plaintext,
+            sizeof(plaintext), &plaintextLen);
+    }
+    if ((ret == 0) &&
+        ((hdr.alg != WOLFCOSE_ALG_HPKE_0) ||
+         (plaintextLen != (sizeof(payload) - 1u)) ||
+         (memcmp(plaintext, payload, plaintextLen) != 0))) {
+        ret = -1;
+    }
+    if (eccInit != 0) {
+        wc_ecc_free(&recipientEcc);
+    }
+    if (rngInit != 0) {
+        wc_FreeRng(&rng);
+    }
+    printf("%s\n", ret == 0 ? "PASS" : "FAIL");
+    return ret;
+}
+#endif /* WOLFCOSE_HPKE_0_ENCRYPT && WOLFCOSE_HPKE_0_DECRYPT */
+
+/* HPKE-0-KE uses one independently protected CEK for each recipient. */
+#if defined(WOLFCOSE_HPKE_0_KE_ENCRYPT) && \
+    defined(WOLFCOSE_HPKE_0_KE_DECRYPT)
+static int test_hpke_ke_roundtrip(void)
+{
+    enum { HPKE_TEST_RECIPIENTS = 2 };
+    static const uint8_t payload[] = "wolfCOSE HPKE-0-KE roundtrip";
+    WC_RNG rng;
+    ecc_key recipientEcc[HPKE_TEST_RECIPIENTS];
+    WOLFCOSE_KEY recipientKey[HPKE_TEST_RECIPIENTS];
+    WOLFCOSE_RECIPIENT recipients[HPKE_TEST_RECIPIENTS];
+    WOLFCOSE_HDR hdr;
+    uint8_t iv[12];
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    uint8_t cose[1024];
+    uint8_t plaintext[sizeof(payload)];
+    size_t coseLen = 0u;
+    size_t plaintextLen = 0u;
+    size_t eccCount = 0u;
+    size_t i;
+    int rngInit = 0;
+    int ret;
+
+    printf("  %-12s enc/dec   ... ", "HPKE-0-KE");
+    (void)memset(recipients, 0, sizeof(recipients));
+    ret = wc_InitRng(&rng);
+    if (ret == 0) {
+        rngInit = 1;
+    }
+    for (i = 0u; (ret == 0) && (i < HPKE_TEST_RECIPIENTS); i++) {
+        ret = wc_ecc_init(&recipientEcc[i]);
+        if (ret == 0) {
+            eccCount++;
+            ret = wc_ecc_make_key(&rng, 32, &recipientEcc[i]);
+        }
+        if (ret == 0) {
+            wc_CoseKey_Init(&recipientKey[i]);
+            ret = wc_CoseKey_SetEcc(&recipientKey[i], WOLFCOSE_CRV_P256,
+                                    &recipientEcc[i]);
+            recipientKey[i].alg = WOLFCOSE_ALG_HPKE_0_KE;
+            recipientKey[i].hasPrivate = 0u;
+        }
+        if (ret == 0) {
+            recipients[i].algId = WOLFCOSE_ALG_HPKE_0_KE;
+            recipients[i].key = &recipientKey[i];
+        }
+    }
+    if (ret == 0) {
+        ret = wc_RNG_GenerateBlock(&rng, iv, (word32)sizeof(iv));
+    }
+    if (ret == 0) {
+        ret = wc_CoseEncrypt_Encrypt(recipients, HPKE_TEST_RECIPIENTS,
+            WOLFCOSE_ALG_A128GCM, iv, sizeof(iv), payload,
+            sizeof(payload) - 1u, NULL, 0u, NULL, 0u, scratch,
+            sizeof(scratch), cose, sizeof(cose), &coseLen, &rng);
+    }
+    if (ret == 0) {
+        for (i = 0u; i < HPKE_TEST_RECIPIENTS; i++) {
+            recipientKey[i].hasPrivate = 1u;
+        }
+    }
+    for (i = 0u; (ret == 0) && (i < HPKE_TEST_RECIPIENTS); i++) {
+        plaintextLen = 0u;
+        ret = wc_CoseEncrypt_Decrypt(&recipients[i], i, cose, coseLen,
+            NULL, 0u, NULL, 0u, scratch, sizeof(scratch), &hdr, plaintext,
+            sizeof(plaintext), &plaintextLen);
+        if ((ret == 0) &&
+            ((hdr.alg != WOLFCOSE_ALG_A128GCM) ||
+             (plaintextLen != (sizeof(payload) - 1u)) ||
+             (memcmp(plaintext, payload, plaintextLen) != 0))) {
+            ret = -1;
+        }
+    }
+    while (eccCount > 0u) {
+        eccCount--;
+        wc_ecc_free(&recipientEcc[eccCount]);
+    }
+    if (rngInit != 0) {
+        wc_FreeRng(&rng);
+    }
+    printf("%s\n", ret == 0 ? "PASS" : "FAIL");
+    return ret;
+}
+#endif /* WOLFCOSE_HPKE_0_KE_ENCRYPT && WOLFCOSE_HPKE_0_KE_DECRYPT */
+
 /* MAC round-trip: keygen -> mac -> macverify -> check payload */
 #if defined(WOLFCOSE_HAVE_HMAC)
 static int test_mac_roundtrip(const char* name, int32_t alg, size_t keyLen)
@@ -1585,6 +2557,25 @@ static int tool_test(const char* filter)
     }
 #endif
 
+    /* --- Experimental COSE-HPKE --- */
+#if defined(WOLFCOSE_HPKE_0_ENCRYPT) && defined(WOLFCOSE_HPKE_0_DECRYPT)
+    if (all || strcmp(filter, "HPKE-0") == 0) {
+        tests++;
+        if (test_hpke0_roundtrip() != 0) {
+            failures++;
+        }
+    }
+#endif
+#if defined(WOLFCOSE_HPKE_0_KE_ENCRYPT) && \
+    defined(WOLFCOSE_HPKE_0_KE_DECRYPT)
+    if (all || strcmp(filter, "HPKE-0-KE") == 0) {
+        tests++;
+        if (test_hpke_ke_roundtrip() != 0) {
+            failures++;
+        }
+    }
+#endif
+
     /* --- COSE_Mac0 --- */
 #if defined(WOLFCOSE_HAVE_HMAC)
 #ifdef WOLFCOSE_HAVE_HMAC256
@@ -1629,8 +2620,20 @@ int main(int argc, char* argv[])
     const char* cmd;
     const char* algStr = NULL;
     const char* keyPath = NULL;
+#if defined(WOLFCOSE_HAVE_HPKE_0)
+    const char* publicPath = NULL;
+#endif
     const char* inPath = NULL;
     const char* outPath = NULL;
+#if defined(WOLFCOSE_HPKE_0_KE_ENCRYPT)
+    const char* keyPaths[WOLFCOSE_TOOL_MAX_HPKE_RECIPIENTS];
+#endif
+#if defined(WOLFCOSE_HAVE_HPKE_0)
+    size_t keyPathCount = 0u;
+#endif
+#if defined(WOLFCOSE_HPKE_0_KE_DECRYPT)
+    size_t recipientIndex = 0u;
+#endif
     int32_t alg = 0;
     int i;
 
@@ -1652,6 +2655,39 @@ int main(int argc, char* argv[])
             }
             else if (strcmp(argv[i], "-k") == 0) {
                 keyPath = argv[++i];
+#if defined(WOLFCOSE_HAVE_HPKE_0)
+                if (keyPathCount >= WOLFCOSE_TOOL_MAX_HPKE_RECIPIENTS) {
+                    fprintf(stderr, "Too many -k recipient keys\n");
+                    return EXIT_USAGE;
+                }
+#if defined(WOLFCOSE_HPKE_0_KE_ENCRYPT)
+                keyPaths[keyPathCount] = keyPath;
+#endif
+                keyPathCount++;
+#endif
+            }
+#if defined(WOLFCOSE_HAVE_HPKE_0)
+            else if (strcmp(argv[i], "-p") == 0) {
+                publicPath = argv[++i];
+            }
+#endif
+            else if (strcmp(argv[i], "-r") == 0) {
+#if defined(WOLFCOSE_HPKE_0_KE_DECRYPT)
+                char* end = NULL;
+                unsigned long value;
+
+                errno = 0;
+                value = strtoul(argv[++i], &end, 10);
+                if ((errno != 0) || (end == argv[i]) || (*end != '\0') ||
+                    (value >= WOLFCOSE_TOOL_MAX_HPKE_RECIPIENTS)) {
+                    fprintf(stderr, "Invalid recipient index: %s\n", argv[i]);
+                    return EXIT_USAGE;
+                }
+                recipientIndex = (size_t)value;
+#else
+                fprintf(stderr, "HPKE recipient selection is not built in\n");
+                return EXIT_USAGE;
+#endif
             }
             else if (strcmp(argv[i], "-i") == 0) {
                 inPath = argv[++i];
@@ -1687,6 +2723,16 @@ int main(int argc, char* argv[])
             fprintf(stderr, "keygen requires -a <alg> -o <keyfile>\n");
             return EXIT_USAGE;
         }
+#if defined(WOLFCOSE_HAVE_HPKE_0)
+        if ((alg == WOLFCOSE_ALG_HPKE_0) ||
+            (alg == WOLFCOSE_ALG_HPKE_0_KE)) {
+            return tool_hpke_keygen(alg, outPath, publicPath);
+        }
+        if (publicPath != NULL) {
+            fprintf(stderr, "-p is only valid for HPKE key generation\n");
+            return EXIT_USAGE;
+        }
+#endif
         return tool_keygen(alg, algStr, outPath);
     }
     else if (strcmp(cmd, "sign") == 0) {
@@ -1705,6 +2751,52 @@ int main(int argc, char* argv[])
         }
         return tool_verify(keyPath, inPath);
     }
+#if defined(WOLFCOSE_HPKE_0_ENCRYPT)
+    else if (strcmp(cmd, "hpke0-enc") == 0) {
+        if ((keyPath == NULL) || (keyPathCount != 1u) || (inPath == NULL) ||
+            (outPath == NULL)) {
+            fprintf(stderr,
+                    "hpke0-enc requires -k <public-key> -i <input> -o <output>\n");
+            return EXIT_USAGE;
+        }
+        return tool_hpke0_enc(keyPath, inPath, outPath);
+    }
+#endif
+#if defined(WOLFCOSE_HPKE_0_DECRYPT)
+    else if (strcmp(cmd, "hpke0-dec") == 0) {
+        if ((keyPath == NULL) || (keyPathCount != 1u) || (inPath == NULL) ||
+            (outPath == NULL)) {
+            fprintf(stderr,
+                    "hpke0-dec requires -k <private-key> -i <input> -o <output>\n");
+            return EXIT_USAGE;
+        }
+        return tool_hpke0_dec(keyPath, inPath, outPath);
+    }
+#endif
+#if defined(WOLFCOSE_HPKE_0_KE_ENCRYPT)
+    else if (strcmp(cmd, "hpke-ke-enc") == 0) {
+        if ((keyPathCount == 0u) || (algStr == NULL) || (inPath == NULL) ||
+            (outPath == NULL)) {
+            fprintf(stderr,
+                    "hpke-ke-enc requires -a <alg> -k <public-key> "
+                    "-i <input> -o <output>\n");
+            return EXIT_USAGE;
+        }
+        return tool_hpke_ke_enc(keyPaths, keyPathCount, alg, inPath, outPath);
+    }
+#endif
+#if defined(WOLFCOSE_HPKE_0_KE_DECRYPT)
+    else if (strcmp(cmd, "hpke-ke-dec") == 0) {
+        if ((keyPath == NULL) || (keyPathCount != 1u) || (inPath == NULL) ||
+            (outPath == NULL)) {
+            fprintf(stderr,
+                    "hpke-ke-dec requires -k <private-key> -i <input> "
+                    "-o <output>\n");
+            return EXIT_USAGE;
+        }
+        return tool_hpke_ke_dec(keyPath, recipientIndex, inPath, outPath);
+    }
+#endif
 #if defined(WOLFCOSE_HAVE_HMAC)
     else if (strcmp(cmd, "mac") == 0) {
         if (keyPath == NULL || algStr == NULL || inPath == NULL ||

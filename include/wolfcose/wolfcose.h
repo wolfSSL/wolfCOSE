@@ -145,6 +145,10 @@ extern "C" {
 #define WOLFCOSE_HDR_IV          5
 #define WOLFCOSE_HDR_PARTIAL_IV  6
 #define WOLFCOSE_HDR_EPHEMERAL_KEY (-1)  /* Ephemeral COSE_Key for ECDH */
+#if defined(WOLFCOSE_HAVE_HPKE_0)
+    /* draft-ietf-cose-hpke-26, provisional label -4. */
+    #define WOLFCOSE_HDR_HPKE_EK (-4)    /* HPKE encapsulated key */
+#endif
 
 /*
  * Security considerations for the algorithms below:
@@ -221,6 +225,12 @@ extern "C" {
 #define WOLFCOSE_ALG_ECDH_ES_A128KW    (-29)  /* ECDH-ES + A128KW */
 #define WOLFCOSE_ALG_ECDH_ES_A192KW    (-30)  /* ECDH-ES + A192KW */
 #define WOLFCOSE_ALG_ECDH_ES_A256KW    (-31)  /* ECDH-ES + A256KW */
+
+#if defined(WOLFCOSE_HAVE_HPKE_0)
+/* draft-ietf-cose-hpke-26 provisional COSE algorithm identifiers. */
+#define WOLFCOSE_ALG_HPKE_0       35  /* P-256, HKDF-SHA256, AES-128-GCM */
+#define WOLFCOSE_ALG_HPKE_0_KE    46  /* HPKE-0 key encryption */
+#endif
 
 #define WOLFCOSE_ALG_ML_DSA_44   (-48)   /* ML-DSA Level 2 */
 #define WOLFCOSE_ALG_ML_DSA_65   (-49)   /* ML-DSA Level 3 */
@@ -412,7 +422,7 @@ typedef struct WOLFCOSE_KEY {
  */
 typedef struct WOLFCOSE_RECIPIENT {
     int32_t        algId;       /**< Key distribution algorithm; direct mode requires explicit WOLFCOSE_ALG_DIRECT (-6) on both encrypt and MAC create (-3..-31, -6) */
-    WOLFCOSE_KEY*  key;         /**< Caller-owned key (KEK for wrap, recipient pubkey for ECDH) */
+    WOLFCOSE_KEY*  key;         /**< Caller-owned key (KEK for wrap; recipient public/private key for ECDH or HPKE) */
     const uint8_t* kid;         /**< Key ID for recipient lookup */
     size_t         kidLen;      /**< Key ID length */
 } WOLFCOSE_RECIPIENT;
@@ -1210,6 +1220,85 @@ WOLFCOSE_API int wc_CoseEncrypt0_Decrypt(const WOLFCOSE_KEY* key,
     uint8_t* plaintext, size_t plaintextSz, size_t* plaintextLen);
 #endif /* WOLFCOSE_ENCRYPT0_DECRYPT */
 
+/* ----- COSE-HPKE Integrated Encryption (draft-ietf-cose-hpke-26) ----- */
+
+#if defined(WOLFCOSE_HPKE_0_ENCRYPT)
+/**
+ * \brief Encrypt a payload with COSE HPKE-0 integrated encryption.
+ *
+ * Uses only HPKE base mode with DHKEM(P-256, HKDF-SHA256), HKDF-SHA256,
+ * and AES-128-GCM. The recipient key must be an EC2 P-256 public key and may
+ * be pinned to WOLFCOSE_ALG_HPKE_0. The encapsulated key is written as the
+ * draft's provisional ek header parameter (-4). HPKE info is empty and PSK
+ * mode is not supported by this P0 API.
+ *
+ * \param recipientKey    Recipient EC2 P-256 public key.
+ * \param kid             Optional recipient key identifier.
+ * \param kidLen          Recipient key identifier length.
+ * \param payload         Plaintext payload (non-NULL, may be empty).
+ * \param payloadLen      Plaintext length.
+ * \param detachedPayload Detached ciphertext destination (NULL if attached).
+ * \param detachedSz      Detached ciphertext destination size.
+ * \param detachedLen     Output: detached ciphertext length.
+ * \param extAad          External additional authenticated data (NULL if none).
+ * \param extAadLen       External additional authenticated data length.
+ * \param scratch         Working buffer for Enc_structure.
+ * \param scratchSz       Working buffer size.
+ * \param out             Output COSE_Encrypt0 buffer.
+ * \param outSz           Output buffer size.
+ * \param outLen          Output: bytes written; set to zero on failure.
+ * \param rng             Initialized random number generator.
+ * \return WOLFCOSE_SUCCESS or a negative error code.
+ */
+WOLFCOSE_API int wc_CoseHpkeEncrypt0_Encrypt(
+    const WOLFCOSE_KEY* recipientKey,
+    const uint8_t* kid, size_t kidLen,
+    const uint8_t* payload, size_t payloadLen,
+    uint8_t* detachedPayload, size_t detachedSz, size_t* detachedLen,
+    const uint8_t* extAad, size_t extAadLen,
+    uint8_t* scratch, size_t scratchSz,
+    uint8_t* out, size_t outSz, size_t* outLen,
+    WC_RNG* rng);
+#endif /* WOLFCOSE_HPKE_0_ENCRYPT */
+
+#if defined(WOLFCOSE_HPKE_0_DECRYPT)
+/**
+ * \brief Decrypt a COSE HPKE-0 integrated encryption message.
+ *
+ * The recipient key must be an EC2 P-256 private key and may be pinned to
+ * WOLFCOSE_ALG_HPKE_0. Only HPKE base mode with empty HPKE info is accepted;
+ * PSK mode is rejected.
+ *
+ * \param recipientKey   Recipient EC2 P-256 private key.
+ * \param in             Input COSE_Encrypt0 message.
+ * \param inSz           Input message size.
+ * \param detachedCt     Detached ciphertext (NULL if attached). Required
+ *                       when the message's ciphertext item is CBOR null.
+ * \param detachedCtLen  Detached ciphertext length.
+ * \param extAad         External additional authenticated data (NULL if none).
+ * \param extAadLen      External additional authenticated data length.
+ * \param scratch        Working buffer for Enc_structure reconstruction.
+ * \param scratchSz      Working buffer size.
+ * \param hdr            Output: parsed COSE headers; only protected fields
+ *                       are authenticated.
+ * \param plaintext      Output buffer for decrypted plaintext.
+ * \param plaintextSz    Plaintext buffer size.
+ * \param plaintextLen   Output: plaintext length.
+ * \return WOLFCOSE_SUCCESS or a negative error code, including
+ *         WOLFCOSE_E_DETACHED_PAYLOAD when ciphertext is detached but
+ *         detachedCt is NULL. On failure, hdr and plaintext are cleared and
+ *         plaintextLen is set to zero when it is non-NULL.
+ */
+WOLFCOSE_API int wc_CoseHpkeEncrypt0_Decrypt(
+    const WOLFCOSE_KEY* recipientKey,
+    const uint8_t* in, size_t inSz,
+    const uint8_t* detachedCt, size_t detachedCtLen,
+    const uint8_t* extAad, size_t extAadLen,
+    uint8_t* scratch, size_t scratchSz,
+    WOLFCOSE_HDR* hdr,
+    uint8_t* plaintext, size_t plaintextSz, size_t* plaintextLen);
+#endif /* WOLFCOSE_HPKE_0_DECRYPT */
+
 /* ----- COSE_Mac0 API (RFC 9052 Section 6.2) ----- */
 
 #if defined(WOLFCOSE_MAC0_CREATE) && (defined(WOLFCOSE_HAVE_HMAC) || defined(WOLFCOSE_HAVE_AESMAC))
@@ -1361,10 +1450,11 @@ WOLFCOSE_API int wc_CoseSign_Verify(const WOLFCOSE_KEY* verifyKey,
  *   COSE_Encrypt = [Headers, ciphertext, recipients : [+ COSE_recipient]]
  *
  * Depending on build configuration, recipient key management supports direct,
- * AES Key Wrap, and ECDH-ES direct key agreement. Direct mode uses a
- * pre-shared content encryption key (CEK). AES Key Wrap generates one CEK and
- * wraps it separately for each recipient. ECDH-ES derives the CEK for one
- * recipient and puts the ephemeral public key in the unprotected header.
+ * AES Key Wrap, ECDH-ES direct key agreement, and HPKE-0 key encryption.
+ * Direct mode uses a pre-shared content encryption key (CEK). AES Key Wrap
+ * and HPKE generate one CEK and protect it separately for each recipient.
+ * ECDH-ES derives the CEK for one recipient and puts the ephemeral public key
+ * in the unprotected header.
  *
  * \param recipients       Array of WOLFCOSE_RECIPIENT with keys.
  * \param recipientCount   Number of recipients (must be >= 1).
@@ -1385,8 +1475,8 @@ WOLFCOSE_API int wc_CoseSign_Verify(const WOLFCOSE_KEY* verifyKey,
  * \param out              Output buffer.
  * \param outSz            Output buffer size.
  * \param outLen           Output: bytes written to out.
- * \param rng              Initialized WC_RNG for AES Key Wrap or ECDH-ES;
- *                         may be NULL for direct mode.
+ * \param rng              Initialized WC_RNG for AES Key Wrap, ECDH-ES, or
+ *                         HPKE; may be NULL for direct mode.
  * \return WOLFCOSE_SUCCESS or negative error code.
  */
 WOLFCOSE_API int wc_CoseEncrypt_Encrypt(const WOLFCOSE_RECIPIENT* recipients,
@@ -1405,13 +1495,14 @@ WOLFCOSE_API int wc_CoseEncrypt_Encrypt(const WOLFCOSE_RECIPIENT* recipients,
 /**
  * \brief Decrypt a COSE_Encrypt message.
  *
- * Decrypts using the key from the specified recipient entry.
- * Every on-wire recipient must declare its key-management algorithm, all
- * top-level sibling recipients must use an RFC-compatible key-distribution
- * mode, and a direct recipient's ciphertext item must be an empty bstr or
- * null. Selecting a recipient that contains nested recipients is unsupported.
- * An unprotected body algorithm is accepted only when recipient->key->alg
- * pins the same value.
+ * Decrypts using the key from the specified recipient entry. Every non-HPKE
+ * on-wire recipient must declare its key-management algorithm, all top-level
+ * sibling recipients must use an RFC-compatible key-distribution mode, and a
+ * direct recipient's ciphertext item must be an empty bstr or null. Selecting
+ * a recipient that contains nested recipients is unsupported. An HPKE-0-KE
+ * recipient may omit its algorithm when recipient->algId pins HPKE-0-KE. An
+ * unprotected body algorithm is accepted when a direct key pins it or an
+ * HPKE-0-KE Recipient_structure cryptographically binds it.
  *
  * \param recipient        WOLFCOSE_RECIPIENT with decryption key.
  * \param recipientIndex   0-based index of recipient to use.

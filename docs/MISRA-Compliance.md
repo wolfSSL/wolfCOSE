@@ -15,7 +15,7 @@ Verified via cppcheck's MISRA addon (`--addon=misra`) with all wolfCOSE algorith
 
 **Workflow**: `.github/workflows/misra-2012.yml`
 
-All wolfCOSE and wolfSSL feature macros are explicitly defined so cppcheck checks the full code path rather than enumerating wolfSSL's hundreds of platform `#ifdef` configurations. See [[Macros]] for the complete list.
+All wolfCOSE and wolfSSL feature macros are explicitly defined so cppcheck checks the full code path rather than enumerating wolfSSL's hundreds of platform `#ifdef` configurations. This includes all four default-off experimental COSE-HPKE operation gates, `WOLFCOSE_EXPERIMENTAL`, and wolfSSL HPKE support, so draft code is analyzed rather than silently excluded. See [[Macros]] for the complete list.
 
 ### MISRA C:2023
 
@@ -84,6 +84,8 @@ tracked conditional preprocessing directive.
 |----|------|----------|--------------------------|
 | D-11.5-001 | 11.5 | `wolfCose_ForceZero` | Converting the caller's object pointer to a volatile character pointer is the standard C mechanism for securely erasing its object representation. Character access is alignment-safe and the function allocates no memory. `make zeroize-test`, `make zero-alloc-check`, and `make c99-check` validate the implementation. |
 | D-19.2-001 | 19.2 | `WOLFCOSE_KEY.key` | The public, discriminated union preserves the established ABI and embedded-memory footprint. `kty` and `attachedType` govern member access. Replacing it with a structure would break ABI and increase RAM. The full tests exercise the supported members, and CI anchors the deviation to the exact union boundaries. |
+| D-11.8-002 | 11.8 | `wolfCose_Hpke0Seal` plaintext input | The pinned wolfSSL `wc_HpkeSealBase()` interface accepts a mutable plaintext pointer even though its implementation only consumes plaintext while writing to its distinct ciphertext output. The wrapper keeps the wolfCOSE public input const-qualified and avoids a payload-sized copy in constrained builds. The deviation is anchored to the one interoperability cast and covered by the HPKE unit and sanitizer CI lanes. |
+| D-11.8-003 | 11.8 | `wolfCose_Hpke0Open` ciphertext input | The pinned wolfSSL `wc_HpkeOpenBase()` interface accepts a mutable ciphertext pointer even though its implementation only consumes ciphertext while writing to its distinct plaintext output. The wrapper keeps the wolfCOSE public input const-qualified and avoids a ciphertext-sized copy in constrained builds. The deviation is anchored to the one interoperability cast and covered by the HPKE unit and sanitizer CI lanes. |
 
 `scripts/misra-deviations.json` identifies only these source locations. The
 classifier also pins a hash of the public union declaration. It fails if an

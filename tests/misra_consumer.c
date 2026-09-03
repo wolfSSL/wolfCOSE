@@ -89,6 +89,12 @@ static size_t wolfCose_MisraUsePublicApis(void)
 #ifdef WOLFCOSE_ENCRYPT0_DECRYPT
     WOLFCOSE_MISRA_USE_API(wc_CoseEncrypt0_Decrypt);
 #endif
+#ifdef WOLFCOSE_HPKE_0_ENCRYPT
+    WOLFCOSE_MISRA_USE_API(wc_CoseHpkeEncrypt0_Encrypt);
+#endif
+#ifdef WOLFCOSE_HPKE_0_DECRYPT
+    WOLFCOSE_MISRA_USE_API(wc_CoseHpkeEncrypt0_Decrypt);
+#endif
 #ifdef WOLFCOSE_MAC0_CREATE
     WOLFCOSE_MISRA_USE_API(wc_CoseMac0_Create);
 #endif
@@ -134,6 +140,11 @@ int main(void)
         WOLFCOSE_ALG_ECDH_ES_A128KW,
         WOLFCOSE_ALG_ECDH_ES_A192KW,
         WOLFCOSE_ALG_ECDH_ES_A256KW,
+#ifdef WOLFCOSE_HAVE_HPKE_0
+        WOLFCOSE_HDR_HPKE_EK,
+        WOLFCOSE_ALG_HPKE_0,
+        WOLFCOSE_ALG_HPKE_0_KE,
+#endif
         WOLFCOSE_CRV_ML_DSA_44,
         WOLFCOSE_CRV_ML_DSA_65,
         WOLFCOSE_CRV_ML_DSA_87,

@@ -58,6 +58,7 @@ You can enable only the algorithms you need:
 | ChaCha20-Poly1305 | `--enable-chacha --enable-poly1305` |
 | ECDH-ES key agreement | `--enable-ecc --enable-hkdf` |
 | AES Key Wrap | `--enable-aeskeywrap` (wolfSSL 5.9.0+) |
+| Experimental COSE-HPKE P0 | `--enable-hpke --enable-ecc --enable-aesgcm --enable-keygen` |
 | RSA-PSS signing | `--enable-rsapss --enable-keygen` |
 | ML-DSA (post-quantum) | `--enable-mldsa` |
 | AES-MAC | `--enable-aescbc` |
@@ -113,6 +114,8 @@ paths without a wolfSSL installation.
 | `make tool-test` | Round-trip self-test for all 17 algorithms |
 | `make demo` | Build and run lifecycle demo (11 algorithms) |
 | `make demos` | Build and run all basic demos |
+| `make hpke-demo` | Build and run the opt-in experimental COSE-HPKE P0 demo |
+| `make c99-hpke-check` | Strict C99 syntax check for all experimental HPKE paths (HPKE-enabled wolfSSL required) |
 | `make comprehensive` | Build and run comprehensive algorithm tests (~240 tests) |
 | `make scenarios` | Build and run real-world scenario examples |
 | `make coverage` | Run tests with gcov coverage |
@@ -240,6 +243,73 @@ int main(void)
     return 0;
 }
 ```
+
+## Experimental COSE-HPKE P0
+
+COSE-HPKE tracks an active Internet-Draft, so it is disabled in every build,
+including a normal non-lean build. It currently implements the P0 subset:
+HPKE base mode with DHKEM(P-256, HKDF-SHA256), HKDF-SHA256, and AES-128-GCM.
+See [Configuration Macros](Macros.md#cose-hpke-experimental) for the complete
+operation and compile-out gates, and [Experimental Features](Experimental.md)
+for the draft status and graduation plan.
+
+Build wolfSSL with HPKE support, then enable the exact send and receive paths
+your application needs. `WOLFCOSE_EXPERIMENTAL` is required with every HPKE
+enable macro. The standalone example supplies that acknowledgement, enables all
+four paths, and
+demonstrates both one-recipient `COSE_Encrypt0` and two-recipient
+`COSE_Encrypt` key encryption:
+
+```bash
+cd wolfssl
+./configure --enable-cryptonly --enable-hpke --enable-ecc --enable-aesgcm \
+    --enable-keygen
+make
+
+cd ../wolfCOSE
+make hpke-demo \
+  EXTRA_CFLAGS="-I/path/to/wolfssl" \
+  LDFLAGS="-L/path/to/wolfssl -lwolfssl"
+```
+
+The command-line tool is compiled with the same operation gates. `keygen -p`
+exports a public-only COSE_Key; keep the corresponding `-o` private key on the
+recipient, and use new, distinct non-symlink destinations for `-o` and `-p`.
+On POSIX builds, HPKE key generation refuses to replace an existing
+destination. Normalized, case-equivalent, and symlink aliases are rejected
+before either key is written. On non-POSIX builds, `-p` is rejected rather
+than weakening those key-output safeguards. The direct commands are
+for HPKE-0, while the `hpke-ke-*` commands
+use one independently HPKE-protected CEK for every recipient:
+
+```bash
+# Build the tool with WOLFCOSE_EXPERIMENTAL and the four
+# WOLFCOSE_ENABLE_HPKE_0_* operation macros.
+./tools/wolfcose_tool keygen -a HPKE-0 \
+    -o recipient.private.cbor -p recipient.public.cbor
+./tools/wolfcose_tool hpke0-enc -k recipient.public.cbor \
+    -i config.bin -o config.hpke.cbor
+./tools/wolfcose_tool hpke0-dec -k recipient.private.cbor \
+    -i config.hpke.cbor -o config.out
+
+./tools/wolfcose_tool keygen -a HPKE-0-KE \
+    -o recipient-a.private.cbor -p recipient-a.public.cbor
+./tools/wolfcose_tool keygen -a HPKE-0-KE \
+    -o recipient-b.private.cbor -p recipient-b.public.cbor
+./tools/wolfcose_tool hpke-ke-enc -a A128GCM \
+    -k recipient-a.public.cbor -k recipient-b.public.cbor \
+    -i config.bin -o config.multi.cbor
+./tools/wolfcose_tool hpke-ke-dec -k recipient-b.private.cbor -r 1 \
+    -i config.multi.cbor -o config.out
+```
+
+`-r` is a zero-based recipient index. The tool limits its HPKE-0-KE command
+paths to `WOLFCOSE_TOOL_MAX_HPKE_RECIPIENTS` recipient keys and indices, four
+by default, which can be reduced for constrained integrations. Its output
+buffers reserve framing for the fixed P-256 HPKE envelope, so an input at the
+configured `WOLFCOSE_TOOL_MAX_MSG` limit remains usable. HPKE base mode
+authenticates the recipient, not the sender. Sign or MAC the resulting message
+when sender authentication is required.
 
 ## Quick Start: Post-Quantum Signing (ML-DSA)
 

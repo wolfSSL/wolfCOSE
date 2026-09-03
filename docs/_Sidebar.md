@@ -6,6 +6,7 @@
 - [[Algorithms]]
 - [[API Reference]]
 - [[Macros]]
+- [[Experimental]]
 - [[Footprint]]
 - [[Testing]]
 - [[MISRA Compliance]]
