@@ -17511,8 +17511,8 @@ static void test_cose_build_sig_structure_context(void)
 }
 
 /* ----- Coverage boost: exercise multi-signer / multi-recipient paths
- *       added by recent hardening so the CI coverage threshold of
- *       99% on src/wolfcose.c is preserved. -----
+ *       added by recent hardening so the per-file 100% CI coverage
+ *       threshold is preserved. -----
  */
 
 #if defined(WOLFCOSE_HAVE_RSAPSS) && defined(WOLFCOSE_SIGN) && \
@@ -23597,6 +23597,390 @@ static void test_cose_sign1_size_and_untagged(void)
 }
 #endif
 
+
+/* ----- Per-file 100%-coverage tests for the split source layout ----- */
+
+#if defined(WOLFCOSE_HAVE_ES256) && defined(HAVE_ECC)
+static void test_ecc_check_curve_dp_fallback(void)
+{
+    ecc_key eccKey;
+    WC_RNG rng;
+    int savedIdx;
+    int ret;
+
+    TEST_LOG("  [EccKeyCheckCurve dp-params fallback]\n");
+
+    ret = wc_InitRng(&rng);
+    TEST_ASSERT(ret == 0, "dp-fallback rng");
+    ret = wc_ecc_init(&eccKey);
+    TEST_ASSERT(ret == 0, "dp-fallback ecc init");
+    ret = wc_ecc_make_key(&rng, 32, &eccKey);
+    TEST_ASSERT(ret == 0, "dp-fallback keygen");
+
+    /* An index of -1 makes wc_ecc_get_curve_id() report ECC_CURVE_INVALID so
+     * the check must recover the curve from the key's dp parameters. */
+    savedIdx = eccKey.idx;
+    eccKey.idx = -1;
+    ret = wolfCose_EccKeyCheckCurve(WOLFCOSE_CRV_P256, &eccKey);
+    TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "dp-fallback curve check");
+    eccKey.idx = savedIdx;
+
+    (void)wc_ecc_free(&eccKey);
+    (void)wc_FreeRng(&rng);
+}
+#endif /* WOLFCOSE_HAVE_ES256 && HAVE_ECC */
+
+#if defined(WOLFCOSE_ENCRYPT) && defined(WOLFCOSE_HAVE_AESGCM) && \
+    defined(WOLFCOSE_ECDH_ES_DIRECT) && defined(WOLFCOSE_HAVE_ES256) && \
+    defined(HAVE_HKDF)
+static void test_ecdh_es_recipient_key_alg_mismatch(void)
+{
+    WOLFCOSE_KEY key;
+    ecc_key eccKey;
+    WOLFCOSE_RECIPIENT recipients[1];
+    uint8_t payload[16] = {0};
+    uint8_t iv[12] = {0};
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    uint8_t out[512];
+    size_t outLen = 0;
+    WC_RNG rng;
+    int ret;
+
+    TEST_LOG("  [ECDH-ES recipient key->alg mismatch]\n");
+
+    ret = wc_InitRng(&rng);
+    TEST_ASSERT(ret == 0, "ecdh-mismatch rng");
+    ret = wc_ecc_init(&eccKey);
+    TEST_ASSERT(ret == 0, "ecdh-mismatch ecc init");
+    ret = wc_ecc_make_key(&rng, 32, &eccKey);
+    TEST_ASSERT(ret == 0, "ecdh-mismatch keygen");
+
+    (void)wc_CoseKey_Init(&key);
+    (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
+    /* The key claims a different algorithm than the recipient entry. */
+    key.alg = WOLFCOSE_ALG_ES256;
+
+    recipients[0].algId = WOLFCOSE_ALG_ECDH_ES_HKDF_256;
+    recipients[0].key = &key;
+    recipients[0].kid = NULL;
+    recipients[0].kidLen = 0;
+
+    ret = wc_CoseEncrypt_Encrypt(recipients, 1,
+        WOLFCOSE_ALG_A128GCM,
+        iv, sizeof(iv),
+        payload, sizeof(payload),
+        NULL, 0, NULL, 0,
+        scratch, sizeof(scratch),
+        out, sizeof(out), &outLen, &rng);
+    TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG,
+                "ecdh-es recipient key alg mismatch rejected");
+
+    (void)wc_ecc_free(&eccKey);
+    (void)wc_FreeRng(&rng);
+}
+#endif /* ENCRYPT && AESGCM && ECDH_ES_DIRECT && ES256 && HKDF */
+
+#if defined(WOLFCOSE_ENCRYPT) && defined(WOLFCOSE_HAVE_AESGCM)
+static void test_multi_decrypt_detached_missing(void)
+{
+    WOLFCOSE_KEY key;
+    WOLFCOSE_RECIPIENT recipient;
+    uint8_t keyData[16] = {0};
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    uint8_t plaintext[64];
+    size_t plaintextLen = 0;
+    WOLFCOSE_HDR hdr;
+    int ret;
+    /* COSE_Encrypt with nil (detached) ciphertext and no recipients. */
+    uint8_t detachedMsg[] = {
+        0xD8u, 0x60u,                   /* Tag 96 (COSE_Encrypt) */
+        0x84u,                          /* Array of 4 */
+        0x43u, 0xA1u, 0x01u, 0x01u,     /* protected: {1:1} alg A128GCM */
+        0xA1u, 0x05u, 0x4Cu,            /* unprotected: {5: 12-byte IV} */
+        0x02u, 0xD1u, 0xF7u, 0xE6u, 0xF2u, 0x6Cu,
+        0x43u, 0xD4u, 0x86u, 0x8Du, 0x87u, 0xCEu,
+        0xF6u,                          /* ciphertext: nil (detached) */
+        0x80u                           /* recipients: [] */
+    };
+
+    TEST_LOG("  [Multi Decrypt - detached ciphertext not provided]\n");
+
+    (void)wc_CoseKey_Init(&key);
+    (void)wc_CoseKey_SetSymmetric(&key, keyData, sizeof(keyData));
+    recipient.algId = WOLFCOSE_ALG_DIRECT;
+    recipient.key = &key;
+    recipient.kid = NULL;
+    recipient.kidLen = 0;
+
+    ret = wc_CoseEncrypt_Decrypt(&recipient, 0,
+        detachedMsg, sizeof(detachedMsg),
+        NULL, 0, NULL, 0,
+        scratch, sizeof(scratch), &hdr,
+        plaintext, sizeof(plaintext), &plaintextLen);
+    TEST_ASSERT(ret == WOLFCOSE_E_DETACHED_PAYLOAD,
+                "decrypt detached ciphertext without buffer rejected");
+}
+#endif /* WOLFCOSE_ENCRYPT && WOLFCOSE_HAVE_AESGCM */
+
+#if defined(WOLFCOSE_ENCRYPT) && defined(WOLFCOSE_HAVE_AESGCM) && \
+    defined(WOLFCOSE_ECDH_ES_DIRECT) && defined(WOLFCOSE_HAVE_ES256) && \
+    defined(HAVE_ECC) && defined(HAVE_HKDF)
+static void test_multi_decrypt_ecdh_recipient_map_too_large(void)
+{
+    WOLFCOSE_KEY key;
+    ecc_key eccKey;
+    WOLFCOSE_RECIPIENT recipient;
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    uint8_t plaintext[64];
+    size_t plaintextLen = 0;
+    WOLFCOSE_HDR hdr;
+    WC_RNG rng;
+    uint8_t msg[128];
+    size_t idx = 0;
+    size_t i;
+    int ret;
+
+    TEST_LOG("  [Multi Decrypt - ECDH-ES recipient map too large]\n");
+
+    /* COSE_Encrypt whose ECDH-ES recipient unprotected map claims 17 entries
+     * (> WOLFCOSE_MAX_MAP_ITEMS). */
+    msg[idx] = 0xD8u; idx++; msg[idx] = 0x60u; idx++;  /* Tag 96 */
+    msg[idx] = 0x84u; idx++;                           /* Array of 4 */
+    msg[idx] = 0x43u; idx++;                           /* protected {1:1} */
+    msg[idx] = 0xA1u; idx++; msg[idx] = 0x01u; idx++; msg[idx] = 0x01u; idx++;
+    msg[idx] = 0xA1u; idx++; msg[idx] = 0x05u; idx++;  /* unprotected {5:IV} */
+    msg[idx] = 0x4Cu; idx++;
+    for (i = 0u; i < 12u; i++) {
+        msg[idx] = (uint8_t)i; idx++;
+    }
+    msg[idx] = 0x48u; idx++;                           /* ciphertext bstr(8) */
+    for (i = 0u; i < 8u; i++) {
+        msg[idx] = (uint8_t)i; idx++;
+    }
+    msg[idx] = 0x81u; idx++;                           /* recipients: [1] */
+    msg[idx] = 0x83u; idx++;                           /* recipient array(3) */
+    msg[idx] = 0x44u; idx++;                           /* protected bstr(4) */
+    msg[idx] = 0xA1u; idx++; msg[idx] = 0x01u; idx++;  /* {1: -25} */
+    msg[idx] = 0x38u; idx++; msg[idx] = 0x18u; idx++;
+    msg[idx] = 0xB1u; idx++;                           /* unprotected map(17) */
+    for (i = 0u; i < 17u; i++) {
+        msg[idx] = (uint8_t)(0x10u + i); idx++;        /* label */
+        msg[idx] = 0x00u; idx++;                       /* value */
+    }
+    msg[idx] = 0x40u; idx++;                           /* encrypted key: h'' */
+
+    ret = wc_InitRng(&rng);
+    TEST_ASSERT(ret == 0, "ecdh-map rng");
+    ret = wc_ecc_init(&eccKey);
+    TEST_ASSERT(ret == 0, "ecdh-map ecc init");
+    ret = wc_ecc_make_key(&rng, 32, &eccKey);
+    TEST_ASSERT(ret == 0, "ecdh-map keygen");
+
+    (void)wc_CoseKey_Init(&key);
+    (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
+    recipient.algId = WOLFCOSE_ALG_ECDH_ES_HKDF_256;
+    recipient.key = &key;
+    recipient.kid = NULL;
+    recipient.kidLen = 0;
+
+    ret = wc_CoseEncrypt_Decrypt(&recipient, 0,
+        msg, idx,
+        NULL, 0, NULL, 0,
+        scratch, sizeof(scratch), &hdr,
+        plaintext, sizeof(plaintext), &plaintextLen);
+    TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED,
+                "oversized ECDH-ES recipient map rejected");
+
+    (void)wc_ecc_free(&eccKey);
+    (void)wc_FreeRng(&rng);
+}
+#endif /* WOLFCOSE_ENCRYPT && WOLFCOSE_HAVE_AESGCM */
+
+#ifdef WOLFCOSE_KEY_DECODE
+static void test_key_decode_map_too_large(void)
+{
+    WOLFCOSE_KEY key;
+    WOLFCOSE_KEY_INFO info;
+    uint8_t bigMap[64];
+    size_t idx = 0;
+    size_t i;
+    int ret;
+
+    TEST_LOG("  [Key decode map too large]\n");
+
+    /* CBOR map with 17 entries (> WOLFCOSE_MAX_MAP_ITEMS). */
+    bigMap[idx] = 0xB1u; idx++;
+    for (i = 0u; i < 17u; i++) {
+        bigMap[idx] = (uint8_t)(0x10u + i); idx++;  /* label */
+        bigMap[idx] = 0x00u; idx++;                 /* value */
+    }
+
+    (void)wc_CoseKey_Init(&key);
+    ret = wc_CoseKey_Decode(&key, bigMap, idx);
+    TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED, "key decode map>16");
+
+    ret = wc_CoseKey_PeekInfo(bigMap, idx, &info);
+    TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED, "key peek map>16");
+}
+#endif /* WOLFCOSE_KEY_DECODE */
+
+#if defined(WOLFCOSE_ECDH_ES_DIRECT) && defined(HAVE_ECC) && defined(HAVE_HKDF)
+static void test_ephemeral_key_map_too_large(void)
+{
+    WOLFCOSE_CBOR_CTX ctx;
+    uint8_t bigMap[64];
+    uint8_t x[68];
+    uint8_t y[68];
+    size_t xLen = 0;
+    size_t yLen = 0;
+    int crv = 0;
+    size_t idx = 0;
+    size_t i;
+    int ret;
+
+    TEST_LOG("  [Ephemeral key map too large]\n");
+
+    bigMap[idx] = 0xB1u; idx++;
+    for (i = 0u; i < 17u; i++) {
+        bigMap[idx] = (uint8_t)(0x10u + i); idx++;
+        bigMap[idx] = 0x00u; idx++;
+    }
+
+    (void)XMEMSET(&ctx, 0, sizeof(ctx));
+    ctx.cbuf = bigMap;
+    ctx.bufSz = idx;
+    ret = wolfCose_DecodeEphemeralKey(&ctx, &crv,
+        x, sizeof(x), &xLen, y, sizeof(y), &yLen);
+    TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED, "ephemeral map>16");
+
+    /* An unknown integer label inside the ephemeral key map is skipped; the
+     * decode then fails on the missing key material rather than the label. */
+    bigMap[0] = 0xA1u;              /* map(1) */
+    bigMap[1] = 0x18u;              /* label: 99 */
+    bigMap[2] = 0x63u;
+    bigMap[3] = 0x00u;              /* value: 0 */
+    (void)XMEMSET(&ctx, 0, sizeof(ctx));
+    ctx.cbuf = bigMap;
+    ctx.bufSz = 4u;
+    ret = wolfCose_DecodeEphemeralKey(&ctx, &crv,
+        x, sizeof(x), &xLen, y, sizeof(y), &yLen);
+    TEST_ASSERT(ret != WOLFCOSE_SUCCESS, "ephemeral unknown label skipped");
+}
+#endif /* WOLFCOSE_ECDH_ES_DIRECT && HAVE_ECC && HAVE_HKDF */
+
+#if defined(WOLFCOSE_ENCRYPT_DECRYPT) || defined(WOLFCOSE_MAC_VERIFY)
+static void test_skipped_recipient_tstr_alg(void)
+{
+    WOLFCOSE_CBOR_CTX ctx;
+    int32_t alg = 0;
+    int ret;
+    /* COSE_recipient [protected {1:"A"}, unprotected {}, h''] - a text-string
+     * alg in a skipped recipient is structurally valid and skipped. */
+    uint8_t recip[] = {
+        0x83u,
+        0x44u, 0xA1u, 0x01u, 0x61u, 0x41u,
+        0xA0u,
+        0x40u
+    };
+
+    TEST_LOG("  [Skipped recipient with tstr alg]\n");
+
+    (void)XMEMSET(&ctx, 0, sizeof(ctx));
+    ctx.cbuf = recip;
+    ctx.bufSz = sizeof(recip);
+    ret = wolfCose_DecodeSkippedRecipient(&ctx, &alg);
+    TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "skipped recipient tstr alg");
+    TEST_ASSERT(alg == WOLFCOSE_ALG_UNSET, "skipped tstr alg stays unset");
+}
+#endif /* WOLFCOSE_ENCRYPT_DECRYPT || WOLFCOSE_MAC_VERIFY */
+
+#if defined(WOLFCOSE_HAVE_MLDSA) && defined(WOLFCOSE_SIGN)
+static void test_multi_sign_mldsa65_roundtrip(void)
+{
+    WOLFCOSE_KEY signKey;
+    static wc_MlDsaKey dlKey;
+    WOLFCOSE_SIGNATURE signers[1];
+    WC_RNG rng;
+    int ret;
+    static uint8_t out[8192];
+    size_t outLen = 0;
+    static uint8_t scratch[8192];
+    const uint8_t payload[] = "mldsa-65 multi";
+    WOLFCOSE_HDR hdr;
+    const uint8_t* decPayload = NULL;
+    size_t decPayloadLen = 0;
+
+    TEST_LOG("  [Sign multi-signer ML-DSA-65 roundtrip]\n");
+
+    ret = wc_InitRng(&rng);
+    TEST_ASSERT(ret == 0, "mldsa65 rng");
+    ret = wc_MlDsaKey_Init(&dlKey, NULL, INVALID_DEVID);
+    TEST_ASSERT(ret == 0, "mldsa65 init");
+    ret = wc_MlDsaKey_SetParams(&dlKey, WC_ML_DSA_65);
+    TEST_ASSERT(ret == 0, "mldsa65 set level");
+    ret = wc_MlDsaKey_MakeKey(&dlKey, &rng);
+    TEST_ASSERT(ret == 0, "mldsa65 keygen");
+
+    (void)wc_CoseKey_Init(&signKey);
+    ret = wc_CoseKey_SetMlDsa(&signKey, WOLFCOSE_ALG_ML_DSA_65, &dlKey);
+    TEST_ASSERT(ret == 0, "mldsa65 set key");
+
+    signers[0].algId = WOLFCOSE_ALG_ML_DSA_65;
+    signers[0].key = &signKey;
+    signers[0].kid = NULL;
+    signers[0].kidLen = 0;
+
+    ret = wc_CoseSign_Sign(signers, 1,
+        payload, sizeof(payload) - 1,
+        NULL, 0, NULL, 0,
+        scratch, sizeof(scratch),
+        out, sizeof(out), &outLen, &rng);
+    TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "mldsa65 multi sign");
+
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CoseSign_Verify(&signKey, 0,
+            out, outLen,
+            NULL, 0, NULL, 0,
+            scratch, sizeof(scratch),
+            &hdr, &decPayload, &decPayloadLen);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "mldsa65 multi verify");
+    }
+
+    wc_CoseKey_Free(&signKey);
+    (void)wc_MlDsaKey_Free(&dlKey);
+
+    /* Repeat at level 5 so every ML-DSA algorithm comparison is exercised. */
+    ret = wc_MlDsaKey_Init(&dlKey, NULL, INVALID_DEVID);
+    TEST_ASSERT(ret == 0, "mldsa87 init");
+    ret = wc_MlDsaKey_SetParams(&dlKey, WC_ML_DSA_87);
+    TEST_ASSERT(ret == 0, "mldsa87 set level");
+    ret = wc_MlDsaKey_MakeKey(&dlKey, &rng);
+    TEST_ASSERT(ret == 0, "mldsa87 keygen");
+    (void)wc_CoseKey_Init(&signKey);
+    ret = wc_CoseKey_SetMlDsa(&signKey, WOLFCOSE_ALG_ML_DSA_87, &dlKey);
+    TEST_ASSERT(ret == 0, "mldsa87 set key");
+    signers[0].algId = WOLFCOSE_ALG_ML_DSA_87;
+    signers[0].key = &signKey;
+    ret = wc_CoseSign_Sign(signers, 1,
+        payload, sizeof(payload) - 1,
+        NULL, 0, NULL, 0,
+        scratch, sizeof(scratch),
+        out, sizeof(out), &outLen, &rng);
+    TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "mldsa87 multi sign");
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wc_CoseSign_Verify(&signKey, 0,
+            out, outLen,
+            NULL, 0, NULL, 0,
+            scratch, sizeof(scratch),
+            &hdr, &decPayload, &decPayloadLen);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "mldsa87 multi verify");
+    }
+    wc_CoseKey_Free(&signKey);
+    (void)wc_MlDsaKey_Free(&dlKey);
+    (void)wc_FreeRng(&rng);
+}
+#endif /* WOLFCOSE_HAVE_MLDSA && WOLFCOSE_SIGN */
+
 int test_cose(void)
 {
     g_failures = 0;
@@ -24306,6 +24690,36 @@ int test_cose(void)
     test_ecdh_es_multi_recipient_rejected();
     test_ecdh_es_multi_recipient_decrypt_rejected();
     test_ecdh_es_recipient_protected_bound();
+#endif
+
+    /* Per-file coverage tests for the split source layout */
+#if defined(WOLFCOSE_HAVE_ES256) && defined(HAVE_ECC)
+    test_ecc_check_curve_dp_fallback();
+#endif
+#if defined(WOLFCOSE_ENCRYPT) && defined(WOLFCOSE_HAVE_AESGCM) && \
+    defined(WOLFCOSE_ECDH_ES_DIRECT) && defined(WOLFCOSE_HAVE_ES256) && \
+    defined(HAVE_HKDF)
+    test_ecdh_es_recipient_key_alg_mismatch();
+#endif
+#if defined(WOLFCOSE_ENCRYPT) && defined(WOLFCOSE_HAVE_AESGCM)
+    test_multi_decrypt_detached_missing();
+#endif
+#if defined(WOLFCOSE_ENCRYPT) && defined(WOLFCOSE_HAVE_AESGCM) && \
+    defined(WOLFCOSE_ECDH_ES_DIRECT) && defined(WOLFCOSE_HAVE_ES256) && \
+    defined(HAVE_ECC) && defined(HAVE_HKDF)
+    test_multi_decrypt_ecdh_recipient_map_too_large();
+#endif
+#ifdef WOLFCOSE_KEY_DECODE
+    test_key_decode_map_too_large();
+#endif
+#if defined(WOLFCOSE_ECDH_ES_DIRECT) && defined(HAVE_ECC) && defined(HAVE_HKDF)
+    test_ephemeral_key_map_too_large();
+#endif
+#if defined(WOLFCOSE_ENCRYPT_DECRYPT) || defined(WOLFCOSE_MAC_VERIFY)
+    test_skipped_recipient_tstr_alg();
+#endif
+#if defined(WOLFCOSE_HAVE_MLDSA) && defined(WOLFCOSE_SIGN)
+    test_multi_sign_mldsa65_roundtrip();
 #endif
 
     /* Mock failure injection tests */

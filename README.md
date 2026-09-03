@@ -197,7 +197,7 @@ Runs on every push and PR:
 - **MISRA C 2023**: strict GCC warnings and clang-tidy (`bugprone-*`, `cert-*`, `clang-analyzer-*`, `misc-*`)
 - **Coverity Scan**: nightly defect analysis
 - **Advanced Internal Static Analysis:** Fenrir wolfssl advanced static analysis tools
-- **Code Coverage**: 99.3% for wolfcose.c, 100% for wolfcose_cbor.c
+- **Code Coverage**: 100% line coverage enforced for every wolfCOSE source file
 
 ```bash
 make coverage                  # Run tests with gcov

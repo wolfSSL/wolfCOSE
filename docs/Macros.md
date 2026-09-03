@@ -25,7 +25,7 @@ An experimental feature is compiled in only when **both** its own `WOLFCOSE_ENAB
 
 ```bash
 # Normal build: zero experimental code, no acknowledgement needed.
-cc ... src/wolfcose.c src/wolfcose_cbor.c
+cc ... src/*.c
 
 # Enable an experimental feature (requires both defines):
 cc -DWOLFCOSE_EXPERIMENTAL -DWOLFCOSE_ENABLE_EXPERIMENTAL_EXAMPLE ...
@@ -344,7 +344,7 @@ The smallest secure on-device profile: COSE_Sign1 verification only, the common 
 ```bash
 make lean-verify     # builds + runs examples/sign1_verify_lean.c with the profile
 # or directly:
-cc -DWOLFCOSE_LEAN_VERIFY ... src/wolfcose.c src/wolfcose_cbor.c
+cc -DWOLFCOSE_LEAN_VERIFY ... src/*.c
 ```
 
 ### `WOLFCOSE_LEAN_MLDSA` — lean post-quantum sign + verify
@@ -354,7 +354,7 @@ A lean ML-DSA-only (FIPS 204) COSE_Sign1 **sign and verify** profile. It implies
 ```bash
 make mldsa-demo      # builds + runs examples/sign1_mldsa.c (sign + verify)
 # or directly:
-cc -DWOLFCOSE_LEAN_MLDSA ... src/wolfcose.c src/wolfcose_cbor.c
+cc -DWOLFCOSE_LEAN_MLDSA ... src/*.c
 ```
 
 ### `WOLFCOSE_LEAN_VERIFY_MLDSA` — minimal post-quantum verify-only
@@ -364,7 +364,7 @@ The smallest secure on-device PQ build: ML-DSA COSE_Sign1 **verify only**. It im
 ```bash
 make mldsa-verify    # builds + runs examples/sign1_verify_mldsa.c with the profile
 # or directly:
-cc -DWOLFCOSE_LEAN_VERIFY_MLDSA ... src/wolfcose.c src/wolfcose_cbor.c
+cc -DWOLFCOSE_LEAN_VERIFY_MLDSA ... src/*.c
 ```
 
 ## Example Build Configurations

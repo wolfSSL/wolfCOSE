@@ -31,7 +31,10 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-install
-        key: wolfssl-ubuntu-latest-v3-${{ steps.wolfssl-rev.outputs.sha }}
+        # Coverage needs its own cache: other workflows share the generic
+        # ubuntu-latest key but configure wolfSSL without aeskeywrap, and a
+        # cache hit on such a build silently skips the KEY_WRAP tests.
+        key: wolfssl-coverage-fullcfg-v1-${{ steps.wolfssl-rev.outputs.sha }}
 
     - name: Build wolfSSL
       if: steps.cache-wolfssl.outputs.cache-hit != 'true'
@@ -68,68 +71,42 @@ jobs:
         echo "=============================================="
         echo ""
 
-        # Coverage thresholds:
-        #   wolfcose.c:      99% minimum
-        #   wolfcose_cbor.c: 100% minimum
+        # Every wolfCOSE source file must have 100% line coverage.
 
         FAILED=0
 
-        # Run gcov and capture output
         GCOV_OUTPUT=$(gcov src/*.c 2>&1)
         echo "$GCOV_OUTPUT"
         echo ""
 
-        # Parse wolfcose.c coverage from gcov output
-        COSE_PCT=$(echo "$GCOV_OUTPUT" | grep -A1 "wolfcose.c'" | grep "Lines executed" | sed "s/.*:\([0-9.]*\)%.*/\1/")
-        COSE_UNCOV=$(grep -c "#####" wolfcose.c.gcov 2>/dev/null || echo "0")
+        for f in src/*.c; do
+          BASE=$(basename "$f")
+          PCT=$(echo "$GCOV_OUTPUT" | grep -A1 "File '$f'" | grep "Lines executed" | sed "s/.*:\([0-9.]*\)%.*/\1/")
+          UNCOV=$(grep -c "#####" "$BASE.gcov" 2>/dev/null || echo "0")
 
-        if [ -n "$COSE_PCT" ]; then
-          echo "wolfcose.c:"
-          echo "  Coverage: ${COSE_PCT}%"
-          echo "  Threshold: 99%"
-          echo "  Uncovered lines: ${COSE_UNCOV}"
-          echo ""
-
-          # Compare using awk (handles decimals)
-          if awk "BEGIN {exit !($COSE_PCT < 99)}"; then
+          if [ -z "$PCT" ]; then
             FAILED=1
-            echo ">>> FAILED: wolfcose.c coverage is below 99%! <<<"
-            echo ""
-            echo "Uncovered lines in wolfcose.c:"
-            echo "------------------------------"
-            grep -n "#####" wolfcose.c.gcov | head -50
-            echo ""
-          else
-            echo ">>> PASSED: wolfcose.c meets 99% threshold <<<"
+            echo ">>> FAILED: no gcov result for $BASE <<<"
+            continue
           fi
-          echo ""
-        fi
 
-        # Parse wolfcose_cbor.c coverage from gcov output
-        CBOR_PCT=$(echo "$GCOV_OUTPUT" | grep -A1 "wolfcose_cbor.c'" | grep "Lines executed" | sed "s/.*:\([0-9.]*\)%.*/\1/")
-        CBOR_UNCOV=$(grep -c "#####" wolfcose_cbor.c.gcov 2>/dev/null || echo "0")
-
-        if [ -n "$CBOR_PCT" ]; then
-          echo "wolfcose_cbor.c:"
-          echo "  Coverage: ${CBOR_PCT}%"
+          echo "$BASE:"
+          echo "  Coverage: ${PCT}%"
           echo "  Threshold: 100%"
-          echo "  Uncovered lines: ${CBOR_UNCOV}"
-          echo ""
+          echo "  Uncovered lines: ${UNCOV}"
 
-          # Compare using awk (handles decimals)
-          if awk "BEGIN {exit !($CBOR_PCT < 100)}"; then
+          if awk "BEGIN {exit !($PCT < 100)}"; then
             FAILED=1
-            echo ">>> FAILED: wolfcose_cbor.c coverage is below 100%! <<<"
+            echo ">>> FAILED: $BASE coverage is below 100%! <<<"
             echo ""
-            echo "Uncovered lines in wolfcose_cbor.c:"
-            echo "-----------------------------------"
-            grep -n "#####" wolfcose_cbor.c.gcov
-            echo ""
+            echo "Uncovered lines in $BASE:"
+            echo "------------------------------"
+            grep -n "#####" "$BASE.gcov" | head -50
           else
-            echo ">>> PASSED: wolfcose_cbor.c meets 100% threshold <<<"
+            echo ">>> PASSED: $BASE meets 100% threshold <<<"
           fi
           echo ""
-        fi
+        done
 
         echo "=============================================="
 

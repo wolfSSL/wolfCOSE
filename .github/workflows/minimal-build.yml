@@ -131,4 +131,4 @@ jobs:
         cc -std=c99 -pedantic-errors -Werror -Wall -Wextra -Wshadow \
            -Wconversion -Wvla -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 \
            -I./include -isystem $WOLFSSL_DIR/include -fsyntax-only \
-           src/wolfcose.c tests/test_cose.c
+           src/*.c tests/test_cose.c

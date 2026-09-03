@@ -47,7 +47,20 @@ LDLIBS   ?=
 LDLIBS   += $(WOLFSSL_LIBS)
 
 # Core library sources (only these go into .a/.so)
-SRC       = src/wolfcose_cbor.c src/wolfcose.c
+SRC       = src/wolfcose_cbor.c \
+            src/wolfcose_util.c \
+            src/wolfcose_alg.c \
+            src/wolfcose_ecc.c \
+            src/wolfcose_hdr.c \
+            src/wolfcose_key.c \
+            src/wolfcose_struct.c \
+            src/wolfcose_recipient.c \
+            src/wolfcose_sign1.c \
+            src/wolfcose_sign.c \
+            src/wolfcose_encrypt0.c \
+            src/wolfcose_mac0.c \
+            src/wolfcose_encrypt.c \
+            src/wolfcose_mac.c
 OBJ       = $(SRC:.c=.o)
 LIB_A     = libwolfcose.a
 LIB_SO    = libwolfcose.so
@@ -109,6 +122,7 @@ SCEN_BROADCAST   = examples/scenarios/group_broadcast_mac
 all: $(LIB_A)
 
 $(LIB_A): $(OBJ)
+	rm -f $@
 	$(AR) rcs $@ $^
 
 FORCE:
@@ -250,13 +264,13 @@ ecdsa-policy-test:
 
 rsapss-policy-test:
 	$(CC) $(CFLAGS) -Werror=unused-function -fsyntax-only \
-	    -DWOLFCOSE_NO_SIGN1 -DWOLFCOSE_NO_SIGN src/wolfcose.c
+	    -DWOLFCOSE_NO_SIGN1 -DWOLFCOSE_NO_SIGN $(SRC)
 	$(CC) $(CFLAGS) -x c -fsyntax-only -DWOLFSSL_NO_OPTIONS_H \
 	    -DWC_RSA_PSS -DWOLFCOSE_NO_KEY_ENCODE \
-	    -DWOLFCOSE_ENABLE_RSAPSS src/wolfcose.c
+	    -DWOLFCOSE_ENABLE_RSAPSS $(SRC)
 	$(CC) $(CFLAGS) -x c -fsyntax-only -DWOLFSSL_NO_OPTIONS_H \
 	    -DWC_RSA_PSS -DWOLFCOSE_LEAN_VERIFY \
-	    -DWOLFCOSE_ENABLE_RSAPSS src/wolfcose.c
+	    -DWOLFCOSE_ENABLE_RSAPSS $(SRC)
 	@set -e; \
 	log_file=$$(mktemp "$${TMPDIR:-/tmp}/wolfcose-rsapss.XXXXXX"); \
 	trap 'rm -f "$$log_file"' 0 1 2 3 15; \
@@ -264,7 +278,7 @@ rsapss-policy-test:
 	    -UHAVE_ECC -UWOLFSSL_EXPORT_INT \
 	    -DWC_RSA_PSS -DWOLFCOSE_ENABLE_RSAPSS \
 	    -DWOLFSSL_RSA_VERIFY_ONLY -DWOLFCOSE_LEAN_VERIFY \
-	    src/wolfcose.c >"$$log_file" 2>&1; then \
+	    $(SRC) >"$$log_file" 2>&1; then \
 	    echo "FAIL: unsupported RSA verify-only policy compiled"; \
 	    exit 1; \
 	fi; \
@@ -274,7 +288,7 @@ rsapss-policy-test:
 	    -UHAVE_ECC -UWOLFSSL_EXPORT_INT \
 	    -DWC_RSA_PSS -DWOLFCOSE_ENABLE_RSAPSS \
 	    -DWOLFSSL_RSA_VERIFY_ONLY -DWOLFSSL_EXPORT_INT \
-	    -DWOLFCOSE_LEAN_VERIFY src/wolfcose.c
+	    -DWOLFCOSE_LEAN_VERIFY $(SRC)
 	@set -e; \
 	log_file=$$(mktemp "$${TMPDIR:-/tmp}/wolfcose-rsapss.XXXXXX"); \
 	trap 'rm -f "$$log_file"' 0 1 2 3 15; \
@@ -325,8 +339,10 @@ ext-sign-test:
 
 # --- Coverage ---
 coverage: clean
-	$(CC) $(CFLAGS) --coverage -fprofile-arcs -ftest-coverage -c src/wolfcose_cbor.c -o src/wolfcose_cbor.o
-	$(CC) $(CFLAGS) --coverage -fprofile-arcs -ftest-coverage -c src/wolfcose.c -o src/wolfcose.o
+	@set -e; for f in $(SRC); do \
+	    $(CC) $(CFLAGS) --coverage -fprofile-arcs -ftest-coverage -c $$f -o $${f%.c}.o; \
+	done
+	rm -f $(LIB_A)
 	$(AR) rcs $(LIB_A) $(OBJ)
 	$(CC) $(CFLAGS) --coverage -fprofile-arcs -ftest-coverage -o $(TEST_BIN) $(TEST_SRC) $(LIB_A) $(LDFLAGS) $(LDLIBS)
 	./$(TEST_BIN)
@@ -336,8 +352,10 @@ coverage: clean
 # See FORCE_FAILURE.md for documentation on this testing mechanism
 FORCE_FAIL_SRC = tests/force_failure.c
 coverage-force-failure: clean
-	$(CC) $(CFLAGS) -DWOLFCOSE_FORCE_FAILURE --coverage -fprofile-arcs -ftest-coverage -c src/wolfcose_cbor.c -o src/wolfcose_cbor.o
-	$(CC) $(CFLAGS) -DWOLFCOSE_FORCE_FAILURE --coverage -fprofile-arcs -ftest-coverage -c src/wolfcose.c -o src/wolfcose.o
+	@set -e; for f in $(SRC); do \
+	    $(CC) $(CFLAGS) -DWOLFCOSE_FORCE_FAILURE --coverage -fprofile-arcs -ftest-coverage -c $$f -o $${f%.c}.o; \
+	done
+	rm -f $(LIB_A)
 	$(AR) rcs $(LIB_A) $(OBJ)
 	$(CC) $(CFLAGS) -DWOLFCOSE_FORCE_FAILURE --coverage -fprofile-arcs -ftest-coverage -o $(TEST_BIN) $(TEST_SRC) $(FORCE_FAIL_SRC) $(LIB_A) $(LDFLAGS) $(LDLIBS)
 	./$(TEST_BIN)
@@ -391,7 +409,7 @@ demos: $(LIB_A)
 # prebuilt library, so the example exercises the minimal verify-only profile.
 lean-verify:
 	$(CC) $(CFLAGS) -DWOLFCOSE_LEAN_VERIFY -o $(LEANV_DEMO) \
-		$(LEANV_DEMO).c src/wolfcose.c src/wolfcose_cbor.c $(LDFLAGS) $(LDLIBS)
+		$(LEANV_DEMO).c $(SRC) $(LDFLAGS) $(LDLIBS)
 	@echo "=== Running lean verify-only example ==="
 	./$(LEANV_DEMO)
 
@@ -400,7 +418,7 @@ lean-verify:
 # not carry the seam.
 ext-sign-demo:
 	$(CC) $(CFLAGS) -DWOLFCOSE_ENABLE_EXT_SIGN -o $(EXTSIGN_DEMO) \
-		$(EXTSIGN_DEMO).c src/wolfcose.c src/wolfcose_cbor.c $(LDFLAGS) $(LDLIBS)
+		$(EXTSIGN_DEMO).c $(SRC) $(LDFLAGS) $(LDLIBS)
 	@echo "=== Running delegated signing example ==="
 	./$(EXTSIGN_DEMO)
 
@@ -408,14 +426,14 @@ ext-sign-demo:
 # Requires wolfSSL built with ML-DSA (./configure --enable-dilithium).
 mldsa-demo:
 	$(CC) $(CFLAGS) -DWOLFCOSE_LEAN_MLDSA -o $(MLDSA_DEMO) \
-		$(MLDSA_DEMO).c src/wolfcose.c src/wolfcose_cbor.c $(LDFLAGS) $(LDLIBS)
+		$(MLDSA_DEMO).c $(SRC) $(LDFLAGS) $(LDLIBS)
 	@echo "=== Running ML-DSA sign + verify example ==="
 	./$(MLDSA_DEMO)
 
 # --- Smallest post-quantum verify-only (WOLFCOSE_LEAN_VERIFY_MLDSA) ---
 mldsa-verify:
 	$(CC) $(CFLAGS) -DWOLFCOSE_LEAN_VERIFY_MLDSA -o $(MLDSAV_DEMO) \
-		$(MLDSAV_DEMO).c src/wolfcose.c src/wolfcose_cbor.c $(LDFLAGS) $(LDLIBS)
+		$(MLDSAV_DEMO).c $(SRC) $(LDFLAGS) $(LDLIBS)
 	@echo "=== Running lean ML-DSA verify-only example ==="
 	./$(MLDSAV_DEMO)
 
@@ -501,7 +519,7 @@ c99-check:
 	@$(CC) $(C99_FLAGS) -Werror=unused-function -Werror=unused-parameter \
 	    -DNO_HMAC -DHAVE_AES_CBC -DWOLFCOSE_ENABLE_AESMAC \
 	    -DWOLFCOSE_NO_RECIPIENTS -DWOLFCOSE_NO_ENCRYPT \
-	    -fsyntax-only src/wolfcose.c
+	    -fsyntax-only $(SRC)
 	@echo "PASS: all sources conform to ISO C99 (-pedantic-errors)"
 
 # Experimental-feature acknowledgement gate. Proves WOLFCOSE_EXPERIMENTAL guards

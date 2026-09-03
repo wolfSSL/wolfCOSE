@@ -11,9 +11,21 @@ wolfCOSE/
 │       ├── wolfcose.h         # Public API (types, constants, all functions)
 │       └── visibility.h       # WOLFCOSE_API export macros
 ├── src/
-│   ├── wolfcose.c             # COSE messages + key management
-│   ├── wolfcose_cbor.c        # CBOR encoder/decoder
-│   └── wolfcose_internal.h    # Internal helpers
+│   ├── wolfcose_cbor.c        # CBOR encoder/decoder (no wolfCrypt dependency)
+│   ├── wolfcose_util.c        # Zeroization, rollback, constant-time compare
+│   ├── wolfcose_alg.c         # Algorithm dispatch (hash/AEAD/HMAC/RSA-PSS)
+│   ├── wolfcose_ecc.c         # ECC DER <-> raw r||s conversion
+│   ├── wolfcose_hdr.c         # Protected/unprotected header codec
+│   ├── wolfcose_key.c         # COSE_Key encode/decode + key attachment
+│   ├── wolfcose_struct.c      # Sig/MAC/Enc structure builders
+│   ├── wolfcose_recipient.c   # Key wrap + ECDH-ES key agreement
+│   ├── wolfcose_sign1.c       # COSE_Sign1
+│   ├── wolfcose_sign.c        # COSE_Sign (multi-signer)
+│   ├── wolfcose_encrypt0.c    # COSE_Encrypt0
+│   ├── wolfcose_mac0.c        # COSE_Mac0
+│   ├── wolfcose_encrypt.c     # COSE_Encrypt (multi-recipient)
+│   ├── wolfcose_mac.c         # COSE_Mac (multi-recipient)
+│   └── wolfcose_internal.h    # Internal shared declarations
 ├── tests/
 │   ├── test_cbor.c            # CBOR unit tests
 │   ├── test_cose.c            # COSE unit tests
@@ -64,17 +76,28 @@ Export macros for shared library builds:
 - `WOLFCOSE_API` for public functions
 - Platform-specific visibility attributes
 
-### src/wolfcose.c
+### COSE message modules (src/wolfcose_*.c)
 
-COSE message implementation (RFC 9052/9053). Contains:
-- COSE_Sign1 / COSE_Sign functions
-- COSE_Encrypt0 / COSE_Encrypt functions
-- COSE_Mac0 / COSE_Mac functions
-- COSE_Key encoding/decoding
-- Sig_structure / Enc_structure / MAC_structure builders
-- Crypto dispatch to wolfCrypt
+The COSE implementation (RFC 9052/9053) is split into cohesive modules, one
+per functional area:
 
-This file depends on wolfCrypt for all cryptographic operations.
+| File | Contents |
+|------|----------|
+| `wolfcose_util.c` | Secure zeroization, key-import rollback, constant-time compare, RFC 9052 context strings |
+| `wolfcose_alg.c` | Algorithm dispatch: hash/signature/curve mapping, AEAD and HMAC parameters, RSA-PSS key checks |
+| `wolfcose_ecc.c` | ECC DER <-> raw r||s signature conversion |
+| `wolfcose_hdr.c` | Protected/unprotected header encode and decode |
+| `wolfcose_key.c` | COSE_Key encode/decode and wolfCrypt key attachment |
+| `wolfcose_struct.c` | Unified Sig_structure/MAC_structure/Enc_structure builders |
+| `wolfcose_recipient.c` | AES key wrap and ECDH-ES key agreement for multi-recipient messages |
+| `wolfcose_sign1.c` | COSE_Sign1 sign and verify |
+| `wolfcose_sign.c` | COSE_Sign multi-signer sign and verify |
+| `wolfcose_encrypt0.c` | COSE_Encrypt0 encrypt and decrypt |
+| `wolfcose_mac0.c` | COSE_Mac0 create and verify |
+| `wolfcose_encrypt.c` | COSE_Encrypt multi-recipient encrypt and decrypt |
+| `wolfcose_mac.c` | COSE_Mac multi-recipient create and verify |
+
+These files depend on wolfCrypt for all cryptographic operations.
 
 ### src/wolfcose_cbor.c
 
@@ -107,9 +130,9 @@ Internal helpers not exposed in public API:
 | `tests/test_wolfcose` | Test executable |
 | `tools/wolfcose_tool` | CLI tool executable |
 
-The core library is just two object files:
-- `wolfcose.o` (COSE + Key)
-- `wolfcose_cbor.o` (CBOR only)
+The core library is one object file per source module. `wolfcose_cbor.o` is
+the only object with no wolfCrypt dependency; with `-ffunction-sections` and
+`--gc-sections` the linker keeps only what the application uses.
 
 ---
 
@@ -221,9 +244,11 @@ test     - Run self-tests
 For a minimal COSE integration, you need:
 1. `include/wolfcose/wolfcose.h`
 2. `include/wolfcose/visibility.h`
-3. `src/wolfcose.c`
-4. `src/wolfcose_cbor.c`
-5. `src/wolfcose_internal.h`
+3. Every `src/*.c` file
+4. `src/wolfcose_internal.h`
+
+Unused message types compile out via the `WOLFCOSE_NO_*` feature macros, and
+`-ffunction-sections`/`--gc-sections` discards unreferenced code at link time.
 
 ### CBOR-Only Integration
 

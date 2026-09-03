@@ -4,7 +4,7 @@
     {
       "id": "D-11.5-001",
       "rule": "11.5",
-      "path": "src/wolfcose.c",
+      "path": "src/wolfcose_util.c",
       "symbol": "wolfCose_ForceZero",
       "anchors": [
         "volatile unsigned char* p = (volatile unsigned char*)mem;"

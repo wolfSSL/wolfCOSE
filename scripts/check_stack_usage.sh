@@ -5,14 +5,16 @@
 set -e
 
 BUDGET="${1:-6144}"
-SU="src/wolfcose.su src/wolfcose_cbor.su"
-
-for f in $SU; do
+SU=
+for c in src/*.c; do
+    f="${c%.c}.su"
     if [ ! -f "$f" ]; then
         echo "missing $f — build with -fstack-usage first" >&2
         exit 2
     fi
+    SU="$SU $f"
 done
+
 
 # Flag unbounded frames (qualifier exactly "dynamic", not "dynamic,bounded" or
 # "static") regardless of the printed size, plus any frame over budget.

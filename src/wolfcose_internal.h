@@ -33,6 +33,9 @@
 #if defined(WOLFCOSE_HAVE_CHACHA20)
     #include <wolfssl/wolfcrypt/chacha20_poly1305.h>
 #endif
+#ifdef WOLFCOSE_FORCE_FAILURE
+    #include "../tests/force_failure.h"
+#endif
 
 /* ECC private-material import is unavailable when wolfCrypt uses an
  * incompatible math layout or cannot roll back accepted or provisioned key
@@ -59,7 +62,7 @@ extern "C" {
  * Portable secure-zero using a volatile pointer so the compiler cannot
  * optimise the writes away. Used in place of wc_ForceZero so wolfCOSE
  * links against the full 5.x range (wc_ForceZero only became a public
- * WOLFSSL_API symbol in v5.8.4). Definition lives in wolfcose.c. */
+ * WOLFSSL_API symbol in v5.8.4). Definition lives in wolfcose_util.c. */
 WOLFCOSE_LOCAL void wolfCose_ForceZero(void* mem, size_t len);
 
 /* ----- Big-endian load/store helpers (bit-shift only, no platform dependencies) ----- */
@@ -357,6 +360,290 @@ WOLFCOSE_LOCAL int wolfCose_ExtSign(const WOLFCOSE_KEY* key, int32_t alg,
                                      uint8_t* sig, size_t sigSz,
                                      size_t* sigLen);
 #endif /* WOLFCOSE_EXT_SIGN */
+
+/* ----- Forced failure injection for testing error paths ----- */
+#ifdef WOLFCOSE_FORCE_FAILURE
+    /* Inject a forced failure when armed; otherwise run stmt. */
+    #define INJECT_FAILURE(failure_type, error_code, stmt) \
+        do { \
+            if (wolfForceFailure_Check((failure_type)) != 0) { \
+                ret = (error_code); \
+            } \
+            else { \
+                (stmt); \
+            } \
+        } while (0)
+#else
+    /* No-op wrapper when not testing; stmt runs unconditionally. */
+    #define INJECT_FAILURE(failure_type, error_code, stmt) \
+        do { \
+            (stmt); \
+        } while (0)
+#endif
+
+/* ----- Internal helpers shared across the split source files ----- */
+
+#ifdef WOLFCOSE_HAVE_RSAPSS
+/* Widest RSA public exponent wolfCOSE emits and the RFC 8230 RSA-PSS
+ * minimum modulus width. These are shared by COSE_Key encoding and message
+ * operations, including builds that disable COSE_Key encoding. */
+#define WOLFCOSE_RSA_E_MAX_SZ    8u
+#define WOLFCOSE_RSA_PSS_MIN_SZ  256u
+#endif
+
+
+#ifdef HAVE_ECC
+/* EccKeyCheckCurve -- defined in wolfcose_alg.c */
+WOLFCOSE_LOCAL int wolfCose_EccKeyCheckCurve(int32_t crv, ecc_key* eccKey);
+#endif
+
+#if defined(WOLFCOSE_HAVE_AESCCM) && \
+    (defined(WOLFCOSE_ENCRYPT0_ENCRYPT) || \
+     defined(WOLFCOSE_ENCRYPT0_DECRYPT) || \
+     defined(WOLFCOSE_ENCRYPT_ENCRYPT) || \
+     defined(WOLFCOSE_ENCRYPT_DECRYPT))
+/* AeadCheckPayloadLen -- defined in wolfcose_alg.c */
+WOLFCOSE_LOCAL int wolfCose_AeadCheckPayloadLen(int32_t alg, size_t payloadLen);
+#endif
+
+#if defined(WOLFCOSE_HAVE_HMAC)
+#if defined(WOLFCOSE_MAC0_CREATE) || defined(WOLFCOSE_MAC0_VERIFY) || \
+    defined(WOLFCOSE_MAC_CREATE) || defined(WOLFCOSE_MAC_VERIFY)
+/* HmacCheckKeyLen -- defined in wolfcose_alg.c */
+WOLFCOSE_LOCAL int wolfCose_HmacCheckKeyLen(int32_t alg, size_t keyLen);
+#endif
+#endif
+
+#if defined(WOLFCOSE_HAVE_RSAPSS) && \
+    (defined(WOLFCOSE_SIGN1_SIGN) || defined(WOLFCOSE_SIGN1_VERIFY) || \
+     defined(WOLFCOSE_SIGN_SIGN) || defined(WOLFCOSE_SIGN_VERIFY))
+/* RsaPssCheckKey -- defined in wolfcose_alg.c */
+WOLFCOSE_LOCAL int wolfCose_RsaPssCheckKey(const WOLFCOSE_KEY* key,
+                                   size_t* modulusLen);
+
+/* HashToMgf -- defined in wolfcose_alg.c */
+WOLFCOSE_LOCAL int wolfCose_HashToMgf(enum wc_HashType hashType, int* mgf);
+#endif
+
+/* InInt32Range -- defined in wolfcose_hdr.c */
+WOLFCOSE_LOCAL int wolfCose_InInt32Range(int64_t val);
+
+/* HdrStateInit -- defined in wolfcose_hdr.c */
+WOLFCOSE_LOCAL void wolfCose_HdrStateInit(WOLFCOSE_HDR_STATE* state);
+
+/* HdrStateContains -- defined in wolfcose_hdr.c */
+WOLFCOSE_LOCAL int wolfCose_HdrStateContains(const WOLFCOSE_HDR_STATE* state,
+    int64_t label);
+
+/* HdrStateCheckAndAdd -- defined in wolfcose_hdr.c */
+WOLFCOSE_LOCAL int wolfCose_HdrStateCheckAndAdd(WOLFCOSE_HDR_STATE* state,
+    int64_t label);
+
+/* SkipIfTstrLabel -- defined in wolfcose_hdr.c */
+WOLFCOSE_LOCAL int wolfCose_SkipIfTstrLabel(const WOLFCOSE_CBOR_CTX* ctx, int* skipped);
+
+
+#if defined(WOLFCOSE_SIGN_VERIFY) || defined(WOLFCOSE_ENCRYPT_DECRYPT) || \
+    defined(WOLFCOSE_MAC_VERIFY)
+#if defined(WOLFCOSE_SIGN_VERIFY)
+/* DecodeSkippedSignature -- defined in wolfcose_hdr.c */
+WOLFCOSE_LOCAL int wolfCose_DecodeSkippedSignature(WOLFCOSE_CBOR_CTX* ctx);
+#endif
+#endif
+
+#if defined(WOLFCOSE_SIGN_VERIFY) || defined(WOLFCOSE_ENCRYPT_DECRYPT) || \
+    defined(WOLFCOSE_MAC_VERIFY)
+#if defined(WOLFCOSE_ENCRYPT_DECRYPT) || defined(WOLFCOSE_MAC_VERIFY)
+/* DecodeSkippedRecipient -- defined in wolfcose_hdr.c */
+WOLFCOSE_LOCAL int wolfCose_DecodeSkippedRecipient(WOLFCOSE_CBOR_CTX* ctx,
+    int32_t* recipientAlg);
+#endif
+#endif
+
+#if defined(WOLFCOSE_SIGN1_SIGN) || defined(WOLFCOSE_SIGN_SIGN)
+/* KeyCanSign -- defined in wolfcose_key.c */
+WOLFCOSE_LOCAL int wolfCose_KeyCanSign(const WOLFCOSE_KEY* key);
+#endif
+
+#if defined(WOLFCOSE_KEY_ENCODE) || defined(WOLFCOSE_SIGN1_SIGN)
+/* SizeAdd -- defined in wolfcose_key.c */
+WOLFCOSE_LOCAL int wolfCose_SizeAdd(size_t* total, size_t add);
+
+/* CborStringSize -- defined in wolfcose_key.c */
+WOLFCOSE_LOCAL int wolfCose_CborStringSize(size_t len, size_t* encodedLen);
+#endif
+
+#if (defined(WOLFCOSE_KEY_DECODE) || defined(WOLFCOSE_SIGN1) || \
+     defined(WOLFCOSE_SIGN) || \
+     defined(WOLFCOSE_MAC0) || defined(WOLFCOSE_MAC) || \
+     defined(WOLFCOSE_ENCRYPT0) || defined(WOLFCOSE_ENCRYPT)) && \
+    defined(SIZE_MAX) && (SIZE_MAX > 0xFFFFFFFFUL)
+#define WOLFCOSE_CHECK_WORD32_LEN
+/* LenFitsWord32 -- defined in wolfcose_recipient.c */
+WOLFCOSE_LOCAL int wolfCose_LenFitsWord32(size_t n);
+#endif
+
+#if (defined(WOLFCOSE_MAC0) || defined(WOLFCOSE_MAC)) && \
+    (defined(WOLFCOSE_HAVE_HMAC) || defined(WOLFCOSE_HAVE_AESMAC))
+/* MacTagSize -- defined in wolfcose_mac0.c */
+WOLFCOSE_LOCAL int wolfCose_MacTagSize(int32_t alg, size_t* tagSz);
+#endif
+
+#if (defined(WOLFCOSE_MAC0) || defined(WOLFCOSE_MAC)) && \
+    (defined(WOLFCOSE_HAVE_HMAC) || defined(WOLFCOSE_HAVE_AESMAC))
+#ifdef WOLFCOSE_HAVE_AESMAC
+/* AesCbcMacKeySize -- defined in wolfcose_mac0.c */
+WOLFCOSE_LOCAL int wolfCose_AesCbcMacKeySize(int32_t alg, size_t* keySz);
+
+/* AesCbcMac -- defined in wolfcose_mac0.c */
+WOLFCOSE_LOCAL int wolfCose_AesCbcMac(const uint8_t* key, size_t keyLen,
+                               const uint8_t* data, size_t dataLen,
+                               uint8_t* tag, size_t tagLen);
+#endif
+#endif
+
+#if (defined(WOLFCOSE_MAC0) || defined(WOLFCOSE_MAC)) && \
+    (defined(WOLFCOSE_HAVE_HMAC) || defined(WOLFCOSE_HAVE_AESMAC))
+#ifdef WOLFCOSE_HAVE_HMAC
+/* IsHmacAlg -- defined in wolfcose_mac0.c */
+WOLFCOSE_LOCAL int wolfCose_IsHmacAlg(int32_t alg);
+#endif
+#endif
+
+#if (defined(WOLFCOSE_MAC0) || defined(WOLFCOSE_MAC)) && \
+    (defined(WOLFCOSE_HAVE_HMAC) || defined(WOLFCOSE_HAVE_AESMAC))
+#ifdef WOLFCOSE_HAVE_AESMAC
+/* IsAesCbcMacAlg -- defined in wolfcose_mac0.c */
+WOLFCOSE_LOCAL int wolfCose_IsAesCbcMacAlg(int32_t alg);
+#endif
+#endif
+
+#if defined(WOLFCOSE_KEY_WRAP)
+/* KeyWrapKeySize -- defined in wolfcose_recipient.c */
+WOLFCOSE_LOCAL int wolfCose_KeyWrapKeySize(int32_t alg, size_t* keySz);
+
+/* KeyWrap -- defined in wolfcose_recipient.c */
+WOLFCOSE_LOCAL int wolfCose_KeyWrap(int32_t alg, const WOLFCOSE_KEY* kek,
+                             const uint8_t* cek, size_t cekLen,
+                             uint8_t* out, size_t outSz, size_t* outLen);
+
+/* KeyUnwrap -- defined in wolfcose_recipient.c */
+WOLFCOSE_LOCAL int wolfCose_KeyUnwrap(int32_t alg, const WOLFCOSE_KEY* kek,
+                               const uint8_t* wrappedCek, size_t wrappedLen,
+                               uint8_t* cekOut, size_t cekOutSz, size_t* cekLen);
+
+/* IsKeyWrapAlg -- defined in wolfcose_recipient.c */
+WOLFCOSE_LOCAL int wolfCose_IsKeyWrapAlg(int32_t alg);
+#endif
+
+#if defined(WOLFCOSE_ECDH_ES_DIRECT) && defined(HAVE_ECC) && defined(HAVE_HKDF)
+/* EcdhEsDirect -- defined in wolfcose_recipient.c */
+WOLFCOSE_LOCAL int wolfCose_EcdhEsDirect(int32_t alg,
+                                  WOLFCOSE_KEY* recipientPub,
+                                  int32_t contentAlgId,
+                                  size_t cekLenBytes,
+                                  const uint8_t* recipientProtected,
+                                  size_t recipientProtectedLen,
+                                  uint8_t* ephemPubX, uint8_t* ephemPubY,
+                                  size_t ephemPubSz, size_t* ephemPubLen,
+                                  uint8_t* cekOut, size_t cekOutSz,
+                                  WC_RNG* rng);
+
+/* EcdhEsDirectRecv -- defined in wolfcose_recipient.c */
+WOLFCOSE_LOCAL int wolfCose_EcdhEsDirectRecv(int32_t alg,
+                                      WOLFCOSE_KEY* recipientKey,
+                                      const uint8_t* ephemPubX,
+                                      const uint8_t* ephemPubY,
+                                      size_t ephemPubLen,
+                                      int32_t contentAlgId,
+                                      size_t cekLenBytes,
+                                      const uint8_t* recipientProtected,
+                                      size_t recipientProtectedLen,
+                                      uint8_t* kdfContext,
+                                      size_t kdfContextSz,
+                                      uint8_t* cekOut, size_t cekOutSz);
+
+/* IsEcdhEsDirectAlg -- defined in wolfcose_recipient.c */
+WOLFCOSE_LOCAL int wolfCose_IsEcdhEsDirectAlg(int32_t alg);
+
+/* EncodeEphemeralKey -- defined in wolfcose_recipient.c */
+WOLFCOSE_LOCAL int wolfCose_EncodeEphemeralKey(WOLFCOSE_CBOR_CTX* ctx,
+                                        int crv,
+                                        const uint8_t* x, size_t xLen,
+                                        const uint8_t* y, size_t yLen);
+
+/* DecodeEphemeralKey -- defined in wolfcose_recipient.c */
+WOLFCOSE_LOCAL int wolfCose_DecodeEphemeralKey(WOLFCOSE_CBOR_CTX* ctx,
+                                        int* crv,
+                                        uint8_t* x, size_t xSz, size_t* xLen,
+                                        uint8_t* y, size_t ySz, size_t* yLen);
+#endif
+
+#if defined(WOLFCOSE_ENCRYPT_DECRYPT) || defined(WOLFCOSE_MAC_VERIFY)
+/* UpdateRecipientMode -- defined in wolfcose_recipient.c */
+WOLFCOSE_LOCAL int wolfCose_UpdateRecipientMode(int32_t alg, int* commonMode);
+#endif
+
+#if defined(WOLFCOSE_HAVE_MLDSA) && \
+    (defined(WOLFCOSE_SIGN1_SIGN) || defined(WOLFCOSE_SIGN1_VERIFY) || \
+     defined(WOLFCOSE_SIGN_SIGN) || defined(WOLFCOSE_SIGN_VERIFY))
+/* MlDsaCheckKey -- defined in wolfcose_sign1.c */
+WOLFCOSE_LOCAL int wolfCose_MlDsaCheckKey(const WOLFCOSE_KEY* key, int32_t alg);
+#endif
+
+#if defined(WOLFCOSE_EXT_SIGN)
+/* ExtSignAlg -- defined in wolfcose_sign1.c */
+WOLFCOSE_LOCAL int wolfCose_ExtSignAlg(int32_t alg, int* preHashes);
+#endif
+
+#if (defined(WOLFCOSE_ENCRYPT0) || defined(WOLFCOSE_ENCRYPT)) && \
+    (defined(WOLFCOSE_HAVE_AESGCM) || defined(WOLFCOSE_HAVE_AESCCM) || \
+     defined(WOLFCOSE_HAVE_CHACHA20))
+/* BuildEncStructure -- defined in wolfcose_struct.c */
+WOLFCOSE_LOCAL int wolfCose_BuildEncStructure(
+    const uint8_t* context, size_t contextLen,
+    const uint8_t* bodyProtected, size_t bodyProtectedLen,
+    const uint8_t* extAad, size_t extAadLen,
+    uint8_t* scratch, size_t scratchSz,
+    size_t* structLen);
+#endif
+
+#if defined(WOLFCOSE_HAVE_MLDSA) && defined(WOLFCOSE_KEY_DECODE) && \
+    !defined(WOLFSSL_MLDSA_NO_MAKE_KEY) && \
+    !defined(WOLFSSL_MLDSA_ASSIGN_KEY)
+/* MlDsaImportRollback -- defined in wolfcose_util.c */
+WOLFCOSE_LOCAL void wolfCose_MlDsaImportRollback(wc_MlDsaKey* key, byte level);
+#endif
+
+#if defined(HAVE_ECC) && defined(WOLFCOSE_KEY_DECODE)
+typedef struct WOLFCOSE_ECC_IMPORT_STATE {
+    int type;
+    int idx;
+    int state;
+    const ecc_set_type* dp;
+} WOLFCOSE_ECC_IMPORT_STATE;
+
+/* EccPrivateImportBegin -- defined in wolfcose_util.c */
+WOLFCOSE_LOCAL int wolfCose_EccPrivateImportBegin(ecc_key* ecc,
+    WOLFCOSE_ECC_IMPORT_STATE* saved);
+
+/* EccPrivateImportRollback -- defined in wolfcose_util.c */
+WOLFCOSE_LOCAL void wolfCose_EccPrivateImportRollback(ecc_key* ecc,
+    const WOLFCOSE_ECC_IMPORT_STATE* saved);
+#endif
+
+#if defined(WOLFCOSE_SIGN1_VERIFY) || defined(WOLFCOSE_SIGN_VERIFY) || \
+    defined(WOLFCOSE_ENCRYPT0_DECRYPT) || defined(WOLFCOSE_MAC0_VERIFY) || \
+    defined(WOLFCOSE_ENCRYPT_DECRYPT) || defined(WOLFCOSE_MAC_VERIFY)
+/* HdrClearOnFail -- defined in wolfcose_util.c */
+WOLFCOSE_LOCAL void wolfCose_HdrClearOnFail(int ret, WOLFCOSE_HDR* hdr);
+#endif
+
+#if defined(WOLFCOSE_MAC0_VERIFY) || defined(WOLFCOSE_MAC_VERIFY)
+/* ConstantCompare -- defined in wolfcose_util.c */
+WOLFCOSE_LOCAL int wolfCose_ConstantCompare(const byte* a, const byte* b,
+                                     word32 length);
+#endif
 
 #ifdef __cplusplus
 }

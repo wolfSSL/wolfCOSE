@@ -110,7 +110,7 @@ jobs:
                  -DWOLFCOSE_FLOAT \
                  -DWOLFCOSE_ENABLE_EXT_SIGN \
                  -I include -I src -I $HOME/wolfssl-install/include \
-                 src/wolfcose.c src/wolfcose_cbor.c \
+                 src/*.c \
                  tests/misra_consumer.c \
                  2>&1 | tee misra-report-raw.txt
         CPPCHECK_STATUS=${PIPESTATUS[0]}

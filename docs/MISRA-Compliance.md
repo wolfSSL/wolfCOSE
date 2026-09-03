@@ -97,7 +97,7 @@ The following clang-tidy checks are suppressed in the MISRA 2023 workflow. GCC s
 
 ### bugprone-branch-clone: Identical Consecutive Switch Branches
 
-**Location:** `src/wolfcose.c` (algorithm dispatch switches)
+**Location:** `src/wolfcose_alg.c` (algorithm dispatch switches)
 
 **Justification:** Different COSE algorithms intentionally map to the same wolfCrypt value. For example, ES512 and EdDSA both use `WC_HASH_TYPE_SHA512`, and A128GCM/A192GCM share the same nonce length. The switch branches are not bugs; they represent distinct algorithm IDs with identical cryptographic parameters.
 

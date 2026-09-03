@@ -121,26 +121,26 @@ jobs:
 
     # Each lean/minimal config must compile with zero warnings under the strict
     # flag set that backs the MISRA C:2023 job.
-    - name: Compile wolfcose.c in lean configurations (no warnings)
+    - name: Compile the wolfCOSE sources in lean configurations (no warnings)
       run: |
         export WOLFSSL_DIR=$HOME/wolfssl-install
         SF="-std=c11 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -I./include -isystem $WOLFSSL_DIR/include"
-        echo "== default (full) =="
-        gcc $SF -c src/wolfcose.c -o /tmp/full.o
-        echo "== WOLFCOSE_LEAN (sign+verify) =="
-        gcc $SF -DWOLFCOSE_LEAN -c src/wolfcose.c -o /tmp/leanall.o
-        echo "== WOLFCOSE_LEAN_VERIFY =="
-        gcc $SF -DWOLFCOSE_LEAN_VERIFY -c src/wolfcose.c -o /tmp/lean.o
-        echo "== COSE_Mac without COSE_Mac0 =="
-        gcc $SF -DWOLFCOSE_NO_MAC0 -c src/wolfcose.c -o /tmp/mac-no-mac0.o
-        echo "== sign-only =="
-        gcc $SF -DWOLFCOSE_NO_SIGN1_VERIFY -DWOLFCOSE_NO_ENCRYPT0 -DWOLFCOSE_NO_MAC0 \
-            -DWOLFCOSE_NO_SIGN -DWOLFCOSE_NO_ENCRYPT -DWOLFCOSE_NO_MAC \
-            -DWOLFCOSE_NO_RECIPIENTS -c src/wolfcose.c -o /tmp/sign.o
-        echo "== WOLFCOSE_LEAN_MLDSA (sign+verify) =="
-        gcc $SF -DWOLFCOSE_LEAN_MLDSA -c src/wolfcose.c -o /tmp/mldsa.o
-        echo "== WOLFCOSE_LEAN_VERIFY_MLDSA (verify-only) =="
-        gcc $SF -DWOLFCOSE_LEAN_VERIFY_MLDSA -c src/wolfcose.c -o /tmp/mldsav.o
+        build_cfg() {
+          name="$1"; shift
+          echo "== $name =="
+          for f in src/*.c; do
+            gcc $SF "$@" -c "$f" -o "/tmp/$(basename "$f" .c).o"
+          done
+        }
+        build_cfg "default (full)"
+        build_cfg "WOLFCOSE_LEAN (sign+verify)" -DWOLFCOSE_LEAN
+        build_cfg "WOLFCOSE_LEAN_VERIFY" -DWOLFCOSE_LEAN_VERIFY
+        build_cfg "COSE_Mac without COSE_Mac0" -DWOLFCOSE_NO_MAC0
+        build_cfg "sign-only" -DWOLFCOSE_NO_SIGN1_VERIFY -DWOLFCOSE_NO_ENCRYPT0 \
+            -DWOLFCOSE_NO_MAC0 -DWOLFCOSE_NO_SIGN -DWOLFCOSE_NO_ENCRYPT \
+            -DWOLFCOSE_NO_MAC -DWOLFCOSE_NO_RECIPIENTS
+        build_cfg "WOLFCOSE_LEAN_MLDSA (sign+verify)" -DWOLFCOSE_LEAN_MLDSA
+        build_cfg "WOLFCOSE_LEAN_VERIFY_MLDSA (verify-only)" -DWOLFCOSE_LEAN_VERIFY_MLDSA
         echo "All lean configurations compiled clean."
 
   mldsa:
