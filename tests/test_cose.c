@@ -3515,6 +3515,560 @@ static void test_cose_sign1_ml_dsa_level_mismatch(void)
 }
 #endif /* WOLFCOSE_HAVE_MLDSA */
 
+/* ----- COSE_Sign1 with HSS/LMS (RFC 8778) ----- */
+#if defined(WOLFCOSE_HAVE_LMS) && !defined(WOLFSSL_LMS_VERIFY_ONLY)
+/* Memory-backed LMS private-key state callbacks. The context is the
+ * per-key storage buffer, sized for any parameter set. */
+static int test_lms_write_cb(const byte* priv, word32 privSz, void* context)
+{
+    int ret = (int)WC_LMS_RC_WRITE_FAIL;
+
+    if ((priv != NULL) && (context != NULL) &&
+        (privSz <= (word32)HSS_MAX_PRIVATE_KEY_LEN)) {
+        memcpy(context, priv, (size_t)privSz);
+        ret = (int)WC_LMS_RC_SAVED_TO_NV_MEMORY;
+    }
+    return ret;
+}
+
+/* cppcheck-suppress constParameterCallback ; signature fixed by
+ * wc_lms_read_private_key_cb typedef */
+static int test_lms_read_cb(byte* priv, word32 privSz, void* context)
+{
+    int ret = (int)WC_LMS_RC_READ_FAIL;
+
+    if ((priv != NULL) && (context != NULL) &&
+        (privSz <= (word32)HSS_MAX_PRIVATE_KEY_LEN)) {
+        memcpy(priv, context, (size_t)privSz);
+        ret = (int)WC_LMS_RC_READ_TO_MEMORY;
+    }
+    return ret;
+}
+
+/* Generate a small signing-capable LMS key (L1/H5/W8 keeps keygen fast). */
+static int test_lms_make_key(LmsKey* key, byte* privStore, WC_RNG* rng)
+{
+    int ret;
+
+    ret = wc_LmsKey_Init(key, NULL, INVALID_DEVID);
+    if (ret == 0) {
+        ret = wc_LmsKey_SetLmsParm(key, WC_LMS_PARM_L1_H5_W8);
+    }
+    if (ret == 0) {
+        ret = wc_LmsKey_SetWriteCb(key, test_lms_write_cb);
+    }
+    if (ret == 0) {
+        ret = wc_LmsKey_SetReadCb(key, test_lms_read_cb);
+    }
+    if (ret == 0) {
+        ret = wc_LmsKey_SetContext(key, privStore);
+    }
+    if (ret == 0) {
+        ret = wc_LmsKey_MakeKey(key, rng);
+    }
+    return ret;
+}
+
+static byte g_lmsPrivA[HSS_MAX_PRIVATE_KEY_LEN];
+static byte g_lmsPrivB[HSS_MAX_PRIVATE_KEY_LEN];
+
+static void test_cose_sign1_lms(void)
+{
+    WOLFCOSE_KEY signKey;
+    LmsKey lmsKey;
+    WC_RNG rng;
+    int ret = 0;
+    int rngInited = 0;
+    int lmsInited = 0;
+    uint8_t payload[] = "HSS-LMS payload";
+    uint8_t scratch[4096];
+    uint8_t out[4096];
+    size_t outLen = 0;
+    size_t sizedLen = 0;
+    const uint8_t* decPayload = NULL;
+    size_t decPayloadLen = 0;
+    WOLFCOSE_HDR hdr;
+
+    TEST_LOG("  [Sign1 HSS-LMS]\n");
+
+    ret = wc_InitRng(&rng);
+    if (ret != 0) { TEST_ASSERT(0, "rng init"); }
+    if (ret == 0) { rngInited = 1; }
+
+    if (ret == 0) {
+        ret = test_lms_make_key(&lmsKey, g_lmsPrivA, &rng);
+        if (ret != 0) { TEST_ASSERT(0, "lms keygen"); }
+        if (ret == 0) { lmsInited = 1; }
+    }
+
+    if (ret == 0) {
+        (void)wc_CoseKey_Init(&signKey);
+        ret = wc_CoseKey_SetLms(&signKey, &lmsKey);
+        TEST_ASSERT(ret == 0 && signKey.kty == WOLFCOSE_KTY_HSS_LMS &&
+                    signKey.alg == WOLFCOSE_ALG_HSS_LMS &&
+                    signKey.hasPrivate == 1u, "lms set key");
+    }
+
+    if (ret == 0) {
+        /* Length depends on the key's parameter set, so key is required. */
+        ret = wc_CoseSign1_SignSize_ex(&signKey, WOLFCOSE_ALG_HSS_LMS, 0u,
+            sizeof(payload) - 1u, 0u, 0u, &sizedLen);
+        TEST_ASSERT(ret == 0, "sign1 lms size");
+
+        if (ret == 0) {
+            ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_HSS_LMS,
+                NULL, 0,
+                payload, sizeof(payload) - 1,
+                NULL, 0, /* detachedPayload, detachedLen */
+                NULL, 0, /* extAad, extAadLen */
+                scratch, sizeof(scratch),
+                out, sizeof(out), &outLen, &rng);
+            TEST_ASSERT(ret == 0 && outLen > 0, "sign1 lms sign");
+            TEST_ASSERT(outLen == sizedLen, "sign1 lms exact size");
+        }
+    }
+
+    if (ret == 0) {
+        ret = wc_CoseSign1_Verify(&signKey, out, outLen,
+            NULL, 0, /* detachedPayload, detachedLen */
+            NULL, 0, /* extAad, extAadLen */
+            scratch, sizeof(scratch),
+            &hdr, &decPayload, &decPayloadLen);
+        TEST_ASSERT(ret == 0, "sign1 lms verify");
+        TEST_ASSERT(decPayloadLen == sizeof(payload) - 1 &&
+                    memcmp(decPayload, payload, decPayloadLen) == 0,
+                    "sign1 lms payload match");
+        TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_HSS_LMS, "sign1 lms hdr alg");
+    }
+
+    if (ret == 0) {
+        /* Tampered signature must fail */
+        int tamperRet;
+        out[outLen - 1u] ^= 0x01u;
+        tamperRet = wc_CoseSign1_Verify(&signKey, out, outLen,
+            NULL, 0, NULL, 0,
+            scratch, sizeof(scratch),
+            &hdr, &decPayload, &decPayloadLen);
+        TEST_ASSERT(tamperRet != 0, "sign1 lms tamper fails");
+        out[outLen - 1u] ^= 0x01u;
+    }
+
+    if (ret == 0) {
+        /* Wrong key should fail */
+        LmsKey lmsWrong;
+        WOLFCOSE_KEY wrongKey;
+        int wrongRet;
+
+        wrongRet = test_lms_make_key(&lmsWrong, g_lmsPrivB, &rng);
+        if (wrongRet == 0) {
+            (void)wc_CoseKey_Init(&wrongKey);
+            (void)wc_CoseKey_SetLms(&wrongKey, &lmsWrong);
+            wrongRet = wc_CoseSign1_Verify(&wrongKey, out, outLen,
+                NULL, 0, NULL, 0,
+                scratch, sizeof(scratch),
+                &hdr, &decPayload, &decPayloadLen);
+            TEST_ASSERT(wrongRet != 0, "sign1 lms wrong key fails");
+        }
+        else {
+            TEST_ASSERT(0, "lms wrong keygen");
+        }
+        /* Free on both paths: a failed MakeKey still leaves an inited key. */
+        wc_LmsKey_Free(&lmsWrong);
+    }
+
+    if (lmsInited != 0) {
+        wc_LmsKey_Free(&lmsKey);
+    }
+    if (rngInited != 0) {
+        (void)wc_FreeRng(&rng);
+    }
+}
+
+#if defined(WOLFCOSE_KEY_ENCODE) && defined(WOLFCOSE_KEY_DECODE)
+static void test_cose_key_lms(void)
+{
+    WOLFCOSE_KEY key;
+    WOLFCOSE_KEY decKey;
+    LmsKey lmsKey;
+    LmsKey lmsPub;
+    WC_RNG rng;
+    int ret = 0;
+    int rngInited = 0;
+    int lmsInited = 0;
+    int lmsPubInited = 0;
+    uint8_t keyBuf[256];
+    size_t keyLen = 0;
+    size_t sizedLen = 0;
+    uint8_t pubRaw[HSS_MAX_PUBLIC_KEY_LEN];
+    word32 pubRawLen = (word32)sizeof(pubRaw);
+    uint8_t badBuf[256];
+    WOLFCOSE_CBOR_CTX enc;
+
+    TEST_LOG("  [Key HSS-LMS]\n");
+
+    ret = wc_InitRng(&rng);
+    if (ret != 0) { TEST_ASSERT(0, "rng init"); }
+    if (ret == 0) { rngInited = 1; }
+
+    if (ret == 0) {
+        ret = test_lms_make_key(&lmsKey, g_lmsPrivA, &rng);
+        if (ret != 0) { TEST_ASSERT(0, "lms keygen"); }
+        if (ret == 0) { lmsInited = 1; }
+    }
+
+    if (ret == 0) {
+        (void)wc_CoseKey_Init(&key);
+        (void)wc_CoseKey_SetLms(&key, &lmsKey);
+
+        /* RFC 8778: {1: 5, 3: -46, -1: pub}; no private-key form exists. */
+        ret = wc_CoseKey_EncodeSize(&key, &sizedLen);
+        TEST_ASSERT(ret == 0 && sizedLen > 0, "lms key encode size");
+        ret = wc_CoseKey_Encode(&key, keyBuf, sizeof(keyBuf), &keyLen);
+        TEST_ASSERT(ret == 0 && keyLen > 0, "lms key encode");
+        TEST_ASSERT(keyLen == sizedLen, "lms key encode exact size");
+    }
+
+    if (ret == 0) {
+        ret = wc_LmsKey_Init(&lmsPub, NULL, INVALID_DEVID);
+        if (ret == 0) { lmsPubInited = 1; }
+        TEST_ASSERT(ret == 0, "lms pub init");
+    }
+
+    if (ret == 0) {
+        (void)wc_CoseKey_Init(&decKey);
+        (void)wc_CoseKey_SetLms(&decKey, &lmsPub);
+        ret = wc_CoseKey_Decode(&decKey, keyBuf, keyLen);
+        TEST_ASSERT(ret == 0, "lms key decode");
+        TEST_ASSERT(decKey.kty == WOLFCOSE_KTY_HSS_LMS &&
+                    decKey.alg == WOLFCOSE_ALG_HSS_LMS &&
+                    decKey.hasPrivate == 0u, "lms key decode fields");
+    }
+
+    if (ret == 0) {
+        /* The decoded public key must match the original's export. */
+        uint8_t pubRaw2[HSS_MAX_PUBLIC_KEY_LEN] = {0};
+        word32 pubRaw2Len = (word32)sizeof(pubRaw2);
+        ret = wc_LmsKey_ExportPubRaw(&lmsKey, pubRaw, &pubRawLen);
+        if (ret == 0) {
+            ret = wc_LmsKey_ExportPubRaw(&lmsPub, pubRaw2, &pubRaw2Len);
+        }
+        TEST_ASSERT(ret == 0 && pubRawLen == pubRaw2Len &&
+                    memcmp(pubRaw, pubRaw2, (size_t)pubRawLen) == 0,
+                    "lms key decode pub match");
+    }
+
+    if (ret == 0) {
+        /* Decoded verify-only key verifies a message from the original. */
+        uint8_t scratch[4096];
+        uint8_t out[4096];
+        size_t outLen = 0;
+        const uint8_t payload[] = "lms pub-only verify";
+        WOLFCOSE_HDR hdr;
+        const uint8_t* dec = NULL;
+        size_t decLen = 0;
+
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_HSS_LMS, NULL, 0,
+            payload, sizeof(payload) - 1,
+            NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == 0, "lms pub-only sign");
+        if (ret == 0) {
+            ret = wc_CoseSign1_Verify(&decKey, out, outLen,
+                NULL, 0, NULL, 0,
+                scratch, sizeof(scratch), &hdr, &dec, &decLen);
+            TEST_ASSERT(ret == 0, "lms pub-only verify");
+        }
+    }
+
+    if (ret == 0) {
+        /* Wrong alg label (ES256) for kty HSS-LMS is rejected. */
+        int negRet;
+        enc.buf = badBuf; enc.cbuf = NULL;
+        enc.bufSz = sizeof(badBuf); enc.idx = 0;
+        (void)wc_CBOR_EncodeMapStart(&enc, 3);
+        (void)wc_CBOR_EncodeInt(&enc, WOLFCOSE_KEY_LABEL_KTY);
+        (void)wc_CBOR_EncodeUint(&enc, WOLFCOSE_KTY_HSS_LMS);
+        (void)wc_CBOR_EncodeInt(&enc, WOLFCOSE_KEY_LABEL_ALG);
+        (void)wc_CBOR_EncodeInt(&enc, WOLFCOSE_ALG_ES256);
+        (void)wc_CBOR_EncodeInt(&enc, WOLFCOSE_KEY_LABEL_PUB);
+        (void)wc_CBOR_EncodeBstr(&enc, pubRaw, (size_t)pubRawLen);
+        negRet = wc_CoseKey_Decode(&decKey, badBuf, enc.idx);
+        TEST_ASSERT(negRet == WOLFCOSE_E_COSE_BAD_ALG,
+                    "lms key decode bad alg rejected");
+
+        /* Missing pub(-1) member is rejected. */
+        enc.idx = 0;
+        (void)wc_CBOR_EncodeMapStart(&enc, 1);
+        (void)wc_CBOR_EncodeInt(&enc, WOLFCOSE_KEY_LABEL_KTY);
+        (void)wc_CBOR_EncodeUint(&enc, WOLFCOSE_KTY_HSS_LMS);
+        negRet = wc_CoseKey_Decode(&decKey, badBuf, enc.idx);
+        TEST_ASSERT(negRet == WOLFCOSE_E_COSE_BAD_HDR,
+                    "lms key decode missing pub rejected");
+    }
+
+    if (lmsInited != 0) { wc_LmsKey_Free(&lmsKey); }
+    if (lmsPubInited != 0) { wc_LmsKey_Free(&lmsPub); }
+    if (rngInited != 0) { (void)wc_FreeRng(&rng); }
+}
+
+/* Error and edge paths: NULL args, unattached keys, wrong parameter set,
+ * too-small scratch, and the decode attach-type mismatch. */
+static void test_cose_lms_negative(void)
+{
+    WOLFCOSE_KEY signKey;
+    WOLFCOSE_KEY badKey;
+    LmsKey lmsKey;
+    LmsKey lmsWrongParm;
+    WC_RNG rng;
+    int ret = 0;
+    int rngInited = 0;
+    int lmsInited = 0;
+    int wrongInited = 0;
+    uint8_t payload[] = "lms negative";
+    uint8_t scratch[4096];
+    uint8_t out[4096];
+    uint8_t out2[4096];
+    uint8_t tiny[64];
+    size_t outLen = 0;
+    size_t encLen = 0;
+    const uint8_t* decPayload = NULL;
+    size_t decPayloadLen = 0;
+    WOLFCOSE_HDR hdr;
+
+    TEST_LOG("  [LMS negative]\n");
+
+    ret = wc_CoseKey_SetLms(NULL, NULL);
+    TEST_ASSERT(ret == WOLFCOSE_E_INVALID_ARG, "lms set NULL args");
+
+    ret = wc_InitRng(&rng);
+    if (ret != 0) { TEST_ASSERT(0, "rng init"); }
+    if (ret == 0) { rngInited = 1; }
+
+    if (ret == 0) {
+        ret = test_lms_make_key(&lmsKey, g_lmsPrivA, &rng);
+        if (ret == 0) { lmsInited = 1; }
+        else { TEST_ASSERT(0, "lms keygen"); }
+    }
+
+    if (ret == 0) {
+        (void)wc_CoseKey_Init(&signKey);
+        (void)wc_CoseKey_SetLms(&signKey, &lmsKey);
+        outLen = sizeof(out);
+        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_HSS_LMS, NULL, 0,
+            payload, sizeof(payload) - 1, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == 0, "lms sign");
+    }
+
+    /* Too-small scratch cannot hold the Sig_structure plus signature.
+     * Writes into out2 so the valid message in out is preserved. */
+    if (ret == 0) {
+        size_t tinyOutLen = sizeof(out2);
+        int tinyRet = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_HSS_LMS,
+            NULL, 0, payload, sizeof(payload) - 1, NULL, 0, NULL, 0,
+            tiny, sizeof(tiny), out2, sizeof(out2), &tinyOutLen, &rng);
+        TEST_ASSERT(tinyRet == WOLFCOSE_E_BUFFER_TOO_SMALL,
+                    "lms sign small scratch");
+    }
+
+    /* Verify with an HSS-LMS key that has no attached LmsKey. */
+    if (ret == 0) {
+        int badRet;
+        (void)wc_CoseKey_Init(&badKey);
+        badKey.kty = WOLFCOSE_KTY_HSS_LMS;
+        badKey.alg = WOLFCOSE_ALG_HSS_LMS;
+        badRet = wc_CoseSign1_Verify(&badKey, out, outLen, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), &hdr, &decPayload, &decPayloadLen);
+        TEST_ASSERT(badRet == WOLFCOSE_E_COSE_KEY_TYPE,
+                    "lms verify unattached");
+    }
+
+    /* A kty 5 key whose union does not hold an LmsKey (attachedType not LMS)
+     * is rejected before key.lms is read, preventing type confusion. */
+    if (ret == 0) {
+        int encRet;
+        badKey.attachedType = WOLFCOSE_ATT_NONE;
+        encLen = 0;
+        encRet = wc_CoseKey_EncodeSize(&badKey, &encLen);
+        TEST_ASSERT(encRet == WOLFCOSE_E_COSE_KEY_TYPE,
+                    "lms encode size wrong attach");
+        encLen = sizeof(out);
+        encRet = wc_CoseKey_Encode(&badKey, out, sizeof(out), &encLen);
+        TEST_ASSERT(encRet == WOLFCOSE_E_COSE_KEY_TYPE,
+                    "lms encode wrong attach");
+    }
+
+    /* Encode and size of an HSS-LMS key with no attached LmsKey. */
+    if (ret == 0) {
+        int encRet;
+        badKey.attachedType = WOLFCOSE_ATT_LMS; /* key.lms stays NULL */
+        encLen = 0;
+        encRet = wc_CoseKey_EncodeSize(&badKey, &encLen);
+        TEST_ASSERT(encRet == WOLFCOSE_E_INVALID_ARG, "lms encode size null");
+        encLen = sizeof(out);
+        encRet = wc_CoseKey_Encode(&badKey, out, sizeof(out), &encLen);
+        TEST_ASSERT(encRet == WOLFCOSE_E_INVALID_ARG, "lms encode null");
+    }
+
+    /* Decode a non-LMS COSE_Key into an LMS-attached key: the attach-type
+     * cross-check rejects the kty mismatch. */
+    if (ret == 0) {
+        WOLFCOSE_KEY mkey;
+        WOLFCOSE_CBOR_CTX enc;
+        uint8_t symKey[16];
+        int mRet;
+        (void)memset(symKey, 0x5a, sizeof(symKey));
+        (void)wc_CoseKey_Init(&mkey);
+        (void)wc_CoseKey_SetLms(&mkey, &lmsKey);
+        enc.buf = out; enc.cbuf = NULL; enc.bufSz = sizeof(out); enc.idx = 0;
+        (void)wc_CBOR_EncodeMapStart(&enc, 2);
+        (void)wc_CBOR_EncodeInt(&enc, WOLFCOSE_KEY_LABEL_KTY);
+        (void)wc_CBOR_EncodeUint(&enc, WOLFCOSE_KTY_SYMMETRIC);
+        (void)wc_CBOR_EncodeInt(&enc, WOLFCOSE_KEY_LABEL_K);
+        (void)wc_CBOR_EncodeBstr(&enc, symKey, sizeof(symKey));
+        mRet = wc_CoseKey_Decode(&mkey, out, enc.idx);
+        TEST_ASSERT(mRet == WOLFCOSE_E_COSE_KEY_TYPE, "lms decode kty mismatch");
+    }
+
+    /* Verify a valid signature with a key of a different parameter set: the
+     * signature length no longer matches, so it is a crypto fault, not a
+     * plain signature mismatch. */
+    if (ret == 0) {
+        outLen = sizeof(out);
+        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_HSS_LMS, NULL, 0,
+            payload, sizeof(payload) - 1, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+    }
+    if (ret == 0) {
+        ret = wc_LmsKey_Init(&lmsWrongParm, NULL, INVALID_DEVID);
+        if (ret == 0) { wrongInited = 1; }
+        if (ret == 0) {
+            ret = wc_LmsKey_SetLmsParm(&lmsWrongParm, WC_LMS_PARM_L1_H10_W8);
+        }
+        if (ret == 0) {
+            ret = wc_LmsKey_SetWriteCb(&lmsWrongParm, test_lms_write_cb);
+        }
+        if (ret == 0) {
+            ret = wc_LmsKey_SetReadCb(&lmsWrongParm, test_lms_read_cb);
+        }
+        if (ret == 0) {
+            ret = wc_LmsKey_SetContext(&lmsWrongParm, g_lmsPrivB);
+        }
+        if (ret == 0) {
+            ret = wc_LmsKey_MakeKey(&lmsWrongParm, &rng);
+        }
+    }
+    if (ret == 0) {
+        WOLFCOSE_KEY wrongParmKey;
+        int wpRet;
+        (void)wc_CoseKey_Init(&wrongParmKey);
+        (void)wc_CoseKey_SetLms(&wrongParmKey, &lmsWrongParm);
+        wpRet = wc_CoseSign1_Verify(&wrongParmKey, out, outLen, NULL, 0,
+            NULL, 0, scratch, sizeof(scratch), &hdr, &decPayload,
+            &decPayloadLen);
+        TEST_ASSERT(wpRet == WOLFCOSE_E_CRYPTO, "lms verify wrong params");
+    }
+
+    if (wrongInited != 0) { wc_LmsKey_Free(&lmsWrongParm); }
+    if (lmsInited != 0) { wc_LmsKey_Free(&lmsKey); }
+    if (rngInited != 0) { (void)wc_FreeRng(&rng); }
+}
+#endif /* WOLFCOSE_KEY_ENCODE && WOLFCOSE_KEY_DECODE */
+
+#ifdef WOLFCOSE_SIGN
+static void test_cose_sign_lms(void)
+{
+    WOLFCOSE_KEY signKey;
+    LmsKey lmsKey;
+    WOLFCOSE_SIGNATURE signers[1];
+    WC_RNG rng;
+    int ret = 0;
+    int rngInited = 0;
+    int lmsInited = 0;
+    uint8_t out[4096];
+    size_t outLen = 0;
+    uint8_t scratch[4096];
+    const uint8_t payload[] = "lms multi-signer";
+    WOLFCOSE_HDR hdr;
+    const uint8_t* decPayload = NULL;
+    size_t decPayloadLen = 0;
+
+    TEST_LOG("  [Sign multi-signer HSS-LMS]\n");
+
+    ret = wc_InitRng(&rng);
+    if (ret != 0) { TEST_ASSERT(0, "rng init"); }
+    if (ret == 0) { rngInited = 1; }
+
+    if (ret == 0) {
+        ret = test_lms_make_key(&lmsKey, g_lmsPrivA, &rng);
+        if (ret != 0) { TEST_ASSERT(0, "lms keygen"); }
+        if (ret == 0) { lmsInited = 1; }
+    }
+
+    if (ret == 0) {
+        (void)wc_CoseKey_Init(&signKey);
+        (void)wc_CoseKey_SetLms(&signKey, &lmsKey);
+
+        signers[0].algId = WOLFCOSE_ALG_HSS_LMS;
+        signers[0].key = &signKey;
+        signers[0].kid = NULL;
+        signers[0].kidLen = 0;
+
+        ret = wc_CoseSign_Sign(signers, 1,
+            payload, sizeof(payload) - 1,
+            NULL, 0, NULL, 0,
+            scratch, sizeof(scratch),
+            out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == 0 && outLen > 0, "sign lms sign");
+    }
+
+    if (ret == 0) {
+        ret = wc_CoseSign_Verify(&signKey, 0, out, outLen,
+            NULL, 0, NULL, 0,
+            scratch, sizeof(scratch),
+            &hdr, &decPayload, &decPayloadLen);
+        TEST_ASSERT(ret == 0, "sign lms verify");
+        TEST_ASSERT(decPayloadLen == sizeof(payload) - 1 &&
+                    memcmp(decPayload, payload, decPayloadLen) == 0,
+                    "sign lms payload match");
+    }
+
+    /* Too-small scratch cannot hold the Sig_structure plus signature. */
+    if (ret == 0) {
+        uint8_t tiny[64];
+        uint8_t smallOut[4096];
+        size_t smallLen = sizeof(smallOut);
+        int smallRet = wc_CoseSign_Sign(signers, 1,
+            payload, sizeof(payload) - 1, NULL, 0, NULL, 0,
+            tiny, sizeof(tiny), smallOut, sizeof(smallOut), &smallLen, &rng);
+        TEST_ASSERT(smallRet == WOLFCOSE_E_BUFFER_TOO_SMALL,
+                    "sign lms small scratch");
+    }
+
+    /* Verify with a same-parameter wrong key is a signature failure; a
+     * different-parameter key is a crypto fault (length mismatch). */
+    if (ret == 0) {
+        LmsKey lmsWrong;
+        WOLFCOSE_KEY wrongKey;
+        int wrongRet = test_lms_make_key(&lmsWrong, g_lmsPrivB, &rng);
+        if (wrongRet == 0) {
+            (void)wc_CoseKey_Init(&wrongKey);
+            (void)wc_CoseKey_SetLms(&wrongKey, &lmsWrong);
+            wrongRet = wc_CoseSign_Verify(&wrongKey, 0, out, outLen,
+                NULL, 0, NULL, 0, scratch, sizeof(scratch),
+                &hdr, &decPayload, &decPayloadLen);
+            TEST_ASSERT(wrongRet == WOLFCOSE_E_COSE_SIG_FAIL,
+                        "sign lms wrong key");
+            wc_LmsKey_Free(&lmsWrong);
+        }
+    }
+
+    if (lmsInited != 0) { wc_LmsKey_Free(&lmsKey); }
+    if (rngInited != 0) { (void)wc_FreeRng(&rng); }
+}
+#endif /* WOLFCOSE_SIGN */
+#endif /* WOLFCOSE_HAVE_LMS && !WOLFSSL_LMS_VERIFY_ONLY */
+
 /* ----- COSE_Sign1 with external AAD ----- */
 #ifdef WOLFCOSE_HAVE_ES256
 static void test_cose_sign1_with_aad(void)
@@ -20030,6 +20584,124 @@ static void test_force_failure_crypto(void)
     }
 #endif /* WOLFCOSE_HAVE_MLDSA */
 
+#if defined(WOLFCOSE_HAVE_LMS) && !defined(WOLFSSL_LMS_VERIFY_ONLY)
+    /* empty-brace-scan: allow - test-local temporary scope */
+    {
+        WOLFCOSE_KEY key;
+        LmsKey lmsKey;
+        uint8_t keyBuf[256];
+        uint8_t lmsScratch[4096];
+        uint8_t lmsCoseMsg[4096];
+        size_t lmsCoseMsgLen;
+        size_t keyLen;
+        int lmsReady = 0;
+
+        (void)wc_CoseKey_Init(&key);
+        ret = test_lms_make_key(&lmsKey, g_lmsPrivA, &rng);
+        if (ret == 0) {
+            lmsReady = 1;
+            (void)wc_CoseKey_SetLms(&key, &lmsKey);
+
+            /* Test LMS export public failure */
+            keyLen = sizeof(keyBuf);
+            wolfForceFailure_Set(WOLF_FAIL_LMS_EXPORT_PUB);
+            ret = wc_CoseKey_Encode(&key, keyBuf, sizeof(keyBuf), &keyLen);
+            TEST_ASSERT(ret == WOLFCOSE_E_CRYPTO, "LMS export pub forced failure");
+
+            /* Encode a valid COSE_Key for the import failure test */
+            keyLen = sizeof(keyBuf);
+            ret = wc_CoseKey_Encode(&key, keyBuf, sizeof(keyBuf), &keyLen);
+            if (ret == 0) {
+                LmsKey lmsPub;
+                WOLFCOSE_KEY decKey;
+                if (wc_LmsKey_Init(&lmsPub, NULL, INVALID_DEVID) == 0) {
+                    (void)wc_CoseKey_Init(&decKey);
+                    (void)wc_CoseKey_SetLms(&decKey, &lmsPub);
+                    /* Test LMS import public failure */
+                    wolfForceFailure_Set(WOLF_FAIL_LMS_IMPORT_PUB);
+                    ret = wc_CoseKey_Decode(&decKey, keyBuf, keyLen);
+                    TEST_ASSERT(ret == WOLFCOSE_E_CRYPTO,
+                                "LMS import pub forced failure");
+                    wc_LmsKey_Free(&lmsPub);
+                }
+            }
+
+            /* Test LMS sign failure */
+            lmsCoseMsgLen = sizeof(lmsCoseMsg);
+            wolfForceFailure_Set(WOLF_FAIL_LMS_SIGN);
+            ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_HSS_LMS,
+                NULL, 0, payload, sizeof(payload), NULL, 0, NULL, 0,
+                lmsScratch, sizeof(lmsScratch),
+                lmsCoseMsg, sizeof(lmsCoseMsg), &lmsCoseMsgLen, &rng);
+            TEST_ASSERT(ret == WOLFCOSE_E_CRYPTO, "LMS sign forced failure");
+
+            /* Create a valid signature for the verify test */
+            lmsCoseMsgLen = sizeof(lmsCoseMsg);
+            ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_HSS_LMS,
+                NULL, 0, payload, sizeof(payload), NULL, 0, NULL, 0,
+                lmsScratch, sizeof(lmsScratch),
+                lmsCoseMsg, sizeof(lmsCoseMsg), &lmsCoseMsgLen, &rng);
+            if (ret == 0) {
+                const uint8_t* decodedPayload;
+                size_t decodedPayloadLen;
+                WOLFCOSE_HDR hdr;
+
+                /* Injected SIG_VERIFY_E maps to a signature failure */
+                wolfForceFailure_Set(WOLF_FAIL_LMS_VERIFY);
+                ret = wc_CoseSign1_Verify(&key, lmsCoseMsg, lmsCoseMsgLen,
+                    NULL, 0, NULL, 0, lmsScratch, sizeof(lmsScratch),
+                    &hdr, &decodedPayload, &decodedPayloadLen);
+                TEST_ASSERT(ret == WOLFCOSE_E_COSE_SIG_FAIL,
+                            "LMS verify forced failure");
+            }
+
+#ifdef WOLFCOSE_SIGN
+            /* Same injections through the multi-signer COSE_Sign paths. */
+            /* empty-brace-scan: allow - test-local temporary scope */
+            {
+                WOLFCOSE_SIGNATURE signers[1];
+                const uint8_t* mPayload;
+                size_t mPayloadLen;
+                WOLFCOSE_HDR mHdr;
+
+                signers[0].algId = WOLFCOSE_ALG_HSS_LMS;
+                signers[0].key = &key;
+                signers[0].kid = NULL;
+                signers[0].kidLen = 0;
+
+                lmsCoseMsgLen = sizeof(lmsCoseMsg);
+                wolfForceFailure_Set(WOLF_FAIL_LMS_SIGN);
+                ret = wc_CoseSign_Sign(signers, 1,
+                    payload, sizeof(payload), NULL, 0, NULL, 0,
+                    lmsScratch, sizeof(lmsScratch),
+                    lmsCoseMsg, sizeof(lmsCoseMsg), &lmsCoseMsgLen, &rng);
+                TEST_ASSERT(ret == WOLFCOSE_E_CRYPTO,
+                            "LMS multi-signer sign forced failure");
+
+                lmsCoseMsgLen = sizeof(lmsCoseMsg);
+                ret = wc_CoseSign_Sign(signers, 1,
+                    payload, sizeof(payload), NULL, 0, NULL, 0,
+                    lmsScratch, sizeof(lmsScratch),
+                    lmsCoseMsg, sizeof(lmsCoseMsg), &lmsCoseMsgLen, &rng);
+                if (ret == 0) {
+                    wolfForceFailure_Set(WOLF_FAIL_LMS_VERIFY);
+                    ret = wc_CoseSign_Verify(&key, 0,
+                        lmsCoseMsg, lmsCoseMsgLen, NULL, 0, NULL, 0,
+                        lmsScratch, sizeof(lmsScratch),
+                        &mHdr, &mPayload, &mPayloadLen);
+                    TEST_ASSERT(ret == WOLFCOSE_E_COSE_SIG_FAIL,
+                                "LMS multi-signer verify forced failure");
+                }
+            }
+#endif /* WOLFCOSE_SIGN */
+        }
+        if (lmsReady != 0) {
+            wc_LmsKey_Free(&lmsKey);
+        }
+        wc_CoseKey_Free(&key);
+    }
+#endif /* WOLFCOSE_HAVE_LMS && !WOLFSSL_LMS_VERIFY_ONLY */
+
 #ifdef WOLFCOSE_HAVE_AESCCM
     /* empty-brace-scan: allow - test-local temporary scope */
     {
@@ -23743,6 +24415,15 @@ int test_cose(void)
     test_cose_sign1_ml_dsa_level_mismatch();
 #endif
 
+    /* HSS/LMS signature tests (RFC 8778) */
+#if defined(WOLFCOSE_HAVE_LMS) && !defined(WOLFSSL_LMS_VERIFY_ONLY)
+    test_cose_sign1_lms();
+#if defined(WOLFCOSE_KEY_ENCODE) && defined(WOLFCOSE_KEY_DECODE)
+    test_cose_key_lms();
+    test_cose_lms_negative();
+#endif
+#endif
+
     /* Mac0 basic tests */
 #if defined(WOLFCOSE_HAVE_HMAC256)
     test_cose_mac_wrong_tag_lengths();
@@ -23795,6 +24476,10 @@ int test_cose(void)
     test_cose_sign_both_payloads();
 #if defined(WOLFCOSE_HAVE_MLDSA) && defined(WOLFCOSE_SIGN)
     test_cose_sign_ml_dsa_level_mismatch();
+#endif
+#if defined(WOLFCOSE_HAVE_LMS) && !defined(WOLFSSL_LMS_VERIFY_ONLY) && \
+    defined(WOLFCOSE_SIGN)
+    test_cose_sign_lms();
 #endif
     test_cose_sign_verify_key_alg_mismatch();
     test_cose_sign_verify_unprotected_alg();

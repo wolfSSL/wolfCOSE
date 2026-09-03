@@ -89,6 +89,8 @@ LEANV_DEMO = examples/sign1_verify_lean
 MLDSA_DEMO  = examples/sign1_mldsa
 EXTSIGN_DEMO = examples/ext_sign_demo
 MLDSAV_DEMO = examples/sign1_verify_mldsa
+LMS_DEMO  = examples/sign1_lms
+LMSV_DEMO = examples/sign1_verify_lms
 
 # Comprehensive tests (CI)
 COMP_SIGN     = examples/comprehensive/sign_all
@@ -103,7 +105,7 @@ SCEN_IOTFLEET    = examples/scenarios/iot_fleet_config
 SCEN_SENSOR      = examples/scenarios/sensor_attestation
 SCEN_BROADCAST   = examples/scenarios/group_broadcast_mac
 
-.PHONY: all shared test pkg-config-test ecdsa-policy-test rsapss-policy-test zero-alloc-check zeroize-test ecc-import-policy-test ext-sign-test ext-sign-demo ext-sign-force-failure coverage tool tool-test cmdline-test demo demos lean-verify mldsa-demo mldsa-verify comprehensive scenarios interop-tcose c99-check experimental-check clean FORCE
+.PHONY: all shared test pkg-config-test ecdsa-policy-test rsapss-policy-test zero-alloc-check zeroize-test ecc-import-policy-test ext-sign-test ext-sign-demo ext-sign-force-failure coverage tool tool-test cmdline-test demo demos lean-verify mldsa-demo mldsa-verify lms-demo lms-verify comprehensive scenarios interop-tcose c99-check experimental-check clean FORCE
 
 # --- Core library ---
 all: $(LIB_A)
@@ -418,6 +420,21 @@ mldsa-verify:
 		$(MLDSAV_DEMO).c src/wolfcose.c src/wolfcose_cbor.c $(LDFLAGS) $(LDLIBS)
 	@echo "=== Running lean ML-DSA verify-only example ==="
 	./$(MLDSAV_DEMO)
+
+# --- Stateful hash-based HSS/LMS lean sign + verify (WOLFCOSE_LEAN_LMS) ---
+# Requires wolfSSL built with LMS (./configure --enable-lms).
+lms-demo:
+	$(CC) $(CFLAGS) -DWOLFCOSE_LEAN_LMS -o $(LMS_DEMO) \
+		$(LMS_DEMO).c src/wolfcose.c src/wolfcose_cbor.c $(LDFLAGS) $(LDLIBS)
+	@echo "=== Running HSS/LMS sign + verify example ==="
+	./$(LMS_DEMO)
+
+# --- Smallest hash-based verify-only (WOLFCOSE_LEAN_VERIFY_LMS) ---
+lms-verify:
+	$(CC) $(CFLAGS) -DWOLFCOSE_LEAN_VERIFY_LMS -o $(LMSV_DEMO) \
+		$(LMSV_DEMO).c src/wolfcose.c src/wolfcose_cbor.c $(LDFLAGS) $(LDLIBS)
+	@echo "=== Running lean HSS/LMS verify-only example ==="
+	./$(LMSV_DEMO)
 
 # --- Comprehensive algorithm tests (CI) ---
 comprehensive: $(LIB_A)

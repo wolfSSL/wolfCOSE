@@ -1841,6 +1841,39 @@ int wc_CoseKey_SetMlDsa(WOLFCOSE_KEY* key, int32_t alg,
 }
 #endif /* WOLFCOSE_HAVE_MLDSA */
 
+#ifdef WOLFCOSE_HAVE_LMS
+int wc_CoseKey_SetLms(WOLFCOSE_KEY* key, LmsKey* lmsKey)
+{
+    int ret;
+
+    if ((key == NULL) || (lmsKey == NULL)) {
+        ret = WOLFCOSE_E_INVALID_ARG;
+    }
+    else {
+        /* RFC 8778: kty HSS-LMS (5), single algorithm HSS-LMS (-46), no crv.
+         * The parameter set travels inside the RFC 8554 public key bytes. */
+        key->kty = WOLFCOSE_KTY_HSS_LMS;
+        key->alg = WOLFCOSE_ALG_HSS_LMS;
+        key->crv = 0;
+        key->key.lms = lmsKey;
+        key->attachedType = WOLFCOSE_ATT_LMS;
+#if defined(WOLFCOSE_EXT_SIGN)
+        /* Attaching local material replaces a delegated signer; keeping it
+         * would silently sign with the previous external signer. */
+        key->signCb = NULL;
+        key->signCtx = NULL;
+#endif
+        /* WC_LMS_STATE_OK (public wc_lms.h enum) means a private key is
+         * loaded and able to sign. wc_LmsKey_SigsLeft() is not used here:
+         * it dereferences private state and faults on a public-only or
+         * not-yet-loaded key, which SetLms accepts for verification. */
+        key->hasPrivate = (lmsKey->state == WC_LMS_STATE_OK) ? 1u : 0u;
+        ret = WOLFCOSE_SUCCESS;
+    }
+    return ret;
+}
+#endif /* WOLFCOSE_HAVE_LMS */
+
 #ifdef WOLFCOSE_HAVE_RSAPSS
 int wc_CoseKey_SetRsa(WOLFCOSE_KEY* key, RsaKey* rsaKey)
 {
@@ -2630,6 +2663,69 @@ int wc_CoseKey_Encode_ex(WOLFCOSE_KEY* key, uint8_t* out, size_t outSz,
         }
         else
 #endif /* WOLFCOSE_HAVE_MLDSA */
+#ifdef WOLFCOSE_HAVE_LMS
+        if (key->kty == WOLFCOSE_KTY_HSS_LMS) {
+            /* RFC 8778 COSE_Key: {1: 5, [2: kid], [3: alg], -1: pub}. The
+             * RFC defines no private-key labels, so the encoding is always
+             * public-only; the parameter set is embedded in the RFC 8554
+             * public key bytes. */
+            uint8_t lmsPubBuf[HSS_MAX_PUBLIC_KEY_LEN];
+            word32 lmsPubLen = (word32)sizeof(lmsPubBuf);
+            size_t lmsMapEntries;
+
+            /* kty alone does not prove the union holds an LmsKey: a key left
+             * at kty 5 by a failed decode may still hold another type. Gate
+             * on the attach discriminator before reading key.lms. */
+            if (key->attachedType != WOLFCOSE_ATT_LMS) {
+                ret = WOLFCOSE_E_COSE_KEY_TYPE;
+            }
+            else if (key->key.lms == NULL) {
+                ret = WOLFCOSE_E_INVALID_ARG;
+            }
+            else {
+                /* No action required */
+            }
+            if (ret == WOLFCOSE_SUCCESS) {
+                INJECT_FAILURE(WOLF_FAIL_LMS_EXPORT_PUB, -1,
+                    ret = wc_LmsKey_ExportPubRaw(key->key.lms,
+                                                 lmsPubBuf, &lmsPubLen));
+                if (ret != 0) {
+                    ret = WOLFCOSE_E_CRYPTO;
+                }
+            }
+
+            lmsMapEntries = 2u + wolfCose_KeyOptionalEntries(key);
+            if (ret == WOLFCOSE_SUCCESS) {
+                ret = wc_CBOR_EncodeMapStart(&ctx, lmsMapEntries);
+            }
+
+            /* 1: kty = HSS-LMS (5) */
+            if (ret == WOLFCOSE_SUCCESS) {
+                ret = wc_CBOR_EncodeUint(&ctx,
+                                          (uint64_t)WOLFCOSE_KEY_LABEL_KTY);
+            }
+            if (ret == WOLFCOSE_SUCCESS) {
+                ret = wc_CBOR_EncodeUint(&ctx, (uint64_t)key->kty);
+            }
+            if (ret == WOLFCOSE_SUCCESS) {
+                ret = wolfCose_EncodeKeyOptionalFields(&ctx, key);
+            }
+            /* -1: pub (RFC 8554 HSS public key bstr) */
+            if (ret == WOLFCOSE_SUCCESS) {
+                ret = wc_CBOR_EncodeInt(&ctx,
+                                         (int64_t)WOLFCOSE_KEY_LABEL_PUB);
+            }
+            if (ret == WOLFCOSE_SUCCESS) {
+                ret = wc_CBOR_EncodeBstr(&ctx, lmsPubBuf, (size_t)lmsPubLen);
+            }
+
+            if (ret == WOLFCOSE_SUCCESS) {
+                *outLen = ctx.idx;
+            }
+            (void)wolfCose_ForceZero(lmsPubBuf, sizeof(lmsPubBuf));
+        }
+        else
+#endif /* WOLFCOSE_HAVE_LMS */
 #if defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)
         if (key->kty == WOLFCOSE_KTY_OKP) {
             uint8_t pubBuf[57]; /* Ed448 pub = 57 bytes, Ed25519 = 32 */
@@ -3164,6 +3260,41 @@ int wc_CoseKey_EncodeSize_ex(const WOLFCOSE_KEY* key, size_t* outLen,
         }
         else
 #endif /* WOLFCOSE_HAVE_MLDSA */
+#ifdef WOLFCOSE_HAVE_LMS
+        if (key->kty == WOLFCOSE_KTY_HSS_LMS) {
+            size_t lmsPubSz = 0u;
+
+            /* Match wc_CoseKey_Encode_ex: reject a kty 5 key whose union does
+             * not actually hold an LmsKey before reading key.lms. */
+            if (key->attachedType != WOLFCOSE_ATT_LMS) {
+                ret = WOLFCOSE_E_COSE_KEY_TYPE;
+            }
+            else if (key->key.lms == NULL) {
+                ret = WOLFCOSE_E_INVALID_ARG;
+            }
+            else {
+                /* No action required */
+            }
+            if (ret == WOLFCOSE_SUCCESS) {
+                word32 lmsPubLen = 0;
+                if (wc_LmsKey_GetPubLen(key->key.lms, &lmsPubLen) != 0) {
+                    ret = WOLFCOSE_E_CRYPTO;
+                }
+                else {
+                    lmsPubSz = (size_t)lmsPubLen;
+                }
+            }
+            /* {1: kty, [2: kid], [3: alg], -1: pub}: RFC 8778 defines no
+             * private-key labels, so the size never includes one. */
+            if (ret == WOLFCOSE_SUCCESS) {
+                ret = wolfCose_KeyCommonSize(key, (size_t)2, &total);
+            }
+            if (ret == WOLFCOSE_SUCCESS) {
+                ret = wolfCose_KeyBstrEntrySize(lmsPubSz, &total);
+            }
+        }
+        else
+#endif /* WOLFCOSE_HAVE_LMS */
 #if defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)
         if (key->kty == WOLFCOSE_KTY_OKP) {
             size_t okpSz = 0u;
@@ -3288,6 +3419,11 @@ static int wolfCose_KeyAttachedTypeCheck(const WOLFCOSE_KEY* key)
             break;
         case WOLFCOSE_ATT_SYMMETRIC:
             if (key->kty != WOLFCOSE_KTY_SYMMETRIC) {
+                ret = WOLFCOSE_E_COSE_KEY_TYPE;
+            }
+            break;
+        case WOLFCOSE_ATT_LMS:
+            if (key->kty != WOLFCOSE_KTY_HSS_LMS) {
                 ret = WOLFCOSE_E_COSE_KEY_TYPE;
             }
             break;
@@ -3710,6 +3846,21 @@ int wc_CoseKey_Decode(WOLFCOSE_KEY* key, const uint8_t* in, size_t inSz)
             ret = WOLFCOSE_E_UNSUPPORTED;
         }
 #endif
+        /* RFC 8778 registers only the HSS-LMS algorithm for kty HSS-LMS. */
+        if ((ret == WOLFCOSE_SUCCESS) &&
+            (key->kty == WOLFCOSE_KTY_HSS_LMS) &&
+            (key->alg != WOLFCOSE_ALG_UNSET) &&
+            (key->alg != WOLFCOSE_ALG_HSS_LMS)) {
+            ret = WOLFCOSE_E_COSE_BAD_ALG;
+        }
+        /* RFC 8778 defines exactly one key member: the public key at -1.
+         * It arrives as a bstr, so the label loop stashed it in nData. */
+        if ((ret == WOLFCOSE_SUCCESS) &&
+            (key->kty == WOLFCOSE_KTY_HSS_LMS) &&
+            ((nData == NULL) || (xData != NULL) || (yData != NULL) ||
+             (dData != NULL))) {
+            ret = WOLFCOSE_E_COSE_BAD_HDR;
+        }
 
         /* Import key data into wolfCrypt key structs */
         if (ret == WOLFCOSE_SUCCESS) {
@@ -3963,6 +4114,27 @@ int wc_CoseKey_Decode(WOLFCOSE_KEY* key, const uint8_t* in, size_t inSz)
             }
             else
 #endif /* WOLFCOSE_HAVE_MLDSA */
+#ifdef WOLFCOSE_HAVE_LMS
+            if ((key->kty == WOLFCOSE_KTY_HSS_LMS) &&
+                (key->attachedType == WOLFCOSE_ATT_LMS)) {
+                /* RFC 8778: pub(-1) bstr was stashed in nData. The RFC 8554
+                 * levels/type codes inside it select the parameter set, so
+                 * the import derives or cross-checks the key's parameters.
+                 * There is no private-key wire form: the import is always
+                 * public/verify-only. Reaching here means nData holds the pub
+                 * bstr, so label -1 was not an int and crv is unset. */
+                INJECT_FAILURE(WOLF_FAIL_LMS_IMPORT_PUB, -1,
+                    ret = wc_LmsKey_ImportPubRaw(key->key.lms, nData,
+                                                 (word32)nLen));
+                if (ret != 0) {
+                    ret = WOLFCOSE_E_CRYPTO;
+                }
+                else {
+                    key->hasPrivate = 0u;
+                }
+            }
+            else
+#endif /* WOLFCOSE_HAVE_LMS */
 #if defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)
             if (key->kty == WOLFCOSE_KTY_OKP) {
                 /* RFC 9052: x is recommended, not required, for a private OKP
@@ -5287,6 +5459,24 @@ static int wolfCose_MlDsaCheckKey(const WOLFCOSE_KEY* key, int32_t alg)
 }
 #endif /* WOLFCOSE_HAVE_MLDSA */
 
+#if defined(WOLFCOSE_HAVE_LMS) && \
+    (defined(WOLFCOSE_SIGN1_SIGN) || defined(WOLFCOSE_SIGN1_VERIFY) || \
+     defined(WOLFCOSE_SIGN_SIGN) || defined(WOLFCOSE_SIGN_VERIFY) || \
+     defined(WOLFCOSE_EXT_SIGN))
+/* RFC 8778: validate that the key is HSS-LMS-typed and was attached through
+ * wc_CoseKey_SetLms() so the union member is known to be an LmsKey. */
+static int wolfCose_LmsCheckKey(const WOLFCOSE_KEY* key)
+{
+    int ret = WOLFCOSE_SUCCESS;
+
+    if ((key == NULL) || (key->kty != WOLFCOSE_KTY_HSS_LMS) ||
+        (key->attachedType != WOLFCOSE_ATT_LMS) || (key->key.lms == NULL)) {
+        ret = WOLFCOSE_E_COSE_KEY_TYPE;
+    }
+    return ret;
+}
+#endif /* WOLFCOSE_HAVE_LMS */
+
 #if defined(WOLFCOSE_SIGN1_SIGN) || defined(WOLFCOSE_EXT_SIGN)
 /* Exact signature length for this key and algorithm. wolfCose_SigSize() alone
  * reports EdDSA's worst case rather than the key's curve, and has no RSA case.
@@ -5344,6 +5534,24 @@ static int wolfCose_SignSigLen(const WOLFCOSE_KEY* key, int32_t alg,
 #endif
         {
             ret = wolfCose_RsaPssCheckKey(key, expSigLen);
+        }
+        break;
+#endif
+#if defined(WOLFCOSE_HAVE_LMS) && !defined(WOLFSSL_LMS_VERIFY_ONLY)
+        case WOLFCOSE_ALG_HSS_LMS:
+        {
+            /* The exact length lives in the attached key's parameter set,
+             * so an LMS key must be attached even for a delegated signer. */
+            ret = wolfCose_LmsCheckKey(key);
+            if (ret == WOLFCOSE_SUCCESS) {
+                word32 lmsSigLen = 0;
+                if (wc_LmsKey_GetSigLen(key->key.lms, &lmsSigLen) != 0) {
+                    ret = WOLFCOSE_E_COSE_KEY_TYPE;
+                }
+                else {
+                    *expSigLen = (size_t)lmsSigLen;
+                }
+            }
         }
         break;
 #endif
@@ -5437,6 +5645,11 @@ static int wolfCose_ExtSignAlg(int32_t alg, int* preHashes)
         case WOLFCOSE_ALG_ML_DSA_44:
         case WOLFCOSE_ALG_ML_DSA_65:
         case WOLFCOSE_ALG_ML_DSA_87:
+            *preHashes = 0;
+            break;
+#endif
+#if defined(WOLFCOSE_HAVE_LMS) && !defined(WOLFSSL_LMS_VERIFY_ONLY)
+        case WOLFCOSE_ALG_HSS_LMS:
             *preHashes = 0;
             break;
 #endif
@@ -6024,6 +6237,50 @@ int wc_CoseSign1_Sign_ex(WOLFCOSE_KEY* key, int32_t alg,
     }
     else
 #endif /* WOLFCOSE_HAVE_MLDSA */
+#if defined(WOLFCOSE_HAVE_LMS) && !defined(WOLFSSL_LMS_VERIFY_ONLY)
+    if ((ret == WOLFCOSE_SUCCESS) && (alg == WOLFCOSE_ALG_HSS_LMS)) {
+        size_t expectedSigSz = 0;
+
+        /* RFC 8778: HSS-LMS key attached via wc_CoseKey_SetLms(). The
+         * signature length comes from the key's parameter set. Signing
+         * consumes one-time-signature state; the caller-installed wolfCrypt
+         * write callback persists it. */
+        ret = wolfCose_LmsCheckKey(key);
+
+        if (ret == WOLFCOSE_SUCCESS) {
+            word32 lmsSigLen = 0;
+            if (wc_LmsKey_GetSigLen(key->key.lms, &lmsSigLen) != 0) {
+                ret = WOLFCOSE_E_COSE_KEY_TYPE;
+            }
+            else {
+                expectedSigSz = (size_t)lmsSigLen;
+            }
+        }
+
+        /* Sig output goes after Sig_structure in scratch. LMS signs the
+         * raw Sig_structure directly (no pre-hash). */
+        if ((ret == WOLFCOSE_SUCCESS) &&
+            ((sigStructLen + expectedSigSz) > scratchSz)) {
+            ret = WOLFCOSE_E_BUFFER_TOO_SMALL;
+        }
+
+        if (ret == WOLFCOSE_SUCCESS) {
+            word32 lmsSigLen = (word32)expectedSigSz;
+            INJECT_FAILURE(WOLF_FAIL_LMS_SIGN, -1,
+                ret = wc_LmsKey_Sign(key->key.lms,
+                    &scratch[sigStructLen], &lmsSigLen,
+                    scratch, (int)sigStructLen));
+            if (ret != 0) {
+                ret = WOLFCOSE_E_CRYPTO;
+            }
+            else {
+                sigPtr = &scratch[sigStructLen];
+                sigSz = (size_t)lmsSigLen;
+            }
+        }
+    }
+    else
+#endif /* WOLFCOSE_HAVE_LMS && !WOLFSSL_LMS_VERIFY_ONLY */
     if (ret == WOLFCOSE_SUCCESS) {
         ret = WOLFCOSE_E_COSE_BAD_ALG;
     }
@@ -6464,6 +6721,30 @@ int wc_CoseSign1_Verify(const WOLFCOSE_KEY* key,
     }
     else
 #endif /* WOLFCOSE_HAVE_MLDSA */
+#ifdef WOLFCOSE_HAVE_LMS
+    if ((ret == WOLFCOSE_SUCCESS) && (alg == WOLFCOSE_ALG_HSS_LMS)) {
+        /* RFC 8778: HSS-LMS verifies the raw Sig_structure (no pre-hash).
+         * Only a genuine signature mismatch (SIG_VERIFY_E) is an auth
+         * failure; a bad-arg/state/length error is an operational fault. */
+        ret = wolfCose_LmsCheckKey(key);
+        if (ret == WOLFCOSE_SUCCESS) {
+            INJECT_FAILURE(WOLF_FAIL_LMS_VERIFY, SIG_VERIFY_E,
+                ret = wc_LmsKey_Verify(key->key.lms,
+                    sigData, (word32)sigDataLen,
+                    scratch, (int)sigStructLen));
+            if (ret == (int)SIG_VERIFY_E) {
+                ret = WOLFCOSE_E_COSE_SIG_FAIL;
+            }
+            else if (ret != 0) {
+                ret = WOLFCOSE_E_CRYPTO;
+            }
+            else {
+                /* No action required */
+            }
+        }
+    }
+    else
+#endif /* WOLFCOSE_HAVE_LMS */
     if (ret == WOLFCOSE_SUCCESS) {
         ret = WOLFCOSE_E_COSE_BAD_ALG;
     }
@@ -6746,15 +7027,17 @@ int wc_CoseSign_Sign(const WOLFCOSE_SIGNATURE* signers, size_t signerCount,
          * inside each algorithm branch so this dispatch tolerates
          * algorithms whose signature size is computed dynamically
          * (RSA-PSS) or whose entry is gated by a different feature
-         * macro (ML-DSA). ML-DSA signs the Sig_structure directly
-         * without a pre-hash so the hash type lookup is skipped. */
+         * macro (ML-DSA). ML-DSA and HSS-LMS sign the Sig_structure
+         * directly without a pre-hash so the hash type lookup is
+         * skipped. */
         if ((ret == WOLFCOSE_SUCCESS) &&
 #if defined(WOLFCOSE_EXT_SIGN)
             (signerKey->signCb == NULL) &&
 #endif
             (signer->algId != WOLFCOSE_ALG_ML_DSA_44) &&
             (signer->algId != WOLFCOSE_ALG_ML_DSA_65) &&
-            (signer->algId != WOLFCOSE_ALG_ML_DSA_87)) {
+            (signer->algId != WOLFCOSE_ALG_ML_DSA_87) &&
+            (signer->algId != WOLFCOSE_ALG_HSS_LMS)) {
             ret = wolfCose_AlgToHashType(signer->algId, &hashType);
         }
 
@@ -6776,9 +7059,9 @@ int wc_CoseSign_Sign(const WOLFCOSE_SIGNATURE* signers, size_t signerCount,
                 scratch, scratchSz, &sigStructLen);
         }
 
-        /* Hash the Sig_structure for algorithms that pre-hash. EdDSA
-         * and ML-DSA sign the structure directly, and a delegated signer
-         * does its own hashing inside wolfCose_ExtSign. */
+        /* Hash the Sig_structure for algorithms that pre-hash. EdDSA,
+         * ML-DSA and HSS-LMS sign the structure directly, and a delegated
+         * signer does its own hashing inside wolfCose_ExtSign. */
         if ((ret == WOLFCOSE_SUCCESS) &&
 #if defined(WOLFCOSE_EXT_SIGN)
             (signerKey->signCb == NULL) &&
@@ -6786,7 +7069,8 @@ int wc_CoseSign_Sign(const WOLFCOSE_SIGNATURE* signers, size_t signerCount,
             (signer->algId != WOLFCOSE_ALG_EDDSA) &&
             (signer->algId != WOLFCOSE_ALG_ML_DSA_44) &&
             (signer->algId != WOLFCOSE_ALG_ML_DSA_65) &&
-            (signer->algId != WOLFCOSE_ALG_ML_DSA_87)) {
+            (signer->algId != WOLFCOSE_ALG_ML_DSA_87) &&
+            (signer->algId != WOLFCOSE_ALG_HSS_LMS)) {
             int digestSz = wc_HashGetDigestSize(hashType);
             if (digestSz <= 0) {
                 ret = WOLFCOSE_E_CRYPTO;
@@ -6960,6 +7244,46 @@ int wc_CoseSign_Sign(const WOLFCOSE_SIGNATURE* signers, size_t signerCount,
         }
         else
 #endif /* WOLFCOSE_HAVE_MLDSA */
+#if defined(WOLFCOSE_HAVE_LMS) && !defined(WOLFSSL_LMS_VERIFY_ONLY)
+        if ((ret == WOLFCOSE_SUCCESS) &&
+            (signer->algId == WOLFCOSE_ALG_HSS_LMS)) {
+            size_t expectedSigSz = 0;
+
+            /* RFC 8778: HSS-LMS key attached via wc_CoseKey_SetLms();
+             * signature length comes from the key's parameter set. */
+            ret = wolfCose_LmsCheckKey(signerKey);
+            if (ret == WOLFCOSE_SUCCESS) {
+                word32 lmsSigLen = 0;
+                if (wc_LmsKey_GetSigLen(signerKey->key.lms,
+                                        &lmsSigLen) != 0) {
+                    ret = WOLFCOSE_E_COSE_KEY_TYPE;
+                }
+                else {
+                    expectedSigSz = (size_t)lmsSigLen;
+                }
+            }
+            /* Sig output goes after Sig_structure in scratch. */
+            if ((ret == WOLFCOSE_SUCCESS) &&
+                ((sigStructLen + expectedSigSz) > scratchSz)) {
+                ret = WOLFCOSE_E_BUFFER_TOO_SMALL;
+            }
+            if (ret == WOLFCOSE_SUCCESS) {
+                word32 lmsSigLen = (word32)expectedSigSz;
+                INJECT_FAILURE(WOLF_FAIL_LMS_SIGN, -1,
+                    ret = wc_LmsKey_Sign(signerKey->key.lms,
+                        &scratch[sigStructLen], &lmsSigLen,
+                        scratch, (int)sigStructLen));
+                if (ret != 0) {
+                    ret = WOLFCOSE_E_CRYPTO;
+                }
+                else {
+                    sigPtr = &scratch[sigStructLen];
+                    sigSz = (size_t)lmsSigLen;
+                }
+            }
+        }
+        else
+#endif /* WOLFCOSE_HAVE_LMS && !WOLFSSL_LMS_VERIFY_ONLY */
         if (ret == WOLFCOSE_SUCCESS) {
             ret = WOLFCOSE_E_COSE_BAD_ALG;
         }
@@ -7244,23 +7568,25 @@ int wc_CoseSign_Verify(const WOLFCOSE_KEY* verifyKey,
             scratch, scratchSz, &sigStructLen);
     }
 
-    /* Get hash type for algorithms that pre-hash. EdDSA and ML-DSA
-     * verify against the raw Sig_structure so the hash type lookup is
-     * skipped (also avoids WOLFCOSE_E_COSE_BAD_ALG for ML-DSA since
-     * the algorithm has no external hash). */
+    /* Get hash type for algorithms that pre-hash. EdDSA, ML-DSA and
+     * HSS-LMS verify against the raw Sig_structure so the hash type
+     * lookup is skipped (also avoids WOLFCOSE_E_COSE_BAD_ALG since
+     * these algorithms have no external hash). */
     if ((ret == WOLFCOSE_SUCCESS) && (alg != WOLFCOSE_ALG_EDDSA) &&
         (alg != WOLFCOSE_ALG_ML_DSA_44) &&
         (alg != WOLFCOSE_ALG_ML_DSA_65) &&
-        (alg != WOLFCOSE_ALG_ML_DSA_87)) {
+        (alg != WOLFCOSE_ALG_ML_DSA_87) &&
+        (alg != WOLFCOSE_ALG_HSS_LMS)) {
         ret = wolfCose_AlgToHashType(alg, &hashType);
     }
 
-    /* Hash the Sig_structure for algorithms that pre-hash. EdDSA and
-     * ML-DSA verify the structure directly. */
+    /* Hash the Sig_structure for algorithms that pre-hash. EdDSA,
+     * ML-DSA and HSS-LMS verify the structure directly. */
     if ((ret == WOLFCOSE_SUCCESS) && (alg != WOLFCOSE_ALG_EDDSA) &&
         (alg != WOLFCOSE_ALG_ML_DSA_44) &&
         (alg != WOLFCOSE_ALG_ML_DSA_65) &&
-        (alg != WOLFCOSE_ALG_ML_DSA_87)) {
+        (alg != WOLFCOSE_ALG_ML_DSA_87) &&
+        (alg != WOLFCOSE_ALG_HSS_LMS)) {
         int digestSz = wc_HashGetDigestSize(hashType);
         if (digestSz <= 0) {
             ret = WOLFCOSE_E_CRYPTO;
@@ -7436,6 +7762,29 @@ int wc_CoseSign_Verify(const WOLFCOSE_KEY* verifyKey,
     }
     else
 #endif /* WOLFCOSE_HAVE_MLDSA */
+#ifdef WOLFCOSE_HAVE_LMS
+    if ((ret == WOLFCOSE_SUCCESS) && (alg == WOLFCOSE_ALG_HSS_LMS)) {
+        /* RFC 8778: HSS-LMS verifies the raw Sig_structure directly. Only a
+         * genuine mismatch (SIG_VERIFY_E) is an auth failure. */
+        ret = wolfCose_LmsCheckKey(verifyKey);
+        if (ret == WOLFCOSE_SUCCESS) {
+            INJECT_FAILURE(WOLF_FAIL_LMS_VERIFY, SIG_VERIFY_E,
+                ret = wc_LmsKey_Verify(verifyKey->key.lms,
+                    signature, (word32)signatureLen,
+                    scratch, (int)sigStructLen));
+            if (ret == (int)SIG_VERIFY_E) {
+                ret = WOLFCOSE_E_COSE_SIG_FAIL;
+            }
+            else if (ret != 0) {
+                ret = WOLFCOSE_E_CRYPTO;
+            }
+            else {
+                /* No action required */
+            }
+        }
+    }
+    else
+#endif /* WOLFCOSE_HAVE_LMS */
     if (ret == WOLFCOSE_SUCCESS) {
         ret = WOLFCOSE_E_COSE_BAD_ALG;
     }

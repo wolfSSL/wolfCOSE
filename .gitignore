@@ -19,6 +19,8 @@ examples/sign1_verify_lean
 examples/sign1_mldsa
 examples/ext_sign_demo
 examples/sign1_verify_mldsa
+examples/sign1_lms
+examples/sign1_verify_lms
 
 # Editor / OS
 *.swp

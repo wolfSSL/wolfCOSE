@@ -55,6 +55,9 @@ static size_t wolfCose_MisraUsePublicApis(void)
     WOLFCOSE_MISRA_USE_API(wc_CoseKey_SetMlDsa);
     WOLFCOSE_MISRA_USE_API(wc_CoseKey_SetMlDsa_ex);
 #endif
+#ifdef WOLFCOSE_HAVE_LMS
+    WOLFCOSE_MISRA_USE_API(wc_CoseKey_SetLms);
+#endif
 #ifdef WOLFCOSE_HAVE_RSAPSS
     WOLFCOSE_MISRA_USE_API(wc_CoseKey_SetRsa);
 #endif

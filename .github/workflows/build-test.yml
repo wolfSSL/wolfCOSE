@@ -44,7 +44,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-install
-        key: wolfssl-${{ matrix.os }}-${{ matrix.wolfssl-ref }}-v4
+        key: wolfssl-${{ matrix.os }}-${{ matrix.wolfssl-ref }}-v5-lms
 
     - name: Build wolfSSL (${{ matrix.wolfssl-ref }})
       if: matrix.wolfssl-ref == 'master' || steps.cache-wolfssl.outputs.cache-hit != 'true'
@@ -69,6 +69,7 @@ jobs:
                     --enable-sha384 --enable-sha512 \
                     --enable-keygen --enable-hkdf --enable-aeskeywrap \
                     --enable-chacha --enable-poly1305 \
+                    --enable-lms \
                     $PQC_FLAGS --enable-rsapss \
                     --prefix=$HOME/wolfssl-install
         make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
@@ -142,7 +143,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-install
-        key: wolfssl-coverage-${{ matrix.wolfssl-version }}-v4
+        key: wolfssl-coverage-${{ matrix.wolfssl-version }}-v5-lms
 
     - name: Build wolfSSL (${{ matrix.wolfssl-version }})
       if: matrix.wolfssl-version == 'master' || steps.cache-wolfssl.outputs.cache-hit != 'true'
@@ -165,6 +166,7 @@ jobs:
                     --enable-sha384 --enable-sha512 \
                     --enable-keygen --enable-hkdf --enable-aeskeywrap \
                     --enable-chacha --enable-poly1305 \
+                    --enable-lms \
                     $PQC_FLAGS --enable-rsapss \
                     --prefix=$HOME/wolfssl-install
         make -j$(nproc)

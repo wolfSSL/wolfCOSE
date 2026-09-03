@@ -1,13 +1,14 @@
 # wolfCOSE
 
-wolfCOSE is a lightweight C library implementing [CBOR (RFC 8949)](https://www.rfc-editor.org/rfc/rfc8949), [COSE (RFC 9052/9053)](https://www.rfc-editor.org/rfc/rfc9052), and post-quantum [ML-DSA for COSE (RFC 9964)](https://www.rfc-editor.org/rfc/rfc9964) using [wolfSSL](https://www.wolfssl.com/) as the crypto backend.
+wolfCOSE is a lightweight C library implementing [CBOR (RFC 8949)](https://www.rfc-editor.org/rfc/rfc8949), [COSE (RFC 9052/9053)](https://www.rfc-editor.org/rfc/rfc9052), and post-quantum [ML-DSA for COSE (RFC 9964)](https://www.rfc-editor.org/rfc/rfc9964) and [HSS/LMS for COSE (RFC 8778)](https://www.rfc-editor.org/rfc/rfc8778) using [wolfSSL](https://www.wolfssl.com/) as the crypto backend.
 
 ## Main Features
 
 - **Complete RFC 9052 message set**: all six COSE message types, including multi-signer 
   `COSE_Sign` and multi-recipient `COSE_Encrypt` / `COSE_Mac`
 - **Post-quantum signing**: ML-DSA (FIPS 204) at all three security levels, with RFC 9964 `COSE_Key` (AKP key type, seed-based private keys)
-- **40 algorithms** across signing, encryption, MAC, and key distribution
+- **Stateful hash-based signing**: HSS/LMS (RFC 8778, NIST SP 800-208) with `COSE_Key` type 5 — the CNSA 2.0 algorithm for firmware and software signing, verify-only friendly for constrained devices
+- **41 algorithms** across signing, encryption, MAC, and key distribution
 - **Zero dynamic allocation**: heap-allocation-free and non-recursive. Every operation runs on caller-provided buffers 
    within a bounded, target-customizable stack ceiling (nothing on the heap, zero `.data`/`.bss`)
 - **Tiny footprint**: ES256 `COSE_Sign1` wolfCOSE (COSE + CBOR engine) **~5.1 KB** verify-only and **~6.8 KB** sign + verify.
@@ -21,7 +22,7 @@ wolfCOSE is a lightweight C library implementing [CBOR (RFC 8949)](https://www.r
 
 ## Supported Algorithms
 
-**Signing:** `ES256, ES384, ES512, EdDSA (Ed25519/Ed448), PS256/384/512, ML-DSA-44/65/87`
+**Signing:** `ES256, ES384, ES512, EdDSA (Ed25519/Ed448), PS256/384/512, ML-DSA-44/65/87, HSS-LMS`
 
 **Encryption:** `AES-GCM (128/192/256), ChaCha20-Poly1305, AES-CCM variants`
 
@@ -225,7 +226,7 @@ Full documentation is available in the [Wiki](https://github.com/wolfSSL/wolfCOS
 
 - [Getting Started](https://github.com/wolfSSL/wolfCOSE/wiki/Getting-Started): Build instructions and first steps
 - [Message Types](https://github.com/wolfSSL/wolfCOSE/wiki/Message-Types): All six RFC 9052 messages (Sign1, Sign, Encrypt0, Encrypt, Mac0, Mac) with code samples
-- [Algorithms](https://github.com/wolfSSL/wolfCOSE/wiki/Algorithms): Complete list of 40 supported algorithms with COSE IDs
+- [Algorithms](https://github.com/wolfSSL/wolfCOSE/wiki/Algorithms): Complete list of 41 supported algorithms with COSE IDs
 - [API Reference](https://github.com/wolfSSL/wolfCOSE/wiki/API-Reference): Function signatures, data structures, error codes
 - [Macros](https://github.com/wolfSSL/wolfCOSE/wiki/Macros): Compile-time configuration, size tuning, and ECDSA nonce policy
 - [Footprint](https://github.com/wolfSSL/wolfCOSE/wiki/Footprint): Size and speed numbers, desktop and on-device

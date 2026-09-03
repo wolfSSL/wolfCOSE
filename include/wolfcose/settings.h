@@ -80,6 +80,41 @@ extern "C" {
     #endif
 #endif /* WOLFCOSE_LEAN_VERIFY_MLDSA */
 
+/* Verify-only COSE_Sign1 with HSS/LMS (implies WOLFCOSE_LEAN_LMS, no signing). */
+#ifdef WOLFCOSE_LEAN_VERIFY_LMS
+    #ifndef WOLFCOSE_LEAN_LMS
+        #define WOLFCOSE_LEAN_LMS
+    #endif
+    #ifndef WOLFCOSE_NO_SIGN1_SIGN
+        #define WOLFCOSE_NO_SIGN1_SIGN
+    #endif
+#endif /* WOLFCOSE_LEAN_VERIFY_LMS */
+
+/* Lean HSS/LMS-only COSE_Sign1 sign+verify (no ES256, Sign1 only). */
+#ifdef WOLFCOSE_LEAN_LMS
+    #ifndef WOLFCOSE_LEAN
+        #define WOLFCOSE_LEAN
+    #endif
+    #ifndef WOLFCOSE_ENABLE_LMS
+        #define WOLFCOSE_ENABLE_LMS
+    #endif
+    #ifndef WOLFCOSE_NO_ES256
+        #define WOLFCOSE_NO_ES256
+    #endif
+    #ifndef WOLFCOSE_NO_ENCRYPT0
+        #define WOLFCOSE_NO_ENCRYPT0
+    #endif
+    #ifndef WOLFCOSE_NO_MAC0
+        #define WOLFCOSE_NO_MAC0
+    #endif
+    #ifndef WOLFCOSE_NO_KEY_ENCODE
+        #define WOLFCOSE_NO_KEY_ENCODE
+    #endif
+    #ifndef WOLFCOSE_NO_KEY_DECODE
+        #define WOLFCOSE_NO_KEY_DECODE
+    #endif
+#endif /* WOLFCOSE_LEAN_LMS */
+
 /* Lean ML-DSA-only COSE_Sign1 sign+verify (no ES256, Sign1 only). */
 #ifdef WOLFCOSE_LEAN_MLDSA
     #ifndef WOLFCOSE_LEAN
@@ -193,6 +228,16 @@ extern "C" {
     #define WOLFCOSE_HAVE_MLDSA
 #endif
 
+/* HSS/LMS (RFC 8778) — extension */
+#if defined(WOLFCOSE_ENABLE_LMS)
+    #ifndef WOLFSSL_HAVE_LMS
+        #error "WOLFCOSE_ENABLE_LMS requires wolfSSL WOLFSSL_HAVE_LMS"
+    #endif
+    #define WOLFCOSE_HAVE_LMS
+#elif !defined(WOLFCOSE_LEAN) && !defined(WOLFCOSE_NO_LMS) && defined(WOLFSSL_HAVE_LMS)
+    #define WOLFCOSE_HAVE_LMS
+#endif
+
 /* RSA-PSS (PS256/384/512) — extension */
 #if defined(WOLFCOSE_ENABLE_RSAPSS)
     #ifndef WC_RSA_PSS
@@ -229,7 +274,7 @@ extern "C" {
 #endif
 #if defined(WOLFCOSE_HAVE_ECDSA) || defined(WOLFCOSE_HAVE_EDDSA) || \
     defined(WOLFCOSE_HAVE_ED448) || defined(WOLFCOSE_HAVE_RSAPSS) || \
-    defined(WOLFCOSE_HAVE_MLDSA)
+    defined(WOLFCOSE_HAVE_MLDSA) || defined(WOLFCOSE_HAVE_LMS)
     #define WOLFCOSE_HAVE_SIG
 #endif
 
@@ -525,14 +570,19 @@ extern "C" {
 /* ----- Configurable limits (precedence: -D > WOLFCOSE_MIN_BUFFERS > default) -----
  * Floors track the largest enabled signature algorithm. See docs/Macros.md. */
 #ifndef WOLFCOSE_MAX_SCRATCH_SZ
-    #if defined(WOLFCOSE_HAVE_MLDSA)
+    #if defined(WOLFCOSE_HAVE_MLDSA) || defined(WOLFCOSE_HAVE_LMS)
         #define WOLFCOSE_MAX_SCRATCH_SZ      8192u
     #else
         #define WOLFCOSE_MAX_SCRATCH_SZ      512u
     #endif
 #endif
 #ifndef WOLFCOSE_MAX_SIG_SZ
-    #if defined(WOLFCOSE_HAVE_MLDSA)
+    /* HSS/LMS signature length depends on the key's parameter set
+     * (levels/height/Winternitz); 8192 covers every W4/W8 predefined set.
+     * Exotic multi-level low-Winternitz sets need a -D override. */
+    #if defined(WOLFCOSE_HAVE_LMS)
+        #define WOLFCOSE_MAX_SIG_SZ  8192u
+    #elif defined(WOLFCOSE_HAVE_MLDSA)
         #define WOLFCOSE_MAX_SIG_SZ  4627u
     #elif defined(WOLFCOSE_HAVE_RSAPSS)
         #define WOLFCOSE_MAX_SIG_SZ  512u
@@ -580,6 +630,10 @@ extern "C" {
 
 #if defined(WOLFCOSE_HAVE_MLDSA) && (WOLFCOSE_MAX_SCRATCH_SZ < 4096u)
     #error "wolfCOSE: ML-DSA enabled but WOLFCOSE_MAX_SCRATCH_SZ too small"
+#endif
+
+#if defined(WOLFCOSE_HAVE_LMS) && (WOLFCOSE_MAX_SCRATCH_SZ < 4096u)
+    #error "wolfCOSE: HSS/LMS enabled but WOLFCOSE_MAX_SCRATCH_SZ too small"
 #endif
 
 #if defined(WOLFCOSE_EXT_SIGN) && !defined(WOLFCOSE_SIGN1_SIGN) && \

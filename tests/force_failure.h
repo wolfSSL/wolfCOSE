@@ -82,6 +82,12 @@ typedef enum {
     WOLF_FAIL_MLDSA_IMPORT_PUB,  /* wc_MlDsaKey_ImportPubRaw */
     WOLF_FAIL_MLDSA_IMPORT_PRIV, /* wc_MlDsaKey_MakeKeyFromSeed */
 
+    /* HSS/LMS failures */
+    WOLF_FAIL_LMS_SIGN,          /* wc_LmsKey_Sign */
+    WOLF_FAIL_LMS_VERIFY,        /* wc_LmsKey_Verify */
+    WOLF_FAIL_LMS_EXPORT_PUB,    /* wc_LmsKey_ExportPubRaw */
+    WOLF_FAIL_LMS_IMPORT_PUB,    /* wc_LmsKey_ImportPubRaw */
+
     /* HMAC failures */
     WOLF_FAIL_HMAC_SET_KEY,          /* wc_HmacSetKey */
     WOLF_FAIL_HMAC_UPDATE,           /* wc_HmacUpdate */

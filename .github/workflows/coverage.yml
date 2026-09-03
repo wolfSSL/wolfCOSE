@@ -31,7 +31,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-install
-        key: wolfssl-ubuntu-latest-v3-${{ steps.wolfssl-rev.outputs.sha }}
+        key: wolfssl-ubuntu-latest-v4-lms-${{ steps.wolfssl-rev.outputs.sha }}
 
     - name: Build wolfSSL
       if: steps.cache-wolfssl.outputs.cache-hit != 'true'
@@ -46,7 +46,7 @@ jobs:
                     --enable-curve25519 --enable-aesgcm --enable-aesccm \
                     --enable-sha384 --enable-sha512 --enable-keygen \
                     --enable-rsapss --enable-chacha --enable-poly1305 \
-                    --enable-mldsa \
+                    --enable-mldsa --enable-lms \
                     --enable-hkdf --enable-aeskeywrap \
                     --enable-aescbc \
                     --prefix=$HOME/wolfssl-install

@@ -51,6 +51,9 @@
 #ifdef WOLFSSL_HAVE_MLDSA
     #include <wolfssl/wolfcrypt/wc_mldsa.h>
 #endif
+#ifdef WOLFSSL_HAVE_LMS
+    #include <wolfssl/wolfcrypt/wc_lms.h>
+#endif
 #include <wolfssl/wolfcrypt/random.h>
 
 #ifdef __cplusplus
@@ -226,6 +229,8 @@ extern "C" {
 #define WOLFCOSE_ALG_ML_DSA_65   (-49)   /* ML-DSA Level 3 */
 #define WOLFCOSE_ALG_ML_DSA_87   (-50)   /* ML-DSA Level 5 */
 
+#define WOLFCOSE_ALG_HSS_LMS     (-46)   /* RFC 8778 HSS/LMS */
+
 /* RFC 9964: an ML-DSA private key is the 32-byte seed (FIPS 204). */
 #define WOLFCOSE_MLDSA_SEED_SZ   32u
 
@@ -234,6 +239,7 @@ extern "C" {
 #define WOLFCOSE_KTY_EC2         2
 #define WOLFCOSE_KTY_RSA         3
 #define WOLFCOSE_KTY_SYMMETRIC   4
+#define WOLFCOSE_KTY_HSS_LMS     5   /* RFC 8778: HSS/LMS hash-based signature */
 #define WOLFCOSE_KTY_AKP         7   /* RFC 9964: Algorithm Key Pair (ML-DSA) */
 
 /* key.* union is untagged: every member aliases one pointer, so a non-NULL
@@ -245,6 +251,7 @@ extern "C" {
 #define WOLFCOSE_ATT_RSA         4u
 #define WOLFCOSE_ATT_MLDSA       5u
 #define WOLFCOSE_ATT_SYMMETRIC   6u
+#define WOLFCOSE_ATT_LMS         7u
 
 /* Curves */
 #define WOLFCOSE_CRV_P256        1
@@ -376,6 +383,9 @@ typedef struct WOLFCOSE_KEY {
 #endif
 #ifdef WOLFSSL_HAVE_MLDSA
         wc_MlDsaKey*   mldsa;     /**< ML-DSA (FIPS 204), caller-owned */
+#endif
+#ifdef WOLFSSL_HAVE_LMS
+        LmsKey*        lms;       /**< HSS/LMS (RFC 8778), caller-owned */
 #endif
         void*          pqc;       /**< Generic PQC handle for future algos */
         struct {
@@ -811,6 +821,23 @@ WOLFCOSE_API int wc_CoseKey_SetMlDsa(WOLFCOSE_KEY* key, int32_t alg,
 WOLFCOSE_API int wc_CoseKey_SetMlDsa_ex(WOLFCOSE_KEY* key, int32_t alg,
                                        wc_MlDsaKey* mlDsaKey,
                                        const uint8_t* seed, size_t seedLen);
+#endif
+
+#ifdef WOLFCOSE_HAVE_LMS
+/**
+ * \brief Attach an HSS/LMS key to a COSE key structure (RFC 8778).
+ *
+ * The caller owns the LmsKey lifecycle and, for signing, its stateful
+ * private key: parameters, state read/write callbacks, wc_LmsKey_MakeKey()
+ * or wc_LmsKey_Reload() all happen before attaching. wolfCOSE only signs
+ * and verifies with the key as given; it never advances or persists the
+ * one-time-signature state itself.
+ *
+ * \param key     COSE key (must be initialized).
+ * \param lmsKey  Caller-owned, initialized LmsKey.
+ * \return WOLFCOSE_SUCCESS or negative error code.
+ */
+WOLFCOSE_API int wc_CoseKey_SetLms(WOLFCOSE_KEY* key, LmsKey* lmsKey);
 #endif
 
 #ifdef WOLFCOSE_HAVE_RSAPSS

@@ -19,7 +19,7 @@ It uses [wolfSSL](https://www.wolfssl.com/) as the cryptographic backend and is 
 | Post-quantum signing | ML-DSA (FIPS 204) at all three security levels — first COSE library to ship native PQC |
 | Zero dynamic allocation | Heap-allocation-free, non-recursive; caller-provided buffers within a bounded, target-customizable stack ceiling — zero `.data`/`.bss` |
 | Tiny footprint | 3.5–5.1 KB COSE engine, 5.1–6.8 KB with the built-in CBOR engine (verify-only → sign + verify); 26.2 KB → 34.6 KB total with wolfCrypt — ES256 `COSE_Sign1`, dead-code-eliminated |
-| 40 algorithms | Signing, encryption, MAC, and key distribution — classical and post-quantum |
+| 41 algorithms | Signing, encryption, MAC, and key distribution — classical and post-quantum |
 | FIPS 140-3 path | Sole crypto dependency is wolfCrypt FIPS Certificate #4718 |
 | CNSA 2.0 ready | ML-DSA-44/65/87 for quantum-resistant signatures |
 | MISRA-C:2023 | compliance striving, Single-exit pattern, no recursion, deviation-logged |

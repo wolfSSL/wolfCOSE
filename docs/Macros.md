@@ -47,7 +47,7 @@ Defining `WOLFCOSE_LEAN` keeps only the core — `COSE_Sign1`/`Encrypt0`/`Mac0` 
 | `WOLFCOSE_LEAN` | Core-only base; all extensions become opt-in |
 | `WOLFCOSE_ENABLE_<X>` | Opt in a single extension (see list below) |
 
-Extension names for `WOLFCOSE_ENABLE_<X>`: `ES384`, `ES512`, `EDDSA`, `ED448`, `RSAPSS`, `MLDSA`, `HMAC384`, `HMAC512`, `AESCCM`, `CHACHA20`, `AESMAC`, `AESWRAP`, `ECDH_ES`, `SIGN` (multi-signer), `ENCRYPT` (multi-recipient), `MAC` (multi-recipient).
+Extension names for `WOLFCOSE_ENABLE_<X>`: `ES384`, `ES512`, `EDDSA`, `ED448`, `RSAPSS`, `MLDSA`, `LMS`, `HMAC384`, `HMAC512`, `AESCCM`, `CHACHA20`, `AESMAC`, `AESWRAP`, `ECDH_ES`, `SIGN` (multi-signer), `ENCRYPT` (multi-recipient), `MAC` (multi-recipient).
 
 An extension is compiled in when it is explicitly enabled (`WOLFCOSE_ENABLE_<X>`), or — in a non-lean build — when wolfSSL provides the primitive and it is not opted out with `WOLFCOSE_NO_<X>`. Enabling an extension wolfSSL cannot provide is a compile error. The resolved state is exposed internally as read-only `WOLFCOSE_HAVE_<X>` gates (e.g. `WOLFCOSE_HAVE_MLDSA`); sources, tests, and examples compile against those, so you set `WOLFCOSE_ENABLE_*`/`WOLFCOSE_NO_*`, not `WOLFCOSE_HAVE_*`.
 
@@ -64,6 +64,7 @@ Per-algorithm opt-outs for the default (non-lean) build. Each also has a `WOLFCO
 | `WOLFCOSE_NO_ED448` | Ed448 | `HAVE_ED448` |
 | `WOLFCOSE_NO_RSAPSS` | RSA-PSS (PS256/384/512) | `WC_RSA_PSS` |
 | `WOLFCOSE_NO_MLDSA` | ML-DSA (FIPS 204) | `WOLFSSL_HAVE_MLDSA` |
+| `WOLFCOSE_NO_LMS` | HSS/LMS (RFC 8778) | `WOLFSSL_HAVE_LMS` |
 | `WOLFCOSE_NO_AESGCM` | AES-GCM | `HAVE_AESGCM` |
 | `WOLFCOSE_NO_AESCCM` | AES-CCM | `HAVE_AESCCM` |
 | `WOLFCOSE_NO_CHACHA20` | ChaCha20-Poly1305 | `HAVE_CHACHA` + `HAVE_POLY1305` |
@@ -288,8 +289,9 @@ One define that trims the caller working set to the minimum that still fits the 
 | ES256/384/512, EdDSA (Ed25519/Ed448) | 132 | 512 |
 | RSA-PSS (PS256/384/512) | 512 | 512 |
 | ML-DSA-44/65/87 | 4627 | 8192 |
+| HSS-LMS | 8192 | 8192 |
 
-Because the floor follows the algorithm, `WOLFCOSE_MIN_BUFFERS` stays valid with any algorithm — ML-DSA and RSA-PSS simply use that algorithm's floor rather than the ECC floor (ML-DSA-87's 4627-byte signature is the largest wolfCOSE supports). It stays zero-heap and shrinks buffers, not stack frames. An explicit `-D` override of any individual limit takes precedence.
+Because the floor follows the algorithm, `WOLFCOSE_MIN_BUFFERS` stays valid with any algorithm — ML-DSA, HSS-LMS, and RSA-PSS simply use that algorithm's floor rather than the ECC floor. HSS-LMS uses the largest default floor (8192) because its signature size follows the key's parameter set rather than a fixed constant; the exact length is checked at runtime via `wc_LmsKey_GetSigLen()`, and exotic multi-level low-Winternitz sets that exceed 8192 need a `-D` override. It stays zero-heap and shrinks buffers, not stack frames. An explicit `-D` override of any individual limit takes precedence.
 
 ---
 
@@ -309,7 +311,7 @@ Four levers, smallest impact last. See the [[Footprint]] page for the resulting 
 #define WOLFCOSE_CBOR_MAX_DEPTH     4     /* default 8   */
 ```
 
-**Post-quantum sizing.** ML-DSA is the largest signature wolfCOSE supports; the floors auto-scale (ML-DSA-87: `WOLFCOSE_MAX_SIG_SZ` 4627, `WOLFCOSE_MAX_SCRATCH_SZ` 8192). `WOLFCOSE_LEAN_VERIFY_MLDSA` is the smallest secure PQ build at 20.8 KB total, smaller than classical ES256 verify-only. Always build the application with `-ffunction-sections -fdata-sections -Wl,--gc-sections` so only the COSE functions you call are linked.
+**Post-quantum sizing.** The post-quantum signatures drive the largest floors; they auto-scale (ML-DSA-87: `WOLFCOSE_MAX_SIG_SZ` 4627, `WOLFCOSE_MAX_SCRATCH_SZ` 8192; HSS-LMS: both 8192, since its size follows the key's parameter set). `WOLFCOSE_LEAN_VERIFY_MLDSA` is the smallest secure PQ build at 20.8 KB total, smaller than classical ES256 verify-only. Always build the application with `-ffunction-sections -fdata-sections -Wl,--gc-sections` so only the COSE functions you call are linked.
 
 ## Tuning for Speed
 
@@ -365,6 +367,22 @@ The smallest secure on-device PQ build: ML-DSA COSE_Sign1 **verify only**. It im
 make mldsa-verify    # builds + runs examples/sign1_verify_mldsa.c with the profile
 # or directly:
 cc -DWOLFCOSE_LEAN_VERIFY_MLDSA ... src/wolfcose.c src/wolfcose_cbor.c
+```
+
+### `WOLFCOSE_LEAN_LMS` — lean stateful hash-based sign + verify
+
+A lean HSS/LMS-only (RFC 8778, SP 800-208) COSE_Sign1 **sign and verify** profile with the same implied gate set as `WOLFCOSE_LEAN_MLDSA` (`WOLFCOSE_LEAN`, `WOLFCOSE_ENABLE_LMS`, `WOLFCOSE_NO_ES256`, no Encrypt0/Mac0/key codec). LMS signing is stateful: the caller installs the wolfCrypt private-key read/write callbacks and owns state persistence; wolfCOSE never advances the one-time-signature state itself. Pair with a wolfCrypt backend built with LMS (`--enable-lms`).
+
+```bash
+make lms-demo        # builds + runs examples/sign1_lms.c with the profile
+```
+
+### `WOLFCOSE_LEAN_VERIFY_LMS` — minimal hash-based verify-only
+
+HSS/LMS COSE_Sign1 **verify only**: implies `WOLFCOSE_LEAN_LMS` plus `WOLFCOSE_NO_SIGN1_SIGN`. Verification is hash operations only (no big-integer or lattice math), so this pairs naturally with a wolfCrypt LMS verify-only build (`WOLFSSL_LMS_VERIFY_ONLY`), the CNSA 2.0 firmware-verification shape. The signature length follows the key's levels/height/Winternitz parameter set, so the `WOLFCOSE_MAX_SIG_SZ`/`WOLFCOSE_MAX_SCRATCH_SZ` defaults rise to 8192; exotic multi-level low-Winternitz sets need a `-D` override.
+
+```bash
+make lms-verify      # builds + runs examples/sign1_verify_lms.c with the profile
 ```
 
 ## Example Build Configurations
