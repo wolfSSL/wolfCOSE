@@ -60,6 +60,10 @@ jobs:
       run: |
         make c99-check CC=${{ matrix.cc }} WOLFSSL_INC=$HOME/wolfssl-install/include
 
+    - name: Countersignature configuration gate
+      run: |
+        make countersign-config-test CC=${{ matrix.cc }} WOLFSSL_INC=$HOME/wolfssl-install/include
+
     - name: Experimental-feature acknowledgement gate
       run: |
         make experimental-check CC=${{ matrix.cc }} WOLFSSL_INC=$HOME/wolfssl-install/include

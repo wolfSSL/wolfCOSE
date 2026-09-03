@@ -144,10 +144,14 @@ WOLFCOSE_LOCAL extern const uint8_t WOLFCOSE_CTX_MAC[3];
 WOLFCOSE_LOCAL extern const uint8_t WOLFCOSE_CTX_ENCRYPT0[8];
 WOLFCOSE_LOCAL extern const uint8_t WOLFCOSE_CTX_ENCRYPT[7];
 
+#define WOLFCOSE_MAX_HEADER_LABELS WOLFCOSE_MAX_MAP_ITEMS
+
 typedef struct WOLFCOSE_HDR_STATE {
-    uint32_t labelBits;
-    int64_t  extraLabels[WOLFCOSE_MAX_MAP_ITEMS];
-    size_t   extraCount;
+    uint32_t       labelBits;
+    int64_t        extraIntegerLabels[WOLFCOSE_MAX_HEADER_LABELS];
+    const uint8_t* extraTextLabels[WOLFCOSE_MAX_HEADER_LABELS];
+    size_t         extraIntegerCount;
+    size_t         extraTextCount;
 } WOLFCOSE_HDR_STATE;
 
 /* ----- COSE internal helpers ----- */
@@ -310,13 +314,14 @@ WOLFCOSE_LOCAL int wolfCose_HmacType(int32_t alg, int* hmacType);
  * \param eccKey   Caller-owned ECC key with private key.
  * \return WOLFCOSE_SUCCESS or negative error code.
  */
-#if defined(WOLFCOSE_SIGN1_SIGN) || defined(WOLFCOSE_SIGN_SIGN)
+#if defined(WOLFCOSE_SIGN1_SIGN) || defined(WOLFCOSE_SIGN_SIGN) || \
+    defined(WOLFCOSE_COUNTERSIGN_SIGN)
 WOLFCOSE_LOCAL int wolfCose_EccSignRaw(const uint8_t* hash, size_t hashLen,
                                         uint8_t* sigBuf, size_t* sigLen,
                                         size_t coordSz,
                                         enum wc_HashType hashType,
                                         WC_RNG* rng, ecc_key* eccKey);
-#endif /* WOLFCOSE_SIGN1_SIGN || WOLFCOSE_SIGN_SIGN */
+#endif /* WOLFCOSE_SIGN1_SIGN || WOLFCOSE_SIGN_SIGN || COUNTERSIGN_SIGN */
 
 
 /**

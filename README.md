@@ -1,11 +1,21 @@
 # wolfCOSE
 
-wolfCOSE is a lightweight C library implementing [CBOR (RFC 8949)](https://www.rfc-editor.org/rfc/rfc8949), [COSE (RFC 9052/9053)](https://www.rfc-editor.org/rfc/rfc9052), and post-quantum [ML-DSA for COSE (RFC 9964)](https://www.rfc-editor.org/rfc/rfc9964) using [wolfSSL](https://www.wolfssl.com/) as the crypto backend.
+wolfCOSE is a lightweight C library implementing
+[CBOR (RFC 8949)](https://www.rfc-editor.org/rfc/rfc8949),
+[COSE (RFC 9052/9053)](https://www.rfc-editor.org/rfc/rfc9052),
+[COSE countersignatures (RFC 9338)](https://www.rfc-editor.org/rfc/rfc9338),
+and post-quantum
+[ML-DSA for COSE (RFC 9964)](https://www.rfc-editor.org/rfc/rfc9964) using
+[wolfSSL](https://www.wolfssl.com/) as the crypto backend.
 
 ## Main Features
 
 - **Complete RFC 9052 message set**: all six COSE message types, including multi-signer 
   `COSE_Sign` and multi-recipient `COSE_Encrypt` / `COSE_Mac`
+- **[RFC 9338 countersignature support](https://www.rfc-editor.org/rfc/rfc9338)**:
+  standards-conformant full and abbreviated V2 countersignatures for all six
+  tagged COSE message types, with multiple countersigners and in-place
+  operation
 - **Post-quantum signing**: ML-DSA (FIPS 204) at all three security levels, with RFC 9964 `COSE_Key` (AKP key type, seed-based private keys)
 - **40 algorithms** across signing, encryption, MAC, and key distribution
 - **Zero dynamic allocation**: heap-allocation-free and non-recursive. Every operation runs on caller-provided buffers 
@@ -42,6 +52,11 @@ wolfCOSE has implemented all RFC 9052 messages both single-actor and multi-actor
 | `COSE_Mac0` | Sec. 6.2 | `wc_CoseMac0_Create` / `wc_CoseMac0_Verify` | Single-recipient MAC |
 | `COSE_Mac` | Sec. 6.1 | `wc_CoseMac_Create` / `wc_CoseMac_Verify` | **Multi-recipient** MAC (shared MAC key, distributed to recipients) |
 | `COSE_Key` / `COSE_KeySet` | Sec. 7 | `wc_CoseKey_Encode` / `wc_CoseKey_Decode` | Key serialization for all key types |
+
+RFC 9338 countersignatures can be attached to any tagged message in this
+table. Use `wc_Cose_AddCounterSignature()` or
+`wc_Cose_AddCounterSignature0()` to add one, then verify it independently with
+the corresponding `wc_Cose_VerifyCounterSignature*()` API.
 
 ## Prerequisites (wolfSSL)
 
@@ -224,7 +239,7 @@ make coverage-force-failure    # Include crypto failure path testing
 Full documentation is available in the [Wiki](https://github.com/wolfSSL/wolfCOSE/wiki):
 
 - [Getting Started](https://github.com/wolfSSL/wolfCOSE/wiki/Getting-Started): Build instructions and first steps
-- [Message Types](https://github.com/wolfSSL/wolfCOSE/wiki/Message-Types): All six RFC 9052 messages (Sign1, Sign, Encrypt0, Encrypt, Mac0, Mac) with code samples
+- [Message Types](https://github.com/wolfSSL/wolfCOSE/wiki/Message-Types): All six RFC 9052 messages and RFC 9338 countersignatures with code samples
 - [Algorithms](https://github.com/wolfSSL/wolfCOSE/wiki/Algorithms): Complete list of 40 supported algorithms with COSE IDs
 - [API Reference](https://github.com/wolfSSL/wolfCOSE/wiki/API-Reference): Function signatures, data structures, error codes
 - [Macros](https://github.com/wolfSSL/wolfCOSE/wiki/Macros): Compile-time configuration, size tuning, and ECDSA nonce policy

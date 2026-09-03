@@ -26,6 +26,8 @@
  *   keygen  -a <alg> -o <keyfile>
  *   sign    -k <keyfile> -a <alg> -i <payload> -o <cose_file>
  *   verify  -k <keyfile> -i <cose_file>
+ *   countersign -k <keyfile> -a <alg> -i <cose_file> -o <cose_file>
+ *   counterverify -k <keyfile> -i <cose_file>
  *   enc     -k <keyfile> -a <alg> -i <plaintext> -o <cose_file>
  *   dec     -k <keyfile> -i <cose_file> -o <plaintext>
  *   info    -i <cose_file>
@@ -103,12 +105,16 @@ static void usage(void)
         "  keygen  -a <alg> -o <keyfile>\n"
         "  sign    -k <keyfile> -a <alg> -i <payload> -o <cose_file>\n"
         "  verify  -k <keyfile> -i <cose_file>\n"
+        "  countersign -k <keyfile> -a <alg> -i <cose_file>"
+        " -o <cose_file>\n"
+        "  counterverify -k <keyfile> -i <cose_file> [--index <n>]\n"
         "  enc     -k <keyfile> -a <alg> -i <plaintext> -o <cose_file>\n"
         "  dec     -k <keyfile> -i <cose_file> -o <plaintext>\n"
         "  mac     -k <keyfile> -a <alg> -i <payload> -o <cose_file>\n"
         "  macverify -k <keyfile> -i <cose_file>\n"
         "  info    -i <cose_file>\n"
         "  test    [--all | -a <alg>]   Round-trip self-test\n"
+        "\nCountersign options: -p <detached_payload> --aad <aad_file>\n"
         "\n"
         "Algorithms: ES256, EdDSA, Ed448, PS256, PS384, PS512,\n"
         "            ML-DSA-44, ML-DSA-65, ML-DSA-87,\n"
@@ -781,6 +787,264 @@ static int tool_verify(const char* keyPath, const char* inPath)
 
     return ret;
 }
+
+#if defined(WOLFCOSE_COUNTERSIGN)
+static int tool_counter_apply(WOLFCOSE_KEY* key, int32_t alg,
+    int verify, size_t counterIndex,
+    const uint8_t* msg, size_t msgLen,
+    const uint8_t* detached, size_t detachedLen,
+    const uint8_t* aad, size_t aadLen,
+    uint8_t* scratch, size_t scratchSz,
+    uint8_t* out, size_t outSz, size_t* outLen)
+{
+    int ret;
+
+    if (verify != 0) {
+#if defined(WOLFCOSE_COUNTERSIGN_VERIFY)
+        WOLFCOSE_HDR hdr;
+
+        ret = wc_Cose_VerifyCounterSignature(key, counterIndex,
+            msg, msgLen, detached, detachedLen, aad, aadLen,
+            scratch, scratchSz, &hdr);
+        if (ret == 0) {
+            printf("Countersignature %zu verification OK", counterIndex);
+            if (hdr.kidLen != 0u) {
+                printf(". KID: %.*s", (int)hdr.kidLen,
+                       (const char*)hdr.kid);
+            }
+            printf("\n");
+        }
+#else
+        (void)key;
+        (void)counterIndex;
+        (void)msg;
+        (void)msgLen;
+        (void)detached;
+        (void)detachedLen;
+        (void)aad;
+        (void)aadLen;
+        (void)scratch;
+        (void)scratchSz;
+        ret = WOLFCOSE_E_UNSUPPORTED;
+#endif
+    }
+    else {
+#if defined(WOLFCOSE_COUNTERSIGN_SIGN)
+        WOLFCOSE_COUNTERSIGNATURE counterSigner;
+        WC_RNG rng;
+
+        ret = wc_InitRng(&rng);
+        if (ret == 0) {
+            counterSigner.algId = alg;
+            counterSigner.key = key;
+            counterSigner.kid = key->kid;
+            counterSigner.kidLen = key->kidLen;
+            ret = wc_Cose_AddCounterSignature(&counterSigner,
+                msg, msgLen, detached, detachedLen, aad, aadLen,
+                scratch, scratchSz, out, outSz, outLen, &rng);
+            wc_FreeRng(&rng);
+        }
+#else
+        (void)key;
+        (void)alg;
+        (void)msg;
+        (void)msgLen;
+        (void)detached;
+        (void)detachedLen;
+        (void)aad;
+        (void)aadLen;
+        (void)scratch;
+        (void)scratchSz;
+        (void)out;
+        (void)outSz;
+        (void)outLen;
+        ret = WOLFCOSE_E_UNSUPPORTED;
+#endif
+    }
+    return ret;
+}
+
+static int tool_counter(const char* keyPath, int32_t alg,
+    int verify, size_t counterIndex,
+    const char* inPath, const char* outPath,
+    const char* detachedPath, const char* aadPath)
+{
+    int ret;
+    int keyMatched = 0;
+    int32_t kty = 0;
+    int32_t crv = 0;
+    int32_t keyAlg = 0;
+    uint8_t keyBuf[WOLFCOSE_TOOL_MAX_KEY];
+    uint8_t msgBuf[WOLFCOSE_TOOL_MAX_MSG];
+    uint8_t detachedBuf[WOLFCOSE_TOOL_MAX_MSG];
+    uint8_t aadBuf[WOLFCOSE_TOOL_MAX_MSG];
+    uint8_t outBuf[WOLFCOSE_TOOL_MAX_MSG + WOLFCOSE_TOOL_MAX_KEY +
+                   WOLFCOSE_MAX_SIG_SZ + 128u];
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    size_t keyLen = 0u;
+    size_t msgLen = 0u;
+    size_t detachedLen = 0u;
+    size_t aadLen = 0u;
+    size_t outLen = 0u;
+    const uint8_t* detached = NULL;
+    const uint8_t* aad = NULL;
+    WOLFCOSE_KEY coseKey;
+
+    ret = read_file(keyPath, keyBuf, sizeof(keyBuf), &keyLen);
+    if (ret == 0) {
+        ret = read_file(inPath, msgBuf, sizeof(msgBuf), &msgLen);
+    }
+    if ((ret == 0) && (detachedPath != NULL)) {
+        ret = read_file(detachedPath, detachedBuf,
+                        sizeof(detachedBuf), &detachedLen);
+        if (ret == 0) {
+            detached = detachedBuf;
+        }
+    }
+    if ((ret == 0) && (aadPath != NULL)) {
+        ret = read_file(aadPath, aadBuf, sizeof(aadBuf), &aadLen);
+        if (ret == 0) {
+            aad = aadBuf;
+        }
+    }
+    if (ret != 0) {
+        return ret;
+    }
+
+    wc_CoseKey_Init(&coseKey);
+    (void)wc_CoseKey_Decode(&coseKey, keyBuf, keyLen);
+    kty = coseKey.kty;
+    crv = coseKey.crv;
+    keyAlg = coseKey.alg;
+
+#ifdef WOLFCOSE_HAVE_ECDSA
+    if (kty == WOLFCOSE_KTY_EC2) {
+        ecc_key ecc;
+
+        keyMatched = 1;
+        wc_CoseKey_Init(&coseKey);
+        wc_ecc_init(&ecc);
+        ret = wc_CoseKey_SetEcc(&coseKey, crv, &ecc);
+        if (ret == 0) {
+            ret = wc_CoseKey_Decode(&coseKey, keyBuf, keyLen);
+        }
+        if (ret == 0) {
+            ret = tool_counter_apply(&coseKey, alg, verify, counterIndex,
+                msgBuf, msgLen, detached, detachedLen, aad, aadLen,
+                scratch, sizeof(scratch), outBuf, sizeof(outBuf), &outLen);
+        }
+        wc_ecc_free(&ecc);
+    }
+    else
+#endif
+#ifdef WOLFCOSE_HAVE_RSAPSS
+    if (kty == WOLFCOSE_KTY_RSA) {
+        RsaKey rsa;
+
+        keyMatched = 1;
+        wc_CoseKey_Init(&coseKey);
+        wc_InitRsaKey(&rsa, NULL);
+        ret = wc_CoseKey_SetRsa(&coseKey, &rsa);
+        if (ret == 0) {
+            ret = wc_CoseKey_Decode(&coseKey, keyBuf, keyLen);
+        }
+        if (ret == 0) {
+            ret = tool_counter_apply(&coseKey, alg, verify, counterIndex,
+                msgBuf, msgLen, detached, detachedLen, aad, aadLen,
+                scratch, sizeof(scratch), outBuf, sizeof(outBuf), &outLen);
+        }
+        wc_FreeRsaKey(&rsa);
+    }
+    else
+#endif
+#ifdef WOLFCOSE_HAVE_EDDSA
+    if ((kty == WOLFCOSE_KTY_OKP) &&
+        (crv == WOLFCOSE_CRV_ED25519)) {
+        ed25519_key ed;
+
+        keyMatched = 1;
+        wc_CoseKey_Init(&coseKey);
+        wc_ed25519_init(&ed);
+        ret = wc_CoseKey_SetEd25519(&coseKey, &ed);
+        if (ret == 0) {
+            ret = wc_CoseKey_Decode(&coseKey, keyBuf, keyLen);
+        }
+        if (ret == 0) {
+            ret = tool_counter_apply(&coseKey, alg, verify, counterIndex,
+                msgBuf, msgLen, detached, detachedLen, aad, aadLen,
+                scratch, sizeof(scratch), outBuf, sizeof(outBuf), &outLen);
+        }
+        wc_ed25519_free(&ed);
+    }
+    else
+#endif
+#ifdef WOLFCOSE_HAVE_ED448
+    if ((kty == WOLFCOSE_KTY_OKP) && (crv == WOLFCOSE_CRV_ED448)) {
+        ed448_key ed;
+
+        keyMatched = 1;
+        wc_CoseKey_Init(&coseKey);
+        wc_ed448_init(&ed);
+        ret = wc_CoseKey_SetEd448(&coseKey, &ed);
+        if (ret == 0) {
+            ret = wc_CoseKey_Decode(&coseKey, keyBuf, keyLen);
+        }
+        if (ret == 0) {
+            ret = tool_counter_apply(&coseKey, alg, verify, counterIndex,
+                msgBuf, msgLen, detached, detachedLen, aad, aadLen,
+                scratch, sizeof(scratch), outBuf, sizeof(outBuf), &outLen);
+        }
+        wc_ed448_free(&ed);
+    }
+    else
+#endif
+#ifdef WOLFCOSE_HAVE_MLDSA
+    if (kty == WOLFCOSE_KTY_AKP) {
+        wc_MlDsaKey dl;
+
+        keyMatched = 1;
+        wc_CoseKey_Init(&coseKey);
+        ret = wc_MlDsaKey_Init(&dl, NULL, INVALID_DEVID);
+        if (ret == 0) {
+            ret = wc_CoseKey_SetMlDsa(&coseKey, keyAlg, &dl);
+        }
+        if (ret == 0) {
+            ret = wc_CoseKey_Decode(&coseKey, keyBuf, keyLen);
+        }
+        if (ret == 0) {
+            ret = tool_counter_apply(&coseKey, alg, verify, counterIndex,
+                msgBuf, msgLen, detached, detachedLen, aad, aadLen,
+                scratch, sizeof(scratch), outBuf, sizeof(outBuf), &outLen);
+        }
+        wc_MlDsaKey_Free(&dl);
+    }
+    else
+#endif
+    {
+        (void)crv;
+        (void)keyAlg;
+    }
+
+    if (keyMatched == 0) {
+        fprintf(stderr, "Unsupported countersigning key type\n");
+        return EXIT_USAGE;
+    }
+    if (ret != 0) {
+        fprintf(stderr, "%s failed: %d\n",
+                (verify != 0) ? "Counter verification" : "Countersign",
+                ret);
+        return EXIT_CRYPTO;
+    }
+    if (verify == 0) {
+        ret = write_file(outPath, outBuf, outLen);
+        if (ret == 0) {
+            printf("Countersigned: %zu byte COSE object -> %zu bytes\n",
+                   msgLen, outLen);
+        }
+    }
+    return ret;
+}
+#endif /* WOLFCOSE_COUNTERSIGN */
 
 /* ----- enc: COSE_Encrypt0 encrypt ----- */
 #if defined(WOLFCOSE_HAVE_AESGCM) || defined(WOLFCOSE_HAVE_AESCCM) || \
@@ -1631,6 +1895,9 @@ int main(int argc, char* argv[])
     const char* keyPath = NULL;
     const char* inPath = NULL;
     const char* outPath = NULL;
+    const char* detachedPath = NULL;
+    const char* aadPath = NULL;
+    size_t counterIndex = 0u;
     int32_t alg = 0;
     int i;
 
@@ -1658,6 +1925,20 @@ int main(int argc, char* argv[])
             }
             else if (strcmp(argv[i], "-o") == 0) {
                 outPath = argv[++i];
+            }
+            else if (strcmp(argv[i], "-p") == 0) {
+                detachedPath = argv[++i];
+            }
+            else if (strcmp(argv[i], "--aad") == 0) {
+                aadPath = argv[++i];
+            }
+            else if (strcmp(argv[i], "--index") == 0) {
+                char extra;
+
+                if (sscanf(argv[++i], "%zu%c", &counterIndex, &extra) != 1) {
+                    fprintf(stderr, "Invalid countersignature index\n");
+                    return EXIT_USAGE;
+                }
             }
             else {
                 fprintf(stderr, "Unknown option: %s\n", argv[i]);
@@ -1705,6 +1986,27 @@ int main(int argc, char* argv[])
         }
         return tool_verify(keyPath, inPath);
     }
+#if defined(WOLFCOSE_COUNTERSIGN)
+    else if (strcmp(cmd, "countersign") == 0) {
+        if (keyPath == NULL || algStr == NULL || inPath == NULL ||
+            outPath == NULL) {
+            fprintf(stderr, "countersign requires -k <key> -a <alg>"
+                    " -i <input> -o <output>\n");
+            return EXIT_USAGE;
+        }
+        return tool_counter(keyPath, alg, 0, 0u, inPath, outPath,
+                            detachedPath, aadPath);
+    }
+    else if (strcmp(cmd, "counterverify") == 0) {
+        if (keyPath == NULL || inPath == NULL) {
+            fprintf(stderr,
+                    "counterverify requires -k <key> -i <input>\n");
+            return EXIT_USAGE;
+        }
+        return tool_counter(keyPath, alg, 1, counterIndex, inPath, NULL,
+                            detachedPath, aadPath);
+    }
+#endif
 #if defined(WOLFCOSE_HAVE_HMAC)
     else if (strcmp(cmd, "mac") == 0) {
         if (keyPath == NULL || algStr == NULL || inPath == NULL ||

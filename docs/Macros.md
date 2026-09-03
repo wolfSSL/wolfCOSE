@@ -47,7 +47,11 @@ Defining `WOLFCOSE_LEAN` keeps only the core — `COSE_Sign1`/`Encrypt0`/`Mac0` 
 | `WOLFCOSE_LEAN` | Core-only base; all extensions become opt-in |
 | `WOLFCOSE_ENABLE_<X>` | Opt in a single extension (see list below) |
 
-Extension names for `WOLFCOSE_ENABLE_<X>`: `ES384`, `ES512`, `EDDSA`, `ED448`, `RSAPSS`, `MLDSA`, `HMAC384`, `HMAC512`, `AESCCM`, `CHACHA20`, `AESMAC`, `AESWRAP`, `ECDH_ES`, `SIGN` (multi-signer), `ENCRYPT` (multi-recipient), `MAC` (multi-recipient).
+Extension names for `WOLFCOSE_ENABLE_<X>`: `ES384`, `ES512`, `EDDSA`,
+`ED448`, `RSAPSS`, `MLDSA`, `HMAC384`, `HMAC512`, `AESCCM`, `CHACHA20`,
+`AESMAC`, `AESWRAP`, `ECDH_ES`, `SIGN` (multi-signer), `ENCRYPT`
+(multi-recipient), `MAC` (multi-recipient), and `COUNTERSIGN` (RFC 9338
+countersignatures).
 
 An extension is compiled in when it is explicitly enabled (`WOLFCOSE_ENABLE_<X>`), or — in a non-lean build — when wolfSSL provides the primitive and it is not opted out with `WOLFCOSE_NO_<X>`. Enabling an extension wolfSSL cannot provide is a compile error. The resolved state is exposed internally as read-only `WOLFCOSE_HAVE_<X>` gates (e.g. `WOLFCOSE_HAVE_MLDSA`); sources, tests, and examples compile against those, so you set `WOLFCOSE_ENABLE_*`/`WOLFCOSE_NO_*`, not `WOLFCOSE_HAVE_*`.
 
@@ -130,6 +134,24 @@ is platform and wolfSSL-configuration dependent, which is why the feature is
 off by default.
 
 ## Message Type Gates
+
+### COSE Countersignatures
+
+| Define | Description | Default |
+|--------|-------------|---------|
+| `WOLFCOSE_COUNTERSIGN` | Enable RFC 9338 countersignatures | Enabled |
+| `WOLFCOSE_ENABLE_COUNTERSIGN` | Opt in under `WOLFCOSE_LEAN` | - |
+| `WOLFCOSE_NO_COUNTERSIGN` | Disable countersignatures entirely | - |
+| `WOLFCOSE_COUNTERSIGN_SIGN` | Enable countersignature creation | Enabled |
+| `WOLFCOSE_NO_COUNTERSIGN_SIGN` | Disable countersignature creation | - |
+| `WOLFCOSE_COUNTERSIGN_VERIFY` | Enable countersignature verification | Enabled |
+| `WOLFCOSE_NO_COUNTERSIGN_VERIFY` | Disable countersignature verification | - |
+
+The default full build includes countersignatures. `WOLFCOSE_LEAN` excludes
+them unless `WOLFCOSE_ENABLE_COUNTERSIGN` is defined. Creation and verification
+both require CBOR encoding and decoding because each operation decodes the
+target message and encodes its `Countersign_structure`. Creation also requires
+a signing algorithm, and verification requires a verification algorithm.
 
 ### COSE_Sign1 (Single Signer)
 

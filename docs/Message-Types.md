@@ -70,6 +70,80 @@ ret = wc_CoseSign_Verify(&vendorPubKey, /*signerIndex=*/0,
                          &hdr, &payload, &payloadLen);
 ```
 
+## RFC 9338 countersignatures
+
+A countersignature lets a second party sign an existing COSE cryptographic
+object. The original signer and countersigner remain independently
+verifiable. For example, a vendor can sign firmware and a release authority
+can countersign the resulting `COSE_Sign1` after policy checks, without
+replacing the vendor signature or copying the firmware into a new envelope.
+
+wolfCOSE can add countersignatures to tagged `COSE_Sign1`, `COSE_Sign`,
+`COSE_Encrypt0`, `COSE_Encrypt`, `COSE_Mac0`, and `COSE_Mac` messages.
+
+```c
+WOLFCOSE_COUNTERSIGNATURE approval = {
+    .algId = WOLFCOSE_ALG_ES256,
+    .key   = &releaseKey,
+    .kid   = (const uint8_t*)"release-2026",
+    .kidLen = 12
+};
+
+ret = wc_Cose_AddCounterSignature(&approval,
+                                   signedMsg, signedMsgLen,
+                                   NULL, 0,       /* detached payload */
+                                   aad, aadLen,
+                                   scratch, sizeof(scratch),
+                                   approved, sizeof(approved), &approvedLen,
+                                   &rng);
+
+ret = wc_Cose_VerifyCounterSignature(&releasePubKey, 0,
+                                      approved, approvedLen,
+                                      NULL, 0, aad, aadLen,
+                                      scratch, sizeof(scratch),
+                                      &counterHdr);
+```
+
+Verify the original COSE operation separately. For a `COSE_Sign1`, call
+`wc_CoseSign1_Verify()` as well as
+`wc_Cose_VerifyCounterSignature()`. Appending another full countersignature
+preserves existing values; select one with the zero-based `counterIndex`.
+
+`wc_Cose_AddCounterSignature0()` emits the abbreviated form when the algorithm
+and key selection are known through trusted application context. Exact
+in-place growth is supported by passing the same buffer for `in` and `out`,
+provided the buffer has enough capacity. Detached payloads or ciphertext and
+external AAD must be supplied again when adding or verifying the
+countersignature.
+
+Creation emits the RFC 9338 V2 labels 11 and 12. Verification also accepts the
+legacy RFC 8152 labels 7 and 9 for deployed interoperability.
+
+The command-line tool can countersign an existing message and verify a
+selected full countersignature:
+
+```bash
+wolfcose_tool countersign -k release-key.cbor -a ES256 \
+    -i signed.cose -o approved.cose
+wolfcose_tool counterverify -k release-public.cbor \
+    -i approved.cose --index 0
+```
+
+### Relationship to SCITT
+
+Countersignatures are useful for supply-chain endorsement, notary, approval,
+and separation-of-duty workflows. They can add an independently verifiable
+approval layer to a signed statement.
+
+They do not by themselves implement a SCITT transparency service. The SCITT
+architecture is standardized in [RFC 9943](https://www.rfc-editor.org/rfc/rfc9943),
+and its receipts use the formats in
+[RFC 9942](https://www.rfc-editor.org/rfc/rfc9942). A complete SCITT product
+also needs statement registration and policy, receipt generation and
+validation, and transparency-service operation. wolfCOSE countersignatures
+provide a complementary COSE building block for deployments that need an
+extra independent endorsement.
+
 ## COSE_Encrypt0 — single-recipient AEAD (RFC 9052 Sec. 5.2)
 
 Direct symmetric AEAD. The caller already has the content encryption key (CEK).

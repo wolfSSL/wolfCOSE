@@ -103,7 +103,7 @@ SCEN_IOTFLEET    = examples/scenarios/iot_fleet_config
 SCEN_SENSOR      = examples/scenarios/sensor_attestation
 SCEN_BROADCAST   = examples/scenarios/group_broadcast_mac
 
-.PHONY: all shared test pkg-config-test ecdsa-policy-test rsapss-policy-test zero-alloc-check zeroize-test ecc-import-policy-test ext-sign-test ext-sign-demo ext-sign-force-failure coverage tool tool-test cmdline-test demo demos lean-verify mldsa-demo mldsa-verify comprehensive scenarios interop-tcose c99-check experimental-check clean FORCE
+.PHONY: all shared test pkg-config-test ecdsa-policy-test rsapss-policy-test countersign-config-test zero-alloc-check zeroize-test ecc-import-policy-test ext-sign-test ext-sign-demo ext-sign-force-failure coverage tool tool-test cmdline-test demo demos lean-verify mldsa-demo mldsa-verify comprehensive scenarios interop-tcose c99-check experimental-check clean FORCE
 
 # --- Core library ---
 all: $(LIB_A)
@@ -292,6 +292,38 @@ rsapss-policy-test:
 	        "$$log_file"; \
 	done
 	@echo "PASS: RSA-PSS operation guards compile cleanly"
+
+# Countersignatures decode their target and encode a Countersign_structure in
+# both directions. Verify the independent operation guards and CBOR dependency.
+COUNTERSIGN_CONFIG_FLAGS = $(C99_FLAGS) -Werror=unused-function \
+    -Werror=implicit-function-declaration -DWOLFCOSE_LEAN \
+    -DWOLFCOSE_ENABLE_COUNTERSIGN -DWOLFCOSE_NO_SIGN1 \
+    -DWOLFCOSE_NO_ENCRYPT0 -DWOLFCOSE_NO_MAC0 \
+    -DWOLFCOSE_NO_KEY_ENCODE -DWOLFCOSE_NO_KEY_DECODE
+
+countersign-config-test:
+	@set -e; \
+	log_file=$$(mktemp "$${TMPDIR:-/tmp}/wolfcose-countersign.XXXXXX"); \
+	trap 'rm -f "$$log_file"' 0 1 2 3 15; \
+	$(CC) $(COUNTERSIGN_CONFIG_FLAGS) -DWOLFCOSE_NO_COUNTERSIGN_SIGN \
+	    -fsyntax-only src/wolfcose.c; \
+	$(CC) $(COUNTERSIGN_CONFIG_FLAGS) -DWOLFCOSE_NO_COUNTERSIGN_VERIFY \
+	    -fsyntax-only src/wolfcose.c; \
+	if $(CC) $(COUNTERSIGN_CONFIG_FLAGS) -DWOLFCOSE_NO_COUNTERSIGN_SIGN \
+	    -DWOLFCOSE_NO_CBOR_ENCODE -fsyntax-only src/wolfcose.c \
+	    >"$$log_file" 2>&1; then \
+	    echo "FAIL: countersign verify compiled without CBOR encode"; \
+	    exit 1; \
+	fi; \
+	grep -q "WOLFCOSE_NO_CBOR_ENCODE conflicts" "$$log_file"; \
+	if $(CC) $(COUNTERSIGN_CONFIG_FLAGS) -DWOLFCOSE_NO_COUNTERSIGN_VERIFY \
+	    -DWOLFCOSE_NO_CBOR_DECODE -fsyntax-only src/wolfcose.c \
+	    >"$$log_file" 2>&1; then \
+	    echo "FAIL: countersign creation compiled without CBOR decode"; \
+	    exit 1; \
+	fi; \
+	grep -q "WOLFCOSE_NO_CBOR_DECODE conflicts" "$$log_file"
+	@echo "PASS: countersignature operation guards compile cleanly"
 
 zero-alloc-check:
 	sh scripts/check_zero_alloc.sh

@@ -68,6 +68,42 @@ for A in $SIGN_ALGS; do
     fi
 done
 
+echo "== Countersignatures: sign -> countersign -> verify both layers =="
+PK="$WORK/primary.key"; CK="$WORK/counter.key"
+BASE="$WORK/primary.cose"; COUNTER="$WORK/counter.cose"
+COUNTER2="$WORK/counter2.cose"; AAD="$WORK/counter.aad"
+printf 'release approval policy' > "$AAD"
+if "$TOOL" keygen -a ES256 -o "$PK" >/dev/null 2>&1 && \
+   "$TOOL" keygen -a ES256 -o "$CK" >/dev/null 2>&1 && \
+   "$TOOL" sign -k "$PK" -a ES256 -i "$IN" -o "$BASE" \
+       >/dev/null 2>&1; then
+    if "$TOOL" countersign -k "$CK" -a ES256 -i "$BASE" \
+        -o "$COUNTER" --aad "$AAD" >/dev/null 2>&1 && \
+       "$TOOL" counterverify -k "$CK" -i "$COUNTER" --aad "$AAD" \
+        >/dev/null 2>&1 && \
+       "$TOOL" verify -k "$PK" -i "$COUNTER" >/dev/null 2>&1; then
+        ok "ES256 countersign and verify both layers"
+    else
+        bad "ES256 countersign round-trip"
+    fi
+    if "$TOOL" countersign -k "$CK" -a ES256 -i "$COUNTER" \
+        -o "$COUNTER2" --aad "$AAD" >/dev/null 2>&1 && \
+       "$TOOL" counterverify -k "$CK" -i "$COUNTER2" --index 1 \
+        --aad "$AAD" >/dev/null 2>&1; then
+        ok "ES256 second countersignature index"
+    else
+        bad "ES256 second countersignature index"
+    fi
+    if "$TOOL" counterverify -k "$CK" -i "$COUNTER" \
+        >/dev/null 2>&1; then
+        bad "countersignature wrong AAD rejected"
+    else
+        ok "countersignature wrong AAD rejected"
+    fi
+else
+    skip "countersignature (ES256)"
+fi
+
 # Public-only RSA builds can't sign a decoded key, so skip; the self-test
 # still covers RSA signing.
 echo "== RSA-PSS: keygen -> sign -> verify -> self-test =="

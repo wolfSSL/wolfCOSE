@@ -1149,6 +1149,18 @@ static void test_cbor_decode_label(void)
     WOLFCOSE_CBOR_LABEL label;
     uint8_t buf[64];
     static const uint8_t algText[] = "alg";
+    static const uint8_t validUtf8[] = {
+        0x6Du, 0xC2u, 0x80u, 0xE0u, 0xA0u, 0x80u,
+        0xF0u, 0x90u, 0x80u, 0x80u, 0xF4u, 0x8Fu, 0xBFu, 0xBFu
+    };
+    static const uint8_t truncatedUtf8[] = {0x61u, 0xC2u};
+    static const uint8_t overlongUtf8[] = {0x62u, 0xC0u, 0xAFu};
+    static const uint8_t surrogateUtf8[] = {
+        0x63u, 0xEDu, 0xA0u, 0x80u
+    };
+    static const uint8_t outOfRangeUtf8[] = {
+        0x64u, 0xF4u, 0x90u, 0x80u, 0x80u
+    };
     int ret;
 
     printf("  [Int-or-text labels]\n");
@@ -1200,6 +1212,33 @@ static void test_cbor_decode_label(void)
         TEST_ASSERT(wc_CBOR_LabelIsInt(&label, -1) == 1,
                     "label negint matches");
     }
+
+    (void)wc_CBOR_DecoderInit(&ctx, validUtf8, sizeof(validUtf8));
+    ret = wc_CBOR_DecodeLabel(&ctx, &label);
+    TEST_ASSERT(ret == WOLFCOSE_SUCCESS && label.isText == 1u &&
+                label.textLen == (sizeof(validUtf8) - 1u),
+                "label accepts valid UTF-8 boundaries");
+
+    (void)wc_CBOR_DecoderInit(&ctx, truncatedUtf8, sizeof(truncatedUtf8));
+    ret = wc_CBOR_DecodeLabel(&ctx, &label);
+    TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED,
+                "label rejects truncated UTF-8");
+
+    (void)wc_CBOR_DecoderInit(&ctx, overlongUtf8, sizeof(overlongUtf8));
+    ret = wc_CBOR_DecodeLabel(&ctx, &label);
+    TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED,
+                "label rejects overlong UTF-8");
+
+    (void)wc_CBOR_DecoderInit(&ctx, surrogateUtf8, sizeof(surrogateUtf8));
+    ret = wc_CBOR_DecodeLabel(&ctx, &label);
+    TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED,
+                "label rejects UTF-8 surrogate");
+
+    (void)wc_CBOR_DecoderInit(&ctx, outOfRangeUtf8,
+                              sizeof(outOfRangeUtf8));
+    ret = wc_CBOR_DecodeLabel(&ctx, &label);
+    TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED,
+                "label rejects UTF-8 above U+10FFFF");
 
     /* A label argument above INT64_MAX has no int64_t spelling, in either
      * sign. The negint boundary is one step further out: RFC 8949 encodes -n

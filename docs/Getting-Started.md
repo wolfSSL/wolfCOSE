@@ -388,8 +388,10 @@ Related strictness that surprises integrators for the same reason:
 - EC2 coordinates must be exactly the curve size, with leading zeros preserved
   (RFC 9053 Section 7.1.1) - a 31-byte P-256 `x` is rejected, not left-padded.
 - A duplicate label in a header or `COSE_Key` map is rejected.
-- `COSE_Key` and COSE header maps accept integer labels only. For your own
-  protocol maps that mix integer and text labels, use
+- `COSE_Key` maps accept the registered integer labels. COSE header maps accept
+  both integer and text labels, retain unknown non-critical parameters in the
+  encoded message, and reject duplicates within or across header buckets. For
+  caller-written protocol maps, use
   [`wc_CBOR_DecodeLabel()`](API-Reference.md#wc_cbor_decodelabel).
 
 None of this is configurable: relaxing it would let a signature or MAC be

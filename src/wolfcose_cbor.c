@@ -699,6 +699,73 @@ int wc_CBOR_SkipItem(WOLFCOSE_CBOR_CTX* ctx, const uint8_t** data,
     return ret;
 }
 
+static int wolfCose_CBOR_IsUtf8Continuation(uint8_t value)
+{
+    return ((value >= 0x80u) && (value <= 0xBFu)) ? 1 : 0;
+}
+
+static int wolfCose_CBOR_IsValidUtf8(const uint8_t* text, size_t textLen)
+{
+    int valid = 1;
+    size_t i = 0u;
+
+    if ((text == NULL) && (textLen > 0u)) {
+        valid = 0;
+    }
+
+    while ((valid != 0) && (i < textLen)) {
+        uint8_t first = text[i];
+        size_t remaining = textLen - i;
+
+        if (first <= 0x7Fu) {
+            i++;
+        }
+        else if ((first >= 0xC2u) && (first <= 0xDFu)) {
+            if ((remaining < 2u) ||
+                (wolfCose_CBOR_IsUtf8Continuation(text[i + 1u]) == 0)) {
+                valid = 0;
+            }
+            else {
+                i += 2u;
+            }
+        }
+        else if ((first >= 0xE0u) && (first <= 0xEFu)) {
+            if ((remaining < 3u) ||
+                (wolfCose_CBOR_IsUtf8Continuation(text[i + 1u]) == 0) ||
+                (wolfCose_CBOR_IsUtf8Continuation(text[i + 2u]) == 0)) {
+                valid = 0;
+            }
+            else if (((first == 0xE0u) && (text[i + 1u] < 0xA0u)) ||
+                     ((first == 0xEDu) && (text[i + 1u] > 0x9Fu))) {
+                valid = 0;
+            }
+            else {
+                i += 3u;
+            }
+        }
+        else if ((first >= 0xF0u) && (first <= 0xF4u)) {
+            if ((remaining < 4u) ||
+                (wolfCose_CBOR_IsUtf8Continuation(text[i + 1u]) == 0) ||
+                (wolfCose_CBOR_IsUtf8Continuation(text[i + 2u]) == 0) ||
+                (wolfCose_CBOR_IsUtf8Continuation(text[i + 3u]) == 0)) {
+                valid = 0;
+            }
+            else if (((first == 0xF0u) && (text[i + 1u] < 0x90u)) ||
+                     ((first == 0xF4u) && (text[i + 1u] > 0x8Fu))) {
+                valid = 0;
+            }
+            else {
+                i += 4u;
+            }
+        }
+        else {
+            valid = 0;
+        }
+    }
+
+    return valid;
+}
+
 int wc_CBOR_DecodeLabel(WOLFCOSE_CBOR_CTX* ctx, WOLFCOSE_CBOR_LABEL* label)
 {
     int ret;
@@ -733,9 +800,14 @@ int wc_CBOR_DecodeLabel(WOLFCOSE_CBOR_CTX* ctx, WOLFCOSE_CBOR_LABEL* label)
                 }
             }
             else if (item.majorType == WOLFCOSE_CBOR_TSTR) {
-                label->text = item.data;
-                label->textLen = item.dataLen;
-                label->isText = 1u;
+                if (wolfCose_CBOR_IsValidUtf8(item.data, item.dataLen) == 0) {
+                    ret = WOLFCOSE_E_CBOR_MALFORMED;
+                }
+                else {
+                    label->text = item.data;
+                    label->textLen = item.dataLen;
+                    label->isText = 1u;
+                }
             }
             else {
                 /* RFC 9052: label = int / tstr, nothing else. */

@@ -83,6 +83,14 @@ static size_t wolfCose_MisraUsePublicApis(void)
 #ifdef WOLFCOSE_SIGN1_VERIFY
     WOLFCOSE_MISRA_USE_API(wc_CoseSign1_Verify);
 #endif
+#ifdef WOLFCOSE_COUNTERSIGN_SIGN
+    WOLFCOSE_MISRA_USE_API(wc_Cose_AddCounterSignature);
+    WOLFCOSE_MISRA_USE_API(wc_Cose_AddCounterSignature0);
+#endif
+#ifdef WOLFCOSE_COUNTERSIGN_VERIFY
+    WOLFCOSE_MISRA_USE_API(wc_Cose_VerifyCounterSignature);
+    WOLFCOSE_MISRA_USE_API(wc_Cose_VerifyCounterSignature0);
+#endif
 #ifdef WOLFCOSE_ENCRYPT0_ENCRYPT
     WOLFCOSE_MISRA_USE_API(wc_CoseEncrypt0_Encrypt);
 #endif
@@ -134,6 +142,7 @@ int main(void)
         WOLFCOSE_ALG_ECDH_ES_A128KW,
         WOLFCOSE_ALG_ECDH_ES_A192KW,
         WOLFCOSE_ALG_ECDH_ES_A256KW,
+        (int32_t)WOLFCOSE_TAG_COUNTERSIGNATURE,
         WOLFCOSE_CRV_ML_DSA_44,
         WOLFCOSE_CRV_ML_DSA_65,
         WOLFCOSE_CRV_ML_DSA_87,
