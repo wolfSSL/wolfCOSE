@@ -25,8 +25,8 @@
 extern "C" {
 #endif
 
-#define LIBWOLFCOSE_VERSION_STRING "1.0.0"
-#define LIBWOLFCOSE_VERSION_HEX 0x01000000
+#define LIBWOLFCOSE_VERSION_STRING "2.0.0"
+#define LIBWOLFCOSE_VERSION_HEX 0x02000000
 
 #ifdef __cplusplus
 }
