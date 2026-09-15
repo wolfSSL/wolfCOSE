@@ -24,13 +24,13 @@
  * Simulates a produce -> transport -> consume lifecycle for all COSE
  * message types:
  *
- *   COSE_Sign1:    ES256, EdDSA, PS256, ML-DSA-44
+ *   COSE_Sign1:    ESP256, Ed25519, PS256, ML-DSA-44
  *   COSE_Encrypt0: A128GCM, A256GCM, ChaCha20, AES-CCM
  *   COSE_Mac0:     HMAC256, HMAC384, HMAC512
  *
  * Usage:
  *   ./lifecycle_demo              Run all available algorithms
- *   ./lifecycle_demo -a ES256     Run only ES256
+ *   ./lifecycle_demo -a ESP256    Run only ESP256
  *   ./lifecycle_demo -a HMAC256   Run only HMAC-256
  *   ./lifecycle_demo -a all       Run all available algorithms
  *
@@ -103,7 +103,7 @@ static int encode_sensor_payload(uint8_t* payload, size_t payloadSz,
     return ret;
 }
 
-/* ----- COSE_Sign1 lifecycle: ES256 ----- */
+/* ----- COSE_Sign1 lifecycle: ESP256 ----- */
 #ifdef WOLFCOSE_HAVE_ES256
 static int demo_sign1_es256(void)
 {
@@ -123,7 +123,7 @@ static int demo_sign1_es256(void)
     int rngInited = 0;
     int eccInited = 0;
 
-    printf("--- COSE_Sign1 ES256 ---\n");
+    printf("--- COSE_Sign1 ESP256 ---\n");
 
     ret = encode_sensor_payload(payload, sizeof(payload), &payloadLen);
     if (ret != 0) {
@@ -148,7 +148,7 @@ static int demo_sign1_es256(void)
         wc_CoseKey_Init(&signKey);
         wc_CoseKey_SetEcc(&signKey, WOLFCOSE_CRV_P256, &eccKey);
 
-        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ESP256,
             g_kid, sizeof(g_kid) - 1u,
             payload, payloadLen, NULL, 0, NULL, 0,
             scratch, sizeof(scratch),
@@ -187,7 +187,7 @@ static int demo_sign1_es256(void)
 }
 #endif /* WOLFCOSE_HAVE_ES256 */
 
-/* ----- COSE_Sign1 lifecycle: EdDSA (Ed25519) ----- */
+/* ----- COSE_Sign1 lifecycle: Ed25519 ----- */
 #ifdef WOLFCOSE_HAVE_EDDSA
 static int demo_sign1_eddsa(void)
 {
@@ -206,7 +206,7 @@ static int demo_sign1_eddsa(void)
     int rngInited = 0;
     int edInited = 0;
 
-    printf("--- COSE_Sign1 EdDSA (Ed25519) ---\n");
+    printf("--- COSE_Sign1 Ed25519 ---\n");
 
     ret = encode_sensor_payload(payload, sizeof(payload), &payloadLen);
     if (ret == 0) {
@@ -228,7 +228,7 @@ static int demo_sign1_eddsa(void)
         wc_CoseKey_Init(&signKey);
         wc_CoseKey_SetEd25519(&signKey, &edKey);
 
-        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_EDDSA,
+        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ED25519,
             g_kid, sizeof(g_kid) - 1u,
             payload, payloadLen, NULL, 0, NULL, 0,
             scratch, sizeof(scratch),
@@ -717,8 +717,8 @@ static int demo_mac0_hmac(int32_t alg)
 /* ----- Algorithm name parser ----- */
 enum {
     DEMO_ALG_ALL = 0,
-    DEMO_ALG_ES256,
-    DEMO_ALG_EDDSA,
+    DEMO_ALG_ESP256,
+    DEMO_ALG_ED25519,
     DEMO_ALG_PS256,
     DEMO_ALG_A128GCM,
     DEMO_ALG_A256GCM,
@@ -735,11 +735,11 @@ static int parse_demo_alg(const char* name)
     if ((name == NULL) || (strcmp(name, "all") == 0)) {
         return DEMO_ALG_ALL;
     }
-    if (strcmp(name, "ES256") == 0) {
-        return DEMO_ALG_ES256;
+    if (strcmp(name, "ESP256") == 0) {
+        return DEMO_ALG_ESP256;
     }
-    if (strcmp(name, "EdDSA") == 0) {
-        return DEMO_ALG_EDDSA;
+    if (strcmp(name, "Ed25519") == 0) {
+        return DEMO_ALG_ED25519;
     }
     if (strcmp(name, "PS256") == 0) {
         return DEMO_ALG_PS256;
@@ -785,7 +785,7 @@ int main(int argc, char* argv[])
             fprintf(stderr, "Unknown algorithm: %s\n", argv[2]);
             fprintf(stderr,
                 "Usage: %s [-a <alg>]\n"
-                "  alg: all, ES256, EdDSA, PS256, ML-DSA-44, A128GCM,\n"
+                "  alg: all, ESP256, Ed25519, PS256, ML-DSA-44, A128GCM,\n"
                 "       A256GCM, HMAC256, HMAC384, HMAC512, ChaCha20,\n"
                 "       AES-CCM\n",
                 argv[0]);
@@ -795,7 +795,7 @@ int main(int argc, char* argv[])
     else if (argc != 1) {
         fprintf(stderr,
             "Usage: %s [-a <alg>]\n"
-            "  alg: all, ES256, EdDSA, PS256, ML-DSA-44, A128GCM,\n"
+            "  alg: all, ESP256, Ed25519, PS256, ML-DSA-44, A128GCM,\n"
             "       A256GCM, HMAC256, HMAC384, HMAC512, ChaCha20,\n"
             "       AES-CCM\n", argv[0]);
         return 1;
@@ -805,13 +805,13 @@ int main(int argc, char* argv[])
 
     /* COSE_Sign1 demos */
 #ifdef WOLFCOSE_HAVE_ES256
-    if ((demoAlg == DEMO_ALG_ALL) || (demoAlg == DEMO_ALG_ES256)) {
+    if ((demoAlg == DEMO_ALG_ALL) || (demoAlg == DEMO_ALG_ESP256)) {
         tests++;
         if (demo_sign1_es256() != 0) { failures++; }
     }
 #endif
 #ifdef WOLFCOSE_HAVE_EDDSA
-    if ((demoAlg == DEMO_ALG_ALL) || (demoAlg == DEMO_ALG_EDDSA)) {
+    if ((demoAlg == DEMO_ALG_ALL) || (demoAlg == DEMO_ALG_ED25519)) {
         tests++;
         if (demo_sign1_eddsa() != 0) { failures++; }
     }

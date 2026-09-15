@@ -134,7 +134,8 @@ int wolfCose_SignSigLen(const WOLFCOSE_KEY* key, int32_t alg,
     (void)key;
 
     switch (alg) {
-#if defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)
+#if (defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)) && \
+    defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
         case WOLFCOSE_ALG_EDDSA:
             if (key == NULL) {
 #if defined(WOLFCOSE_HAVE_EDDSA) && defined(WOLFCOSE_HAVE_ED448)
@@ -205,29 +206,29 @@ int wolfCose_SignSigLen(const WOLFCOSE_KEY* key, int32_t alg,
 #endif
         default:
             ret = wolfCose_SigSize(alg, expSigLen);
-#if defined(WOLFCOSE_HAVE_ECDSA)
-            /* ES* lengths come from alg alone, so a declared curve would
+#if defined(WOLFCOSE_HAVE_ECDSA) || defined(WOLFCOSE_HAVE_EDDSA) || \
+    defined(WOLFCOSE_HAVE_ED448)
+            /* Lengths come from alg alone, so a declared curve would
              * otherwise be ignored here while the local path rejects it.
-             * crv 0 means the caller declared none, which stays legal. */
-            if (ret == WOLFCOSE_SUCCESS) {
+             * kty or crv 0 means the caller declared none, which stays legal;
+             * an alg outside the ECDSA and EdDSA families binds no curve. */
+            if ((ret == WOLFCOSE_SUCCESS) && (key != NULL)) {
                 int32_t expectedCrv = 0;
-                if (alg == WOLFCOSE_ALG_ES256) {
-                    expectedCrv = WOLFCOSE_CRV_P256;
+                int32_t expectedKty = 0;
+                int bound = wolfCose_AlgToCrv(alg, &expectedCrv);
+
+                if (wolfCose_AlgIsEcdsa(alg) != 0) {
+                    expectedKty = WOLFCOSE_KTY_EC2;
                 }
-                else if (alg == WOLFCOSE_ALG_ES384) {
-                    expectedCrv = WOLFCOSE_CRV_P384;
-                }
-                else if (alg == WOLFCOSE_ALG_ES512) {
-                    expectedCrv = WOLFCOSE_CRV_P521;
+                else if (wolfCose_AlgIsEddsa(alg) != 0) {
+                    expectedKty = WOLFCOSE_KTY_OKP;
                 }
                 else {
-                    /* No action required */
+                    /* No action required: alg binds no key type. */
                 }
-                /* expectedCrv stays 0 for non-ECDSA, which this arm does not
-                 * bind. A declared kty or crv is honoured for ES* the way the
-                 * local path does; 0 means the caller declared none. */
-                if ((key != NULL) && (expectedCrv != 0)) {
-                    if ((key->kty != 0) && (key->kty != WOLFCOSE_KTY_EC2)) {
+                if ((bound == WOLFCOSE_SUCCESS) && (expectedCrv != 0) &&
+                    (expectedKty != 0)) {
+                    if ((key->kty != 0) && (key->kty != expectedKty)) {
                         ret = WOLFCOSE_E_COSE_KEY_TYPE;
                     }
                     else if ((key->crv != 0) && (key->crv != expectedCrv)) {
@@ -255,17 +256,26 @@ int wolfCose_ExtSignAlg(int32_t alg, WOLFCOSE_PREHASH_FLAG* preHashes)
 
     switch (alg) {
 #if defined(WOLFCOSE_HAVE_ES256)
+#ifdef WOLFCOSE_HAVE_DEPRECATED_ALGS
         case WOLFCOSE_ALG_ES256:
+#endif
+        case WOLFCOSE_ALG_ESP256:
             *preHashes = (WOLFCOSE_PREHASH_FLAG)1u;
             break;
 #endif
 #if defined(WOLFCOSE_HAVE_ES384)
+#ifdef WOLFCOSE_HAVE_DEPRECATED_ALGS
         case WOLFCOSE_ALG_ES384:
+#endif
+        case WOLFCOSE_ALG_ESP384:
             *preHashes = (WOLFCOSE_PREHASH_FLAG)1u;
             break;
 #endif
 #if defined(WOLFCOSE_HAVE_ES512)
+#ifdef WOLFCOSE_HAVE_DEPRECATED_ALGS
         case WOLFCOSE_ALG_ES512:
+#endif
+        case WOLFCOSE_ALG_ESP512:
             *preHashes = (WOLFCOSE_PREHASH_FLAG)1u;
             break;
 #endif
@@ -284,8 +294,17 @@ int wolfCose_ExtSignAlg(int32_t alg, WOLFCOSE_PREHASH_FLAG* preHashes)
             *preHashes = (WOLFCOSE_PREHASH_FLAG)1u;
             break;
 #endif
-#if defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)
+#if (defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)) && \
+    defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
         case WOLFCOSE_ALG_EDDSA:
+#endif
+#if defined(WOLFCOSE_HAVE_EDDSA)
+        case WOLFCOSE_ALG_ED25519:
+#endif
+#if defined(WOLFCOSE_HAVE_ED448)
+        case WOLFCOSE_ALG_ED448:
+#endif
+#if defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)
             *preHashes = (WOLFCOSE_PREHASH_FLAG)0u;
             break;
 #endif
@@ -688,10 +707,13 @@ int wc_CoseSign1_Sign_ex(WOLFCOSE_KEY* key, int32_t alg,
     else
 #endif
 #if defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)
-    if ((ret == WOLFCOSE_SUCCESS) && (alg == WOLFCOSE_ALG_EDDSA)) {
+    if ((ret == WOLFCOSE_SUCCESS) && (wolfCose_AlgIsEddsa(alg) != 0)) {
         word32 edSigLen = (word32)sizeof(sigBuf);
         if (key->kty != WOLFCOSE_KTY_OKP) {
             ret = WOLFCOSE_E_COSE_KEY_TYPE;
+        }
+        if (ret == WOLFCOSE_SUCCESS) {
+            ret = wolfCose_AlgCheckCrv(alg, key->crv);
         }
         /* EdDSA signs raw Sig_structure (no pre-hash) */
         if (ret == WOLFCOSE_SUCCESS) {
@@ -745,8 +767,7 @@ int wc_CoseSign1_Sign_ex(WOLFCOSE_KEY* key, int32_t alg,
     else
 #endif /* WOLFCOSE_HAVE_EDDSA || WOLFCOSE_HAVE_ED448 */
 #ifdef WOLFCOSE_HAVE_ECDSA
-    if ((ret == WOLFCOSE_SUCCESS) && ((alg == WOLFCOSE_ALG_ES256) ||
-        (alg == WOLFCOSE_ALG_ES384) || (alg == WOLFCOSE_ALG_ES512))) {
+    if ((ret == WOLFCOSE_SUCCESS) && (wolfCose_AlgIsEcdsa(alg) != 0)) {
         enum wc_HashType hashType;
         int digestSz = 0;
         size_t coordSz = 0;
@@ -757,19 +778,7 @@ int wc_CoseSign1_Sign_ex(WOLFCOSE_KEY* key, int32_t alg,
 
         /* Each ECDSA alg is bound to one curve. */
         if (ret == WOLFCOSE_SUCCESS) {
-            int32_t expectedCrv;
-            if (alg == WOLFCOSE_ALG_ES256) {
-                expectedCrv = WOLFCOSE_CRV_P256;
-            }
-            else if (alg == WOLFCOSE_ALG_ES384) {
-                expectedCrv = WOLFCOSE_CRV_P384;
-            }
-            else {
-                expectedCrv = WOLFCOSE_CRV_P521;
-            }
-            if (key->crv != expectedCrv) {
-                ret = WOLFCOSE_E_COSE_BAD_ALG;
-            }
+            ret = wolfCose_AlgCheckCrv(alg, key->crv);
         }
 
         if (ret == WOLFCOSE_SUCCESS) {
@@ -1206,10 +1215,13 @@ int wolfCose_Sign1_Verify_ex(const WOLFCOSE_KEY* key,
 
     /* Verify based on algorithm */
 #if defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)
-    if ((ret == WOLFCOSE_SUCCESS) && (alg == WOLFCOSE_ALG_EDDSA)) {
+    if ((ret == WOLFCOSE_SUCCESS) && (wolfCose_AlgIsEddsa(alg) != 0)) {
         int verified = 0;
         if (key->kty != WOLFCOSE_KTY_OKP) {
             ret = WOLFCOSE_E_COSE_KEY_TYPE;
+        }
+        if (ret == WOLFCOSE_SUCCESS) {
+            ret = wolfCose_AlgCheckCrv(alg, key->crv);
         }
 #ifdef WOLFCOSE_HAVE_EDDSA
         if ((ret == WOLFCOSE_SUCCESS) && (key->crv == WOLFCOSE_CRV_ED25519)) {
@@ -1273,9 +1285,7 @@ int wolfCose_Sign1_Verify_ex(const WOLFCOSE_KEY* key,
     else
 #endif
 #ifdef WOLFCOSE_HAVE_ECDSA
-    if ((ret == WOLFCOSE_SUCCESS) &&
-        ((alg == WOLFCOSE_ALG_ES256) || (alg == WOLFCOSE_ALG_ES384) ||
-         (alg == WOLFCOSE_ALG_ES512))) {
+    if ((ret == WOLFCOSE_SUCCESS) && (wolfCose_AlgIsEcdsa(alg) != 0)) {
         ecc_key* eccKey = NULL;
         int verified = 0;
         size_t coordSz = 0;
@@ -1288,19 +1298,7 @@ int wolfCose_Sign1_Verify_ex(const WOLFCOSE_KEY* key,
         }
         /* Each ECDSA alg is bound to one curve. */
         if (ret == WOLFCOSE_SUCCESS) {
-            int32_t expectedCrv;
-            if (alg == WOLFCOSE_ALG_ES256) {
-                expectedCrv = WOLFCOSE_CRV_P256;
-            }
-            else if (alg == WOLFCOSE_ALG_ES384) {
-                expectedCrv = WOLFCOSE_CRV_P384;
-            }
-            else {
-                expectedCrv = WOLFCOSE_CRV_P521;
-            }
-            if (key->crv != expectedCrv) {
-                ret = WOLFCOSE_E_COSE_BAD_ALG;
-            }
+            ret = wolfCose_AlgCheckCrv(alg, key->crv);
         }
         if (ret == WOLFCOSE_SUCCESS) {
             eccKey = key->key.ecc;

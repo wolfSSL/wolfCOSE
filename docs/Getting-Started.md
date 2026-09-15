@@ -164,7 +164,7 @@ int main(void)
     wc_CoseKey_SetEcc(&coseKey, WOLFCOSE_CRV_P256, &eccKey);
 
     /* Sign */
-    wc_CoseSign1_Sign(&coseKey, WOLFCOSE_ALG_ES256,
+    wc_CoseSign1_Sign(&coseKey, WOLFCOSE_ALG_ESP256,
         kid, sizeof(kid) - 1,
         payload, sizeof(payload) - 1,
         NULL, 0,  /* no detached payload */
@@ -391,12 +391,12 @@ The `wolfcose_tool` provides command-line access to all wolfCOSE operations:
 make tool
 
 # Generate keys
-./tools/wolfcose_tool keygen -a ES256 -o ec.key
+./tools/wolfcose_tool keygen -a ESP256 -o ec.key
 ./tools/wolfcose_tool keygen -a ML-DSA-44 -o pqc.key
 ./tools/wolfcose_tool keygen -a A128GCM -o sym.key
 
 # Sign and verify
-./tools/wolfcose_tool sign -k ec.key -a ES256 -i data.bin -o data.cose
+./tools/wolfcose_tool sign -k ec.key -a ESP256 -i data.bin -o data.cose
 ./tools/wolfcose_tool verify -k ec.key -i data.cose
 
 # Encrypt and decrypt
@@ -454,7 +454,7 @@ version against trusted reference values.
 | File | Description |
 |------|-------------|
 | `firmware_update.c` | Post-quantum ML-DSA firmware signing with detached payload |
-| `multi_party_approval.c` | Dual-control firmware approval (ES256 + ES384) |
+| `multi_party_approval.c` | Dual-control firmware approval (ESP256 + ESP384) |
 | `iot_fleet_config.c` | Encrypted config push to IoT device fleet |
 | `sensor_attestation.c` | EAT-style attestation with replay protection via AAD |
 | `group_broadcast_mac.c` | Authenticated broadcast to multiple subscribers |

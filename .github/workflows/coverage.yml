@@ -73,3 +73,14 @@ jobs:
 
     - name: Check coverage thresholds
       run: sh scripts/check_coverage.sh wolfcose_eat_psa.c
+
+    - name: Run coverage with deprecated RFC 9053 alg IDs enabled
+      run: |
+        export WOLFSSL_DIR=$HOME/wolfssl-install
+        export LD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        make coverage-force-failure CC=gcc \
+          CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -DWOLFCOSE_ENABLE_DEPRECATED_ALGS -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -I./include -isystem $WOLFSSL_DIR/include" \
+          LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
+
+    - name: Check coverage thresholds (deprecated alg IDs)
+      run: sh scripts/check_coverage.sh

@@ -59,22 +59,39 @@ int wolfCose_AlgToHashType(int32_t alg, enum wc_HashType* hashType)
     else {
         switch (alg) {
 #ifdef WOLFCOSE_HAVE_ES256
+#ifdef WOLFCOSE_HAVE_DEPRECATED_ALGS
             case WOLFCOSE_ALG_ES256:
+#endif
+            case WOLFCOSE_ALG_ESP256:
                 *hashType = WC_HASH_TYPE_SHA256;
                 break;
 #endif
 #ifdef WOLFCOSE_HAVE_ES384
+#ifdef WOLFCOSE_HAVE_DEPRECATED_ALGS
             case WOLFCOSE_ALG_ES384:
+#endif
+            case WOLFCOSE_ALG_ESP384:
                 *hashType = WC_HASH_TYPE_SHA384;
                 break;
 #endif
 #ifdef WOLFCOSE_HAVE_ES512
+#ifdef WOLFCOSE_HAVE_DEPRECATED_ALGS
             case WOLFCOSE_ALG_ES512:
+#endif
+            case WOLFCOSE_ALG_ESP512:
                 *hashType = WC_HASH_TYPE_SHA512;
                 break;
 #endif
 #if defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)
+#ifdef WOLFCOSE_HAVE_DEPRECATED_ALGS
             case WOLFCOSE_ALG_EDDSA:
+#endif
+#ifdef WOLFCOSE_HAVE_EDDSA
+            case WOLFCOSE_ALG_ED25519:
+#endif
+#ifdef WOLFCOSE_HAVE_ED448
+            case WOLFCOSE_ALG_ED448:
+#endif
                 /* RFC 9053 Section 2.2: EdDSA hashes the message internally
                  * with SHA-512 (Ed25519) or SHAKE-256 (Ed448). The "external"
                  * hash type is unused; SHA-512 stands in for both. */
@@ -114,21 +131,31 @@ WOLFCOSE_LOCAL int wolfCose_SigSize(int32_t alg, size_t* sigSz)
     else {
         switch (alg) {
 #ifdef WOLFCOSE_HAVE_ES256
+#ifdef WOLFCOSE_HAVE_DEPRECATED_ALGS
             case WOLFCOSE_ALG_ES256:
+#endif
+            case WOLFCOSE_ALG_ESP256:
                 *sigSz = 64;  /* r(32) || s(32) */
                 break;
 #endif
 #ifdef WOLFCOSE_HAVE_ES384
+#ifdef WOLFCOSE_HAVE_DEPRECATED_ALGS
             case WOLFCOSE_ALG_ES384:
+#endif
+            case WOLFCOSE_ALG_ESP384:
                 *sigSz = 96;  /* r(48) || s(48) */
                 break;
 #endif
 #ifdef WOLFCOSE_HAVE_ES512
+#ifdef WOLFCOSE_HAVE_DEPRECATED_ALGS
             case WOLFCOSE_ALG_ES512:
+#endif
+            case WOLFCOSE_ALG_ESP512:
                 *sigSz = 132; /* r(66) || s(66) */
                 break;
 #endif
-#if defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)
+#if (defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)) && \
+    defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
             case WOLFCOSE_ALG_EDDSA:
                 /* Returns the worst-case signature size when both curves
                  * are available so caller buffers are always sufficient. */
@@ -137,6 +164,16 @@ WOLFCOSE_LOCAL int wolfCose_SigSize(int32_t alg, size_t* sigSz)
     #else
                 *sigSz = 64;
     #endif
+                break;
+#endif
+#ifdef WOLFCOSE_HAVE_EDDSA
+            case WOLFCOSE_ALG_ED25519:
+                *sigSz = 64;
+                break;
+#endif
+#ifdef WOLFCOSE_HAVE_ED448
+            case WOLFCOSE_ALG_ED448:
+                *sigSz = 114;
                 break;
 #endif
 #ifdef WOLFCOSE_HAVE_MLDSA
@@ -157,6 +194,118 @@ WOLFCOSE_LOCAL int wolfCose_SigSize(int32_t alg, size_t* sigSz)
     }
     return ret;
 }
+
+/* The ECDSA/EdDSA algorithm set lives once, in wolfCose_AlgToCrv; the family
+ * predicates derive from it so a new codepoint is added in one place. An ECDSA
+ * alg maps to a NIST P-curve, an EdDSA alg to an OKP curve or (for the
+ * deprecated polymorphic WOLFCOSE_ALG_EDDSA) to crv 0. */
+WOLFCOSE_LOCAL int wolfCose_AlgIsEcdsa(int32_t alg)
+{
+    int isEcdsa = 0;
+#if defined(WOLFCOSE_HAVE_ECDSA)
+    int32_t crv = 0;
+    if (wolfCose_AlgToCrv(alg, &crv) == WOLFCOSE_SUCCESS) {
+        if ((crv == WOLFCOSE_CRV_P256) || (crv == WOLFCOSE_CRV_P384) ||
+            (crv == WOLFCOSE_CRV_P521)) {
+            isEcdsa = 1;
+        }
+    }
+#else
+    (void)alg;
+#endif
+    return isEcdsa;
+}
+
+WOLFCOSE_LOCAL int wolfCose_AlgIsEddsa(int32_t alg)
+{
+    int isEddsa = 0;
+#if defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)
+    int32_t crv = 0;
+    if (wolfCose_AlgToCrv(alg, &crv) == WOLFCOSE_SUCCESS) {
+        if ((crv == WOLFCOSE_CRV_ED25519) || (crv == WOLFCOSE_CRV_ED448) ||
+            (crv == 0)) {
+            isEddsa = 1;
+        }
+    }
+#else
+    (void)alg;
+#endif
+    return isEddsa;
+}
+
+#if defined(WOLFCOSE_HAVE_ECDSA) || defined(WOLFCOSE_HAVE_EDDSA) || \
+    defined(WOLFCOSE_HAVE_ED448)
+WOLFCOSE_LOCAL int wolfCose_AlgToCrv(int32_t alg, int32_t* crv)
+{
+    int ret = WOLFCOSE_SUCCESS;
+
+    if (crv == NULL) {
+        ret = WOLFCOSE_E_INVALID_ARG;
+    }
+    else {
+        switch (alg) {
+#ifdef WOLFCOSE_HAVE_ES256
+#ifdef WOLFCOSE_HAVE_DEPRECATED_ALGS
+            case WOLFCOSE_ALG_ES256:
+#endif
+            case WOLFCOSE_ALG_ESP256:
+                *crv = WOLFCOSE_CRV_P256;
+                break;
+#endif
+#ifdef WOLFCOSE_HAVE_ES384
+#ifdef WOLFCOSE_HAVE_DEPRECATED_ALGS
+            case WOLFCOSE_ALG_ES384:
+#endif
+            case WOLFCOSE_ALG_ESP384:
+                *crv = WOLFCOSE_CRV_P384;
+                break;
+#endif
+#ifdef WOLFCOSE_HAVE_ES512
+#ifdef WOLFCOSE_HAVE_DEPRECATED_ALGS
+            case WOLFCOSE_ALG_ES512:
+#endif
+            case WOLFCOSE_ALG_ESP512:
+                *crv = WOLFCOSE_CRV_P521;
+                break;
+#endif
+#if (defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)) && \
+    defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
+            case WOLFCOSE_ALG_EDDSA:
+                /* Polymorphic: the key's OKP curve selects Ed25519 or Ed448. */
+                *crv = 0;
+                break;
+#endif
+#ifdef WOLFCOSE_HAVE_EDDSA
+            case WOLFCOSE_ALG_ED25519:
+                *crv = WOLFCOSE_CRV_ED25519;
+                break;
+#endif
+#ifdef WOLFCOSE_HAVE_ED448
+            case WOLFCOSE_ALG_ED448:
+                *crv = WOLFCOSE_CRV_ED448;
+                break;
+#endif
+            default:
+                ret = WOLFCOSE_E_COSE_BAD_ALG;
+                break;
+        }
+    }
+    return ret;
+}
+
+WOLFCOSE_LOCAL int wolfCose_AlgCheckCrv(int32_t alg, int32_t crv)
+{
+    int ret;
+    int32_t expectedCrv = 0;
+
+    ret = wolfCose_AlgToCrv(alg, &expectedCrv);
+    if ((ret == WOLFCOSE_SUCCESS) && (expectedCrv != 0) &&
+        (crv != expectedCrv)) {
+        ret = WOLFCOSE_E_COSE_BAD_ALG;
+    }
+    return ret;
+}
+#endif /* WOLFCOSE_HAVE_ECDSA || WOLFCOSE_HAVE_EDDSA || WOLFCOSE_HAVE_ED448 */
 
 int wolfCose_CrvKeySize(int32_t crv, size_t* keySz)
 {

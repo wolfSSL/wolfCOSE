@@ -61,6 +61,14 @@ jobs:
             wolfssl_flags: "--enable-cryptonly --enable-ecc --enable-aesgcm --enable-keygen --enable-sha384 --enable-sha512 --enable-lowresource --enable-sp-math-all --disable-dh --disable-rsa --disable-aescbc --disable-sha --disable-md5 --disable-chacha --disable-poly1305 --disable-errorstrings"
             cache_key: wolfssl-ecc-only-v5
             cose_flags: "-DWOLFCOSE_LEAN"
+          - name: Deprecated RFC 9053 alg IDs (ES256/ES384/ES512/EdDSA-Ed25519)
+            wolfssl_flags: "--enable-cryptonly --enable-ecc --enable-ed25519 --enable-curve25519 --enable-aesgcm --enable-keygen --enable-sha384 --enable-sha512 --enable-lowresource --enable-sp-math-all --disable-dh --disable-rsa --disable-aescbc --disable-sha --disable-md5 --disable-chacha --disable-poly1305 --disable-errorstrings"
+            cache_key: wolfssl-ecc-ed25519-v1
+            cose_flags: "-DWOLFCOSE_ENABLE_DEPRECATED_ALGS"
+          - name: Lean core + deprecated RFC 9053 alg IDs
+            wolfssl_flags: "--enable-cryptonly --enable-ecc --enable-aesgcm --enable-keygen --enable-sha384 --enable-sha512 --enable-lowresource --enable-sp-math-all --disable-dh --disable-rsa --disable-aescbc --disable-sha --disable-md5 --disable-chacha --disable-poly1305 --disable-errorstrings"
+            cache_key: wolfssl-ecc-only-v5
+            cose_flags: "-DWOLFCOSE_LEAN -DWOLFCOSE_ENABLE_DEPRECATED_ALGS"
 
     steps:
     - uses: actions/checkout@v4

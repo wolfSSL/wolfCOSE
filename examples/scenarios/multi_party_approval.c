@@ -20,8 +20,8 @@
 
 /* Multi-Party Firmware Approval (Dual Control)
  *
- * Scenario: Firmware must be signed by BOTH silicon vendor (ES256)
- * and OEM (ES384) before device accepts it. Demonstrates COSE_Sign
+ * Scenario: Firmware must be signed by BOTH silicon vendor (ESP256)
+ * and OEM (ESP384) before device accepts it. Demonstrates COSE_Sign
  * with multiple signers using mixed algorithms.
  *
  * Compile-time gate:
@@ -68,7 +68,7 @@ static int silicon_vendor_init(ecc_key* key, WOLFCOSE_KEY* cosKey, WC_RNG* rng)
 {
     int ret;
 
-    printf("[Silicon Vendor] Generating ES256 signing key...\n");
+    printf("[Silicon Vendor] Generating ESP256 signing key...\n");
 
     ret = wc_ecc_init(key);
     if (ret != 0) {
@@ -99,7 +99,7 @@ static int oem_init(ecc_key* key, WOLFCOSE_KEY* cosKey, WC_RNG* rng)
 {
     int ret;
 
-    printf("[OEM] Generating ES384 signing key...\n");
+    printf("[OEM] Generating ESP384 signing key...\n");
 
     ret = wc_ecc_init(key);
     if (ret != 0) {
@@ -142,18 +142,18 @@ static int sign_with_dual_control(WOLFCOSE_KEY* vendorKey, WOLFCOSE_KEY* oemKey,
     /* Setup signers array */
     XMEMSET(signers, 0, sizeof(signers));
 
-    signers[0].algId = WOLFCOSE_ALG_ES256;
+    signers[0].algId = WOLFCOSE_ALG_ESP256;
     signers[0].key = vendorKey;
     signers[0].kid = vendorKid;
     signers[0].kidLen = sizeof(vendorKid) - 1u;
 
 #ifdef WOLFCOSE_HAVE_ES384
-    signers[1].algId = WOLFCOSE_ALG_ES384;
+    signers[1].algId = WOLFCOSE_ALG_ESP384;
     signers[1].key = oemKey;
     signers[1].kid = oemKid;
     signers[1].kidLen = sizeof(oemKid) - 1u;
 #else
-    signers[1].algId = WOLFCOSE_ALG_ES256;
+    signers[1].algId = WOLFCOSE_ALG_ESP256;
     signers[1].key = oemKey;
     signers[1].kid = oemKid;
     signers[1].kidLen = sizeof(oemKid) - 1u;
@@ -173,11 +173,11 @@ static int sign_with_dual_control(WOLFCOSE_KEY* vendorKey, WOLFCOSE_KEY* oemKey,
     }
 
     printf("  SUCCESS: Dual-signed message created (%zu bytes)\n", *signedLen);
-    printf("  Signer 0: Silicon Vendor (ES256)\n");
+    printf("  Signer 0: Silicon Vendor (ESP256)\n");
 #ifdef WOLFCOSE_HAVE_ES384
-    printf("  Signer 1: OEM (ES384)\n");
+    printf("  Signer 1: OEM (ESP384)\n");
 #else
-    printf("  Signer 1: OEM (ES256)\n");
+    printf("  Signer 1: OEM (ESP256)\n");
 #endif
     return 0;
 }
@@ -262,9 +262,9 @@ int main(void)
         }
     }
 #else
-    /* Fallback: use ES256 for both if SHA384 not available */
+    /* Fallback: use ESP256 for both if SHA384 not available */
     if (ret == 0) {
-        printf("[OEM] Generating ES256 signing key (SHA384 not available)...\n");
+        printf("[OEM] Generating ESP256 signing key (SHA384 not available)...\n");
         ret = wc_ecc_init(&oemEccKey);
         if (ret == 0) {
             ret = wc_ecc_make_key(&rng, 32, &oemEccKey);

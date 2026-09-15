@@ -79,3 +79,18 @@ jobs:
         export WOLFSSL_DIR=$HOME/wolfssl-install
         export LD_LIBRARY_PATH=$WOLFSSL_DIR/lib
         ./scripts/cmdline-test.sh ./tools/wolfcose_tool
+
+    - name: Build tool with deprecated RFC 9053 alg IDs
+      run: |
+        export WOLFSSL_DIR=$HOME/wolfssl-install
+        make tool CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -DWOLFCOSE_ENABLE_DEPRECATED_ALGS -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -I./include -isystem $WOLFSSL_DIR/include" \
+                  LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
+
+    - name: Run command-line tool test with deprecated alg names
+      env:
+        EXPECT_PQC: ${{ matrix.pqc }}
+        SIGN_ALGS: "ES256 ES384 ES512 EdDSA Ed448 ESP256 ESP384 ESP512 Ed25519"
+      run: |
+        export WOLFSSL_DIR=$HOME/wolfssl-install
+        export LD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        ./scripts/cmdline-test.sh ./tools/wolfcose_tool

@@ -64,7 +64,7 @@ wolfCOSE/
 
 The public API header. Contains:
 - All type definitions (`WOLFCOSE_KEY`, `WOLFCOSE_HDR`, etc.)
-- Algorithm constants (`WOLFCOSE_ALG_ES256`, etc.)
+- Algorithm constants (`WOLFCOSE_ALG_ESP256`, etc.)
 - Key type and curve constants
 - COSE tag values
 - Error codes
@@ -211,7 +211,7 @@ test     - Run self-tests
 
 | File | Description |
 |------|-------------|
-| `sign1_demo.c` | Demonstrates all Sign1 algorithms (ES256, ES384, ES512, EdDSA, PS256/384/512, ML-DSA) |
+| `sign1_demo.c` | Demonstrates all Sign1 algorithms (ESP256, ESP384, ESP512, Ed25519, PS256/384/512, ML-DSA) |
 | `encrypt0_demo.c` | Demonstrates all Encrypt0 algorithms (AES-GCM, ChaCha20, AES-CCM) |
 | `mac0_demo.c` | Demonstrates all Mac0 algorithms (HMAC, AES-MAC) |
 | `lifecycle_demo.c` | Full edge-to-cloud workflow with 11 algorithms |
@@ -230,7 +230,7 @@ test     - Run self-tests
 | File | Scenario |
 |------|----------|
 | `firmware_update.c` | Post-quantum ML-DSA firmware signing with detached payload |
-| `multi_party_approval.c` | Dual-control firmware approval (ES256 + ES384) |
+| `multi_party_approval.c` | Dual-control firmware approval (ESP256 + ESP384) |
 | `iot_fleet_config.c` | Encrypted config push to IoT device fleet with multiple recipients |
 | `sensor_attestation.c` | EAT-style attestation with replay protection via external AAD |
 | `group_broadcast_mac.c` | Authenticated broadcast to multiple subscribers |

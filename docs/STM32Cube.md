@@ -66,7 +66,7 @@ Verified on NUCLEO-H563ZI hardware, the console prints:
 
 ```
 == wolfCOSE NUCLEO-H563ZI ==
-Running wolfCOSE test (COSE_Sign1 ES256)...
+Running wolfCOSE test (COSE_Sign1 ESP256)...
 wolfCOSE test: PASS (COSE_Sign1 99 bytes)
 ```
 

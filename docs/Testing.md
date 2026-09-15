@@ -72,6 +72,17 @@ against a verify-only, full-`#tfm` receiver build. `psa-eat-demo` runs a complet
 challenge verification, and software-component appraisal workflow.
 See [[PSA-EAT]].
 
+### Deprecated Algorithm ID Tests
+
+```bash
+make deprecated-algs-test
+```
+
+Rebuilds the suite with `WOLFCOSE_ENABLE_DEPRECATED_ALGS` so the RFC 9053
+`ES256`/`ES384`/`ES512`/`EdDSA` paths, the COSE WG example vectors, and the
+RFC 9783 PSA tokens run. CI runs it as a dedicated step, and the minimal-build
+matrix also runs the full suite with the macro enabled.
+
 ### CLI Tool Tests
 
 ```bash
@@ -202,7 +213,9 @@ make interop-go-cose
 This runs live, bidirectional `COSE_Sign1` interop against
 [Veraison go-cose](https://github.com/veraison/go-cose), pinned at v1.3.0 in
 `tests/interop/go_cose/go.mod`. The matrix covers ES256, ES384, ES512, PS256,
-PS384, PS512, Ed25519, ES256 with external AAD, and untagged ES256. Each
+PS384, PS512, Ed25519, ES256 with external AAD, and untagged ES256. The pinned
+peers predate RFC 9864, so every interop target links a wolfCOSE built with
+`WOLFCOSE_ENABLE_DEPRECATED_ALGS` and still exchanges the RFC 9053 IDs. Each
 implementation signs a message the other verifies, validates the payload, and
 rejects a modified signature. Go 1.21 or later is required. go-cose requires
 an embedded payload for Sign1 verification, so detached Sign1 remains covered

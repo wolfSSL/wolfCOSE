@@ -187,10 +187,21 @@ extern "C" {
 
 /* Algorithms */
 #define WOLFCOSE_ALG_UNSET      ((int32_t)0)
+/* Fully-specified signature algorithms (RFC 9864). Code points are the IANA
+ * COSE Algorithms registry values
+ * (https://www.iana.org/assignments/cose). */
+#define WOLFCOSE_ALG_ESP256     (-9)    /* ECDSA P-256 w/ SHA-256 */
+#define WOLFCOSE_ALG_ESP384     (-51)   /* ECDSA P-384 w/ SHA-384 */
+#define WOLFCOSE_ALG_ESP512     (-52)   /* ECDSA P-521 w/ SHA-512 */
+#define WOLFCOSE_ALG_ED25519    (-19)   /* EdDSA, Ed25519 */
+#define WOLFCOSE_ALG_ED448      (-53)   /* EdDSA, Ed448 */
+/* The following four polymorphic RFC 9053 IDs are deprecated by RFC 9864 and
+ * accepted only when WOLFCOSE_ENABLE_DEPRECATED_ALGS is defined. */
 #define WOLFCOSE_ALG_ES256      (-7)
 #define WOLFCOSE_ALG_ES384      (-35)
 #define WOLFCOSE_ALG_ES512      (-36)
 #define WOLFCOSE_ALG_EDDSA      (-8)
+/* RSA-PSS algorithms remain supported without the deprecated-algorithm gate. */
 #define WOLFCOSE_ALG_PS256      (-37)
 #define WOLFCOSE_ALG_PS384      (-38)
 #define WOLFCOSE_ALG_PS512      (-39)
@@ -453,7 +464,7 @@ typedef struct WOLFCOSE_RECIPIENT {
  * Represents a single signer in a COSE_Sign message.
  */
 typedef struct WOLFCOSE_SIGNATURE {
-    int32_t        algId;       /**< Signature algorithm (ES256, EdDSA, etc.) */
+    int32_t        algId;       /**< Signature algorithm (ESP256, Ed25519, etc.) */
     WOLFCOSE_KEY*  key;         /**< Caller-owned signing key */
     const uint8_t* kid;         /**< Key ID for signer identification */
     size_t         kidLen;      /**< Key ID length */
@@ -1134,7 +1145,7 @@ WOLFCOSE_API int wc_CoseKey_Decode(WOLFCOSE_KEY* key, const uint8_t* in,
  * \param key             WOLFCOSE_KEY with hasPrivate=1, or an external
  *                        signing callback when enabled. Caller retains
  *                        ownership.
- * \param alg             Algorithm identifier (WOLFCOSE_ALG_ES256, etc).
+ * \param alg             Algorithm identifier (WOLFCOSE_ALG_ESP256, etc).
  * \param kid             Key ID to include in unprotected headers (NULL if none).
  * \param kidLen          Key ID length.
  * \param payload         Payload to sign (NULL if detached).
@@ -1190,9 +1201,11 @@ WOLFCOSE_API int wc_CoseSign1_Sign_ex(WOLFCOSE_KEY* key, int32_t alg,
  * \param key         Key whose type determines the signature length. May be
  *                    NULL when \p alg determines the exact length. Required
  *                    for RSA-PSS, for HSS-LMS (its length comes from the
- *                    attached key's parameter set), and when both Ed25519 and
- *                    Ed448 are enabled.
- * \param alg         Algorithm identifier (WOLFCOSE_ALG_ES256, etc).
+ *                    attached key's parameter set), and for the deprecated
+ *                    WOLFCOSE_ALG_EDDSA when both Ed25519 and Ed448 are enabled.
+ *                    WOLFCOSE_ALG_ED25519 and WOLFCOSE_ALG_ED448 each pin a
+ *                    length, so they never need a key.
+ * \param alg         Algorithm identifier (WOLFCOSE_ALG_ESP256, etc).
  * \param kidLen      Key ID length (0 if none).
  * \param payloadLen  Attached payload length (0 if detached).
  * \param detachedLen Detached payload length (0 if attached).

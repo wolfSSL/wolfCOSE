@@ -1,6 +1,14 @@
 # wolfCOSE
 
-wolfCOSE is a lightweight C library implementing [CBOR (RFC 8949)](https://www.rfc-editor.org/rfc/rfc8949), [COSE (RFC 9052/9053)](https://www.rfc-editor.org/rfc/rfc9052), [COSE countersignatures (RFC 9338)](https://www.rfc-editor.org/rfc/rfc9338), post-quantum [ML-DSA for COSE (RFC 9964)](https://www.rfc-editor.org/rfc/rfc9964), [HSS/LMS for COSE (RFC 8778)](https://www.rfc-editor.org/rfc/rfc8778), and the [PSA Attestation Token profile of EAT (RFC 9783)](https://www.rfc-editor.org/rfc/rfc9783) using [wolfSSL](https://www.wolfssl.com/) as the crypto backend.
+wolfCOSE is a lightweight C library built on [wolfSSL](https://www.wolfssl.com/) as the crypto backend, implementing:
+
+- [CBOR (RFC 8949)](https://www.rfc-editor.org/rfc/rfc8949)
+- [COSE (RFC 9052/9053)](https://www.rfc-editor.org/rfc/rfc9052)
+- [Fully-specified signature algorithms (RFC 9864)](https://www.rfc-editor.org/rfc/rfc9864)
+- [COSE countersignatures (RFC 9338)](https://www.rfc-editor.org/rfc/rfc9338)
+- Post-quantum [ML-DSA for COSE (RFC 9964)](https://www.rfc-editor.org/rfc/rfc9964)
+- Post-quantum [HSS/LMS for COSE (RFC 8778)](https://www.rfc-editor.org/rfc/rfc8778)
+- The [PSA Attestation Token profile of EAT (RFC 9783)](https://www.rfc-editor.org/rfc/rfc9783)
 
 ## Main Features
 
@@ -29,7 +37,22 @@ wolfCOSE is a lightweight C library implementing [CBOR (RFC 8949)](https://www.r
 
 ## Supported Algorithms
 
-**Signing:** `ES256, ES384, ES512, EdDSA (Ed25519/Ed448), PS256/384/512, ML-DSA-44/65/87, HSS-LMS`
+**Signing:** `ESP256, ESP384, ESP512, Ed25519, Ed448, PS256/384/512, ML-DSA-44/65/87, HSS-LMS`
+
+The polymorphic RFC 9053 IDs `ES256, ES384, ES512, EdDSA` are deprecated by RFC 9864 and are accepted only when built with `WOLFCOSE_ENABLE_DEPRECATED_ALGS` (see [Macros](https://github.com/wolfSSL/wolfCOSE/wiki/Macros)).
+
+**Migrating from the RFC 9053 IDs:** a default build now rejects the deprecated
+IDs with `WOLFCOSE_E_COSE_BAD_ALG`, so messages and keys that use them stop
+verifying. Move to the fully-specified replacement, or rebuild with
+`WOLFCOSE_ENABLE_DEPRECATED_ALGS` to keep accepting the old IDs.
+
+| Deprecated (RFC 9053) | Replacement (RFC 9864) |
+| --- | --- |
+| `ES256` (-7) | `ESP256` (-9) |
+| `ES384` (-35) | `ESP384` (-51) |
+| `ES512` (-36) | `ESP512` (-52) |
+| `EdDSA` (-8), Ed25519 key | `Ed25519` (-19) |
+| `EdDSA` (-8), Ed448 key | `Ed448` (-53) |
 
 **Encryption:** `AES-GCM (128/192/256), ChaCha20-Poly1305, AES-CCM variants`
 
@@ -68,7 +91,7 @@ Choose a build configuration based on the algorithms you need.
 
 ### Minimal Build (ECC + AES-GCM)
 
-This gives you COSE Sign1 (ES256/384/512) and Encrypt0 (AES-GCM):
+This gives you COSE Sign1 (ESP256/384/512) and Encrypt0 (AES-GCM):
 
 ```bash
 cd wolfssl
@@ -79,7 +102,7 @@ make && sudo make install
 sudo ldconfig
 ```
 
-**Algorithms enabled:** ES256, ES384, ES512, AES-GCM-128/192/256
+**Algorithms enabled:** ESP256, ESP384, ESP512, AES-GCM-128/192/256
 
 For a smaller wolfCrypt footprint, add `--enable-cryptonly` to drop the TLS
 stack and disable the algorithms a Sign1 + Encrypt0 build never uses:

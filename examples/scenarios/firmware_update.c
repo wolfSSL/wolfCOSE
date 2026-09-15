@@ -19,7 +19,7 @@
  *
  * Firmware Update with Post-Quantum Signature
  *
- * Scenario: OEM signs firmware binary with ML-DSA-65 (or ES256 fallback),
+ * Scenario: OEM signs firmware binary with ML-DSA-65 (or ESP256 fallback),
  * embedded device verifies before installing. Uses detached payload since
  * firmware binary is transmitted separately from the COSE manifest.
  *
@@ -317,8 +317,8 @@ int main(void)
     }
 
     if (ret == 0) {
-        alg = WOLFCOSE_ALG_ES256;
-        printf("Using ECDSA ES256 algorithm (ML-DSA not available)\n\n");
+        alg = WOLFCOSE_ALG_ESP256;
+        printf("Using ECDSA ESP256 algorithm (ML-DSA not available)\n\n");
     }
 
 #else

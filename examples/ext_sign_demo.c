@@ -156,7 +156,7 @@ static void demo_cleanup(WOLFCOSE_KEY* signKey, int signInited,
     secure_element_free();
 }
 
-/* wolfCOSE pre-hashes the Sig_structure for ES256, so tbs is the 32-byte
+/* wolfCOSE pre-hashes the Sig_structure for ESP256, so tbs is the 32-byte
  * digest and must go to a sign-hash primitive, never a sign-message one. */
 static int demo_sign_cb(void* cbCtx, int32_t alg,
                         const uint8_t* tbs, size_t tbsLen,
@@ -166,9 +166,9 @@ static int demo_sign_cb(void* cbCtx, int32_t alg,
 
     (void)cbCtx;
 
-    /* The length check wolfCOSE performs cannot separate ES256 from another
+    /* The length check wolfCOSE performs cannot separate ESP256 from another
      * 64-byte algorithm, so a real signer must pin what it was built for. */
-    if (alg != WOLFCOSE_ALG_ES256) {
+    if (alg != WOLFCOSE_ALG_ESP256) {
         return -1;
     }
 
@@ -212,7 +212,7 @@ int main(void)
     ret = wc_CoseKey_Init(&signKey);
     if (ret == 0) {
         signInited = 1;
-        /* ES256 derives its signature length from alg alone, so the key
+        /* ESP256 derives its signature length from alg alone, so the key
          * declares only what the algorithm needs. No private key is set. */
         signKey.kty = WOLFCOSE_KTY_EC2;
         signKey.crv = WOLFCOSE_CRV_P256;
@@ -227,7 +227,7 @@ int main(void)
            (signKey.hasPrivate == 0u) ? "no" : "yes");
 
     /* rng is NULL: the external signer owns its own randomness. */
-    ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ES256,
+    ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ESP256,
                             kid, sizeof(kid) - 1,
                             payload, sizeof(payload) - 1,
                             NULL, 0, NULL, 0,

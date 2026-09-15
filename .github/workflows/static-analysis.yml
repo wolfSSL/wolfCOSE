@@ -77,6 +77,7 @@ jobs:
                  --error-exitcode=1 \
                  --suppress=missingIncludeSystem \
                  --inline-suppr \
+                 -DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
                  -DWOLFCOSE_ENABLE_EAT_PSA \
                  -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
                  -DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 \

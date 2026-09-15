@@ -15,7 +15,7 @@ Verified via cppcheck's MISRA addon (`--addon=misra`) with all wolfCOSE algorith
 
 **Workflow**: `.github/workflows/misra-2012.yml`
 
-All wolfCOSE and wolfSSL feature macros are explicitly defined so cppcheck checks the full code path rather than enumerating wolfSSL's hundreds of platform `#ifdef` configurations. This includes all four default-off experimental COSE-HPKE operation gates, `WOLFCOSE_EXPERIMENTAL`, and wolfSSL HPKE support, so draft code is analyzed rather than silently excluded. See [[Macros]] for the complete list.
+All wolfCOSE and wolfSSL feature macros are explicitly defined so cppcheck checks the full code path rather than enumerating wolfSSL's hundreds of platform `#ifdef` configurations. This includes all four default-off experimental COSE-HPKE operation gates, `WOLFCOSE_EXPERIMENTAL`, wolfSSL HPKE support, and `WOLFCOSE_ENABLE_DEPRECATED_ALGS`, so draft HPKE code and opt-in RFC 9053 algorithm paths are analyzed rather than silently excluded. See [[Macros]] for the complete list.
 
 ### MISRA C:2023
 

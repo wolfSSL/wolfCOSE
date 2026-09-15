@@ -317,6 +317,39 @@ WOLFCOSE_LOCAL int wolfCose_AlgToHashType(int32_t alg,
 WOLFCOSE_LOCAL int wolfCose_SigSize(int32_t alg, size_t* sigSz);
 
 /**
+ * \brief Report whether alg is an ECDSA algorithm this build supports.
+ * \param alg  COSE algorithm ID.
+ * \return 1 for ESP256/ESP384/ESP512 (and deprecated ES*), else 0.
+ */
+WOLFCOSE_LOCAL int wolfCose_AlgIsEcdsa(int32_t alg);
+
+/**
+ * \brief Report whether alg is an EdDSA algorithm this build supports.
+ * \param alg  COSE algorithm ID.
+ * \return 1 for Ed25519/Ed448 (and deprecated EdDSA), else 0.
+ */
+WOLFCOSE_LOCAL int wolfCose_AlgIsEddsa(int32_t alg);
+
+#if defined(WOLFCOSE_HAVE_ECDSA) || defined(WOLFCOSE_HAVE_EDDSA) || \
+    defined(WOLFCOSE_HAVE_ED448)
+/**
+ * \brief Get the curve a signature algorithm is bound to (RFC 9864).
+ * \param alg  COSE algorithm ID.
+ * \param crv  Output: COSE curve ID, or 0 when alg binds none (EdDSA).
+ * \return WOLFCOSE_SUCCESS or WOLFCOSE_E_COSE_BAD_ALG.
+ */
+WOLFCOSE_LOCAL int wolfCose_AlgToCrv(int32_t alg, int32_t* crv);
+
+/**
+ * \brief Reject a key curve that differs from the one alg is bound to.
+ * \param alg  COSE algorithm ID.
+ * \param crv  COSE curve ID of the key.
+ * \return WOLFCOSE_SUCCESS or WOLFCOSE_E_COSE_BAD_ALG.
+ */
+WOLFCOSE_LOCAL int wolfCose_AlgCheckCrv(int32_t alg, int32_t crv);
+#endif
+
+/**
  * \brief Get key size (coordinate size) for a COSE curve.
  * \param crv    COSE curve ID.
  * \param keySz  Output: coordinate size in bytes.

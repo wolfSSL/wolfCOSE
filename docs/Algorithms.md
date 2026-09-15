@@ -1,16 +1,20 @@
 # Supported Algorithms
 
-wolfCOSE supports 41 algorithms across signing, encryption, MAC, and key distribution. This page provides the complete list with COSE algorithm IDs and required wolfSSL compile-time guards. All algorithms are usable in both single-actor messages (Sign1/Encrypt0/Mac0) and multi-actor messages (Sign/Encrypt/Mac) — see [[Message Types]] for details.
+wolfCOSE supports 46 algorithms across signing, encryption, MAC, and key distribution. This page provides the complete list with COSE algorithm IDs and required wolfSSL compile-time guards. All algorithms are usable in both single-actor messages (Sign1/Encrypt0/Mac0) and multi-actor messages (Sign/Encrypt/Mac). See [[Message Types]] for details.
 
 ## COSE_Sign1 (Digital Signatures)
 
 | Algorithm | COSE ID | wolfCrypt Guard | Notes |
 |-----------|---------|-----------------|-------|
-| ES256 | -7 | `HAVE_ECC` | ECDSA with P-256 / SHA-256 |
-| ES384 | -35 | `HAVE_ECC` | ECDSA with P-384 / SHA-384 |
-| ES512 | -36 | `HAVE_ECC` | ECDSA with P-521 / SHA-512 |
-| EdDSA (Ed25519) | -8 | `HAVE_ED25519` | Curve25519 |
-| EdDSA (Ed448) | -8 | `HAVE_ED448` | Curve448 (Goldilocks) |
+| ESP256 | -9 | `HAVE_ECC` | ECDSA with P-256 / SHA-256 (RFC 9864) |
+| ESP384 | -51 | `HAVE_ECC` | ECDSA with P-384 / SHA-384 (RFC 9864) |
+| ESP512 | -52 | `HAVE_ECC` | ECDSA with P-521 / SHA-512 (RFC 9864) |
+| Ed25519 | -19 | `HAVE_ED25519` | EdDSA on Curve25519 (RFC 9864) |
+| Ed448 | -53 | `HAVE_ED448` | EdDSA on Curve448 (Goldilocks) (RFC 9864) |
+| ES256 | -7 | `HAVE_ECC` | Deprecated by RFC 9864; needs `WOLFCOSE_ENABLE_DEPRECATED_ALGS` |
+| ES384 | -35 | `HAVE_ECC` | Deprecated by RFC 9864; needs `WOLFCOSE_ENABLE_DEPRECATED_ALGS` |
+| ES512 | -36 | `HAVE_ECC` | Deprecated by RFC 9864; needs `WOLFCOSE_ENABLE_DEPRECATED_ALGS` |
+| EdDSA | -8 | `HAVE_ED25519` / `HAVE_ED448` | Deprecated by RFC 9864 (curve taken from the key); needs `WOLFCOSE_ENABLE_DEPRECATED_ALGS` |
 | PS256 | -37 | `WC_RSA_PSS` | RSA-PSS with SHA-256 |
 | PS384 | -38 | `WC_RSA_PSS` | RSA-PSS with SHA-384 |
 | PS512 | -39 | `WC_RSA_PSS` | RSA-PSS with SHA-512 |
@@ -87,8 +91,8 @@ AES Key Wrap-based algorithms also require wolfSSL 5.9.0 or later.
 
 | COSE kty | Value | Guard | Algorithms |
 |----------|-------|-------|------------|
-| OKP | 1 | `HAVE_ED25519` / `HAVE_ED448` | EdDSA |
-| EC2 | 2 | `HAVE_ECC` | ES256, ES384, ES512 |
+| OKP | 1 | `HAVE_ED25519` / `HAVE_ED448` | Ed25519, Ed448 (EdDSA) |
+| EC2 | 2 | `HAVE_ECC` | ESP256, ESP384, ESP512 (ES256, ES384, ES512) |
 | RSA | 3 | `WC_RSA_PSS` | PS256, PS384, PS512 |
 | Symmetric | 4 | always | AES-GCM, AES-CCM, ChaCha20, HMAC |
 | AKP | 7 | `WOLFSSL_HAVE_MLDSA` | ML-DSA (RFC 9964) |
@@ -124,11 +128,19 @@ the 32-byte seed in `priv` (-2). There is no `crv` parameter.
 wolfCOSE defines these constants in `wolfcose.h`:
 
 ```c
-/* Signature algorithms */
+/* Signature algorithms (RFC 9864 fully-specified) */
+#define WOLFCOSE_ALG_ESP256     (-9)
+#define WOLFCOSE_ALG_ESP384     (-51)
+#define WOLFCOSE_ALG_ESP512     (-52)
+#define WOLFCOSE_ALG_ED25519    (-19)
+#define WOLFCOSE_ALG_ED448      (-53)
+/* These four IDs are deprecated by RFC 9864 and require
+ * WOLFCOSE_ENABLE_DEPRECATED_ALGS. */
 #define WOLFCOSE_ALG_ES256      (-7)
 #define WOLFCOSE_ALG_ES384      (-35)
 #define WOLFCOSE_ALG_ES512      (-36)
 #define WOLFCOSE_ALG_EDDSA      (-8)
+/* RSA-PSS IDs remain enabled by default. */
 #define WOLFCOSE_ALG_PS256      (-37)
 #define WOLFCOSE_ALG_PS384      (-38)
 #define WOLFCOSE_ALG_PS512      (-39)
@@ -185,6 +197,7 @@ Future algorithm support planned:
 | Algorithm | Standard | Description |
 |-----------|----------|-------------|
 | ML-KEM | FIPS 203 (Kyber) | Post-quantum key encapsulation for COSE_Encrypt (IETF draft, no codepoints yet) |
+| ESB256/320/384/512 | RFC 9864 | ECDSA on the Brainpool curves (Recommended: No); needs wolfSSL `HAVE_ECC_BRAINPOOL` |
 | XMSS | NIST SP 800-208 | Hash-based stateful signatures (no COSE codepoints assigned yet) |
 | SLH-DSA | SPHINCS+ | Stateless hash-based signatures |
 

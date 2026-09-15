@@ -32,7 +32,7 @@
 #include <wolfssl/wolfcrypt/settings.h>
 
 #include <wolfcose/wolfcose.h>
-#ifdef WOLFCOSE_HAVE_ES256
+#if defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
     #include <wolfssl/wolfcrypt/ecc.h>
 #endif
 #include <stdio.h>
@@ -52,7 +52,8 @@ static int g_failures = 0;
     }                                                          \
 } while (0)
 
-#if defined(WOLFCOSE_HAVE_ES256) || defined(WOLFCOSE_HAVE_HMAC256)
+#if (defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)) || \
+    defined(WOLFCOSE_HAVE_HMAC256)
 
 #define PSA_UEID               256
 #define PSA_NONCE              10
@@ -252,9 +253,9 @@ static void psa_parse_claims(const uint8_t* payload, size_t payload_len,
     TEST_ASSERT(ctx.idx == payload_len, "PSA claims consume payload");
 }
 
-#endif /* WOLFCOSE_HAVE_ES256 || WOLFCOSE_HAVE_HMAC256 */
+#endif /* (WOLFCOSE_HAVE_ES256 && WOLFCOSE_HAVE_DEPRECATED_ALGS) || WOLFCOSE_HAVE_HMAC256 */
 
-#ifdef WOLFCOSE_HAVE_ES256
+#if defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
 
 static const uint8_t psa_sign1_x[] =
     "\x4e\x5e\x22\x09\x9e\x3b\xce\xb4\x5b\x44\x6d\x13\x55\xfd\x1d\xc3"
@@ -344,7 +345,7 @@ static void test_psa_sign1_token(void)
         wc_ecc_free(&ecc_key);
 }
 
-#endif /* WOLFCOSE_HAVE_ES256 */
+#endif /* WOLFCOSE_HAVE_ES256 && WOLFCOSE_HAVE_DEPRECATED_ALGS */
 
 #ifdef WOLFCOSE_HAVE_HMAC256
 
@@ -428,7 +429,7 @@ int test_psa_attestation(void)
 
     printf("=== PSA Attestation Token Tests ===\n\n");
 
-#ifdef WOLFCOSE_HAVE_ES256
+#if defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
     test_psa_sign1_token();
 #endif
 #ifdef WOLFCOSE_HAVE_HMAC256

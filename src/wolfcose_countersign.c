@@ -708,30 +708,19 @@ static int wolfCose_CounterSignTbs(WOLFCOSE_KEY* key, int32_t alg,
     else
 #endif
 #ifdef WOLFCOSE_HAVE_ECDSA
-    if ((ret == WOLFCOSE_SUCCESS) &&
-        ((alg == WOLFCOSE_ALG_ES256) || (alg == WOLFCOSE_ALG_ES384) ||
-         (alg == WOLFCOSE_ALG_ES512))) {
+    if ((ret == WOLFCOSE_SUCCESS) && (wolfCose_AlgIsEcdsa(alg) != 0)) {
         enum wc_HashType hashType = WC_HASH_TYPE_NONE;
         int digestSz = 0;
-        int32_t expectedCrv;
         size_t coordSz = 0u;
 
-        if (alg == WOLFCOSE_ALG_ES256) {
-            expectedCrv = WOLFCOSE_CRV_P256;
-        }
-        else if (alg == WOLFCOSE_ALG_ES384) {
-            expectedCrv = WOLFCOSE_CRV_P384;
-        }
-        else {
-            expectedCrv = WOLFCOSE_CRV_P521;
-        }
         if (key->kty != WOLFCOSE_KTY_EC2) {
             ret = WOLFCOSE_E_COSE_KEY_TYPE;
         }
-        else if (key->crv != expectedCrv) {
-            ret = WOLFCOSE_E_COSE_BAD_ALG;
+        /* Each ECDSA alg is bound to one curve. */
+        if (ret == WOLFCOSE_SUCCESS) {
+            ret = wolfCose_AlgCheckCrv(alg, key->crv);
         }
-        else {
+        if (ret == WOLFCOSE_SUCCESS) {
             ret = wolfCose_EccKeyCheckCurve(key->crv, key->key.ecc);
         }
         if (ret == WOLFCOSE_SUCCESS) {
@@ -764,11 +753,14 @@ static int wolfCose_CounterSignTbs(WOLFCOSE_KEY* key, int32_t alg,
     else
 #endif
 #if defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)
-    if ((ret == WOLFCOSE_SUCCESS) && (alg == WOLFCOSE_ALG_EDDSA)) {
+    if ((ret == WOLFCOSE_SUCCESS) && (wolfCose_AlgIsEddsa(alg) != 0)) {
         word32 outLen = (word32)sigSz;
 
         if (key->kty != WOLFCOSE_KTY_OKP) {
             ret = WOLFCOSE_E_COSE_KEY_TYPE;
+        }
+        if (ret == WOLFCOSE_SUCCESS) {
+            ret = wolfCose_AlgCheckCrv(alg, key->crv);
         }
 #ifdef WOLFCOSE_HAVE_EDDSA
         if ((ret == WOLFCOSE_SUCCESS) &&
@@ -925,11 +917,14 @@ static int wolfCose_CounterVerifyTbs(const WOLFCOSE_KEY* key, int32_t alg,
     }
 
 #if defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)
-    if ((ret == WOLFCOSE_SUCCESS) && (alg == WOLFCOSE_ALG_EDDSA)) {
+    if ((ret == WOLFCOSE_SUCCESS) && (wolfCose_AlgIsEddsa(alg) != 0)) {
         int verified = 0;
 
         if (key->kty != WOLFCOSE_KTY_OKP) {
             ret = WOLFCOSE_E_COSE_KEY_TYPE;
+        }
+        if (ret == WOLFCOSE_SUCCESS) {
+            ret = wolfCose_AlgCheckCrv(alg, key->crv);
         }
 #ifdef WOLFCOSE_HAVE_EDDSA
         if ((ret == WOLFCOSE_SUCCESS) &&
@@ -985,32 +980,21 @@ static int wolfCose_CounterVerifyTbs(const WOLFCOSE_KEY* key, int32_t alg,
     else
 #endif
 #ifdef WOLFCOSE_HAVE_ECDSA
-    if ((ret == WOLFCOSE_SUCCESS) &&
-        ((alg == WOLFCOSE_ALG_ES256) || (alg == WOLFCOSE_ALG_ES384) ||
-         (alg == WOLFCOSE_ALG_ES512))) {
+    if ((ret == WOLFCOSE_SUCCESS) && (wolfCose_AlgIsEcdsa(alg) != 0)) {
         ecc_key* eccKey = NULL;
         enum wc_HashType hashType = WC_HASH_TYPE_NONE;
         int digestSz = 0;
         int verified = 0;
-        int32_t expectedCrv;
         size_t coordSz = 0u;
 
-        if (alg == WOLFCOSE_ALG_ES256) {
-            expectedCrv = WOLFCOSE_CRV_P256;
-        }
-        else if (alg == WOLFCOSE_ALG_ES384) {
-            expectedCrv = WOLFCOSE_CRV_P384;
-        }
-        else {
-            expectedCrv = WOLFCOSE_CRV_P521;
-        }
         if (key->kty != WOLFCOSE_KTY_EC2) {
             ret = WOLFCOSE_E_COSE_KEY_TYPE;
         }
-        else if (key->crv != expectedCrv) {
-            ret = WOLFCOSE_E_COSE_BAD_ALG;
+        /* Each ECDSA alg is bound to one curve. */
+        if (ret == WOLFCOSE_SUCCESS) {
+            ret = wolfCose_AlgCheckCrv(alg, key->crv);
         }
-        else {
+        if (ret == WOLFCOSE_SUCCESS) {
             eccKey = key->key.ecc;
             ret = wolfCose_EccKeyCheckCurve(key->crv, eccKey);
         }

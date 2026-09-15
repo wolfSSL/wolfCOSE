@@ -54,7 +54,7 @@ hpke_keygen_or() {
 }
 
 # Names exactly as wolfcose_tool's parser accepts them.
-SIGN_ALGS="ES256 EdDSA Ed448 ML-DSA-44 ML-DSA-65 ML-DSA-87"
+SIGN_ALGS="${SIGN_ALGS:-ESP256 ESP384 ESP512 Ed25519 Ed448 ML-DSA-44 ML-DSA-65 ML-DSA-87}"
 ENC_ALGS="A128GCM A192GCM A256GCM ChaCha20 AES-CCM"
 MAC_ALGS="HMAC256 HMAC384 HMAC512"
 
@@ -63,6 +63,7 @@ for A in $SIGN_ALGS; do
     K="$WORK/sig.key"; C="$WORK/sig.cose"
     case "$A" in
         ML-DSA-*) [ "$EXPECT_PQC" = "true" ] && OPT=0 || OPT=1 ;;
+        ESP384|ESP512) OPT=1 ;;
         *)        OPT=0 ;;
     esac
     if ! keygen_or "$A" "$K" "$OPT"; then continue; fi
@@ -86,26 +87,26 @@ PK="$WORK/primary.key"; CK="$WORK/counter.key"
 BASE="$WORK/primary.cose"; COUNTER="$WORK/counter.cose"
 COUNTER2="$WORK/counter2.cose"; AAD="$WORK/counter.aad"
 printf 'release approval policy' > "$AAD"
-if "$TOOL" keygen -a ES256 -o "$PK" >/dev/null 2>&1 && \
-   "$TOOL" keygen -a ES256 -o "$CK" >/dev/null 2>&1 && \
-   "$TOOL" sign -k "$PK" -a ES256 -i "$IN" -o "$BASE" \
+if "$TOOL" keygen -a ESP256 -o "$PK" >/dev/null 2>&1 && \
+   "$TOOL" keygen -a ESP256 -o "$CK" >/dev/null 2>&1 && \
+   "$TOOL" sign -k "$PK" -a ESP256 -i "$IN" -o "$BASE" \
        >/dev/null 2>&1; then
-    if "$TOOL" countersign -k "$CK" -a ES256 -i "$BASE" \
+    if "$TOOL" countersign -k "$CK" -a ESP256 -i "$BASE" \
         -o "$COUNTER" --aad "$AAD" >/dev/null 2>&1 && \
        "$TOOL" counterverify -k "$CK" -i "$COUNTER" --aad "$AAD" \
         >/dev/null 2>&1 && \
        "$TOOL" verify -k "$PK" -i "$COUNTER" >/dev/null 2>&1; then
-        ok "ES256 countersign and verify both layers"
+        ok "ESP256 countersign and verify both layers"
     else
-        bad "ES256 countersign round-trip"
+        bad "ESP256 countersign round-trip"
     fi
-    if "$TOOL" countersign -k "$CK" -a ES256 -i "$COUNTER" \
+    if "$TOOL" countersign -k "$CK" -a ESP256 -i "$COUNTER" \
         -o "$COUNTER2" --aad "$AAD" >/dev/null 2>&1 && \
        "$TOOL" counterverify -k "$CK" -i "$COUNTER2" --index 1 \
         --aad "$AAD" >/dev/null 2>&1; then
-        ok "ES256 second countersignature index"
+        ok "ESP256 second countersignature index"
     else
-        bad "ES256 second countersignature index"
+        bad "ESP256 second countersignature index"
     fi
     if "$TOOL" counterverify -k "$CK" -i "$COUNTER" \
         >/dev/null 2>&1; then
@@ -114,8 +115,25 @@ if "$TOOL" keygen -a ES256 -o "$PK" >/dev/null 2>&1 && \
         ok "countersignature wrong AAD rejected"
     fi
 else
-    skip "countersignature (ES256)"
+    skip "countersignature (ESP256)"
 fi
+
+for A in ESP384 ESP512; do
+    EK="$WORK/$A-counter.key"; EC="$WORK/$A-counter.cose"
+    if [ -f "$BASE" ] && "$TOOL" keygen -a "$A" -o "$EK" \
+        >/dev/null 2>&1; then
+        if "$TOOL" countersign -k "$EK" -a "$A" -i "$BASE" \
+            -o "$EC" >/dev/null 2>&1 && \
+           "$TOOL" counterverify -k "$EK" -i "$EC" >/dev/null 2>&1 && \
+           "$TOOL" verify -k "$PK" -i "$EC" >/dev/null 2>&1; then
+            ok "$A countersign and verify both layers"
+        else
+            bad "$A countersign round-trip"
+        fi
+    else
+        skip "countersignature ($A)"
+    fi
+done
 
 # Public-only RSA builds can't sign a decoded key, so skip; the self-test
 # still covers RSA signing.
@@ -144,8 +162,8 @@ done
 
 echo "== Tamper detection: corrupted COSE_Sign1 must NOT verify =="
 TK="$WORK/tamper.key"; TC="$WORK/tamper.cose"
-if "$TOOL" keygen -a ES256 -o "$TK" >/dev/null 2>&1 && \
-   "$TOOL" sign -k "$TK" -a ES256 -i "$IN" -o "$TC" >/dev/null 2>&1; then
+if "$TOOL" keygen -a ESP256 -o "$TK" >/dev/null 2>&1 && \
+   "$TOOL" sign -k "$TK" -a ESP256 -i "$IN" -o "$TC" >/dev/null 2>&1; then
     SZ=$(wc -c < "$TC")
     # Invert the last byte rather than setting it to a fixed value: an ECDSA
     # signature ends in 0xff about once in 256 runs, and overwriting it with
@@ -159,7 +177,7 @@ if "$TOOL" keygen -a ES256 -o "$TK" >/dev/null 2>&1 && \
         ok "tampered signature rejected"
     fi
 else
-    skip "tamper (ES256)"
+    skip "tamper (ESP256)"
 fi
 
 echo "== Encryption: keygen -> enc -> dec =="
@@ -379,15 +397,15 @@ done
 
 echo "== info on a signed message =="
 IK="$WORK/info.key"; IC="$WORK/info.cose"
-if "$TOOL" keygen -a ES256 -o "$IK" >/dev/null 2>&1 && \
-   "$TOOL" sign -k "$IK" -a ES256 -i "$IN" -o "$IC" >/dev/null 2>&1; then
+if "$TOOL" keygen -a ESP256 -o "$IK" >/dev/null 2>&1 && \
+   "$TOOL" sign -k "$IK" -a ESP256 -i "$IN" -o "$IC" >/dev/null 2>&1; then
     if "$TOOL" info -i "$IC" >/dev/null 2>&1; then
         ok "info"
     else
         bad "info"
     fi
 else
-    skip "info (ES256)"
+    skip "info (ESP256)"
 fi
 
 echo "== info rejects malformed CBOR =="
@@ -403,10 +421,10 @@ echo "== Usage errors must exit non-zero =="
 if "$TOOL" >/dev/null 2>&1; then bad "no-args exits non-zero"; else ok "no-args exits non-zero"; fi
 if "$TOOL" boguscmd >/dev/null 2>&1; then bad "bad command exits non-zero"; else ok "bad command exits non-zero"; fi
 if "$TOOL" verify -k x -i y --index 1 >/dev/null 2>&1; then bad "counter-only option on verify exits non-zero"; else ok "counter-only option on verify exits non-zero"; fi
-if "$TOOL" sign -k x -a ES256 -i y -o z --aad w >/dev/null 2>&1; then bad "counter-only option on sign exits non-zero"; else ok "counter-only option on sign exits non-zero"; fi
+if "$TOOL" sign -k x -a ESP256 -i y -o z --aad w >/dev/null 2>&1; then bad "counter-only option on sign exits non-zero"; else ok "counter-only option on sign exits non-zero"; fi
 head -c 65536 /dev/zero > "$WORK/oversize.bin"
 if "$TOOL" verify -k "$WORK/oversize.bin" -i "$WORK/oversize.bin" 2>&1 | grep -q "File too large"; then ok "oversized input file is rejected, not truncated"; else bad "oversized input file is rejected, not truncated"; fi
-if "$TOOL" countersign -k x -a ES256 -i y -o z --index 1 >/dev/null 2>&1; then bad "--index on countersign exits non-zero"; else ok "--index on countersign exits non-zero"; fi
+if "$TOOL" countersign -k x -a ESP256 -i y -o z --index 1 >/dev/null 2>&1; then bad "--index on countersign exits non-zero"; else ok "--index on countersign exits non-zero"; fi
 
 echo
 echo "== Command-line test summary: $PASS passed, $FAIL failed, $SKIP skipped =="

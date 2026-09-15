@@ -43,7 +43,7 @@ int wolfCOSETest(void)
     int keyInited = 0;
     int ret;
 
-    printf("Running wolfCOSE test (COSE_Sign1 ES256)...\n");
+    printf("Running wolfCOSE test (COSE_Sign1 ESP256)...\n");
 
     ret = wc_InitRng(&rng);
     if (ret == 0) {
@@ -62,7 +62,7 @@ int wolfCOSETest(void)
         ret = wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
     }
     if (ret == 0) {
-        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
             NULL, 0, payload, payloadLen, NULL, 0, NULL, 0,
             scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
     }
@@ -73,7 +73,7 @@ int wolfCOSETest(void)
     if (ret == 0) {
         if ((decPayload == NULL) || (decPayloadLen != payloadLen) ||
             (memcmp(decPayload, payload, decPayloadLen) != 0) ||
-            (hdr.alg != WOLFCOSE_ALG_ES256)) {
+            (hdr.alg != WOLFCOSE_ALG_ESP256)) {
             ret = -1;
         }
     }
@@ -96,8 +96,8 @@ int wolfCOSETest(void)
     }
     return ret;
 #else
-    /* ES256 COSE_Sign1 not compiled in; report not run so it is not read as pass */
-    printf("wolfCOSE test: needs ES256 with COSE_Sign1 sign and verify\n");
+    /* ESP256 COSE_Sign1 not compiled in; report not run so it is not read as pass */
+    printf("wolfCOSE test: needs ESP256 with COSE_Sign1 sign and verify\n");
     return -1;
 #endif
 }

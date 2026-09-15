@@ -166,6 +166,7 @@ jobs:
         build_cfg "WOLFCOSE_LEAN_VERIFY" -DWOLFCOSE_LEAN_VERIFY
         build_cfg "WOLFCOSE_LEAN_VERIFY + RFC 9783 PSA/EAT" \
             -DWOLFCOSE_LEAN_VERIFY -DWOLFCOSE_ENABLE_EAT_PSA \
+            -DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
             -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
             -DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 \
             -DWOLFCOSE_ENABLE_EAT_PSA_MAC0 -DWOLFCOSE_ENABLE_ES384 \
@@ -177,6 +178,11 @@ jobs:
             -DWOLFCOSE_NO_MAC -DWOLFCOSE_NO_RECIPIENTS
         build_cfg "WOLFCOSE_LEAN_MLDSA (sign+verify)" -DWOLFCOSE_LEAN_MLDSA
         build_cfg "WOLFCOSE_LEAN_VERIFY_MLDSA (verify-only)" -DWOLFCOSE_LEAN_VERIFY_MLDSA
+        build_cfg "deprecated RFC 9053 alg IDs" -DWOLFCOSE_ENABLE_DEPRECATED_ALGS
+        build_cfg "WOLFCOSE_LEAN + deprecated RFC 9053 alg IDs" -DWOLFCOSE_LEAN \
+            -DWOLFCOSE_ENABLE_DEPRECATED_ALGS
+        build_cfg "deprecated RFC 9053 alg IDs, Ed448 only" \
+            -DWOLFCOSE_ENABLE_DEPRECATED_ALGS -DWOLFCOSE_NO_EDDSA
         echo "All lean configurations compiled clean."
 
     - name: Check PSA/EAT opt-in feature matrix

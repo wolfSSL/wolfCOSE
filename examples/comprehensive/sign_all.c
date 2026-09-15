@@ -86,7 +86,7 @@ static int crv_from_size(int keySz)
  * Sign1 Worker Function
  *
  * Parameters:
- *   alg       - Algorithm ID (WOLFCOSE_ALG_ES256, etc.)
+ *   alg       - Algorithm ID (WOLFCOSE_ALG_ESP256, etc.)
  *   curveSize - Key size: 32=P-256, 48=P-384, 66=P-521, 0=Ed25519
  *   detached  - 0=inline payload, 1=detached payload
  *   useAad    - 0=no AAD, 1=with external AAD
@@ -546,7 +546,7 @@ static int test_sign_multi_4(int detached, int useAad)
         rngInit = 1;
     }
 
-    /* ES256 key */
+    /* ESP256 key */
     if (ret == 0) {
         ret = wc_ecc_init(&eccKey256);
         if (ret == 0) {
@@ -559,7 +559,7 @@ static int test_sign_multi_4(int detached, int useAad)
         }
     }
 
-    /* ES384 key */
+    /* ESP384 key */
     if (ret == 0) {
         ret = wc_ecc_init(&eccKey384);
         if (ret == 0) {
@@ -572,7 +572,7 @@ static int test_sign_multi_4(int detached, int useAad)
         }
     }
 
-    /* ES512 key */
+    /* ESP512 key */
     if (ret == 0) {
         ret = wc_ecc_init(&eccKey521);
         if (ret == 0) {
@@ -585,7 +585,7 @@ static int test_sign_multi_4(int detached, int useAad)
         }
     }
 
-    /* EdDSA key */
+    /* Ed25519 key */
     if (ret == 0) {
         ret = wc_ed25519_init(&edKey);
         if (ret == 0) {
@@ -600,22 +600,22 @@ static int test_sign_multi_4(int detached, int useAad)
 
     /* Setup signers */
     if (ret == 0) {
-        signers[0].algId = WOLFCOSE_ALG_ES256;
+        signers[0].algId = WOLFCOSE_ALG_ESP256;
         signers[0].key = &cosKey256;
         signers[0].kid = (const uint8_t*)"es256";
         signers[0].kidLen = 5;
 
-        signers[1].algId = WOLFCOSE_ALG_ES384;
+        signers[1].algId = WOLFCOSE_ALG_ESP384;
         signers[1].key = &cosKey384;
         signers[1].kid = (const uint8_t*)"es384";
         signers[1].kidLen = 5;
 
-        signers[2].algId = WOLFCOSE_ALG_ES512;
+        signers[2].algId = WOLFCOSE_ALG_ESP512;
         signers[2].key = &cosKey521;
         signers[2].kid = (const uint8_t*)"es512";
         signers[2].kidLen = 5;
 
-        signers[3].algId = WOLFCOSE_ALG_EDDSA;
+        signers[3].algId = WOLFCOSE_ALG_ED25519;
         signers[3].key = &cosKeyEd;
         signers[3].kid = (const uint8_t*)"eddsa";
         signers[3].kidLen = 5;
@@ -692,81 +692,81 @@ static int test_sign1_all(void)
     printf("\n=== COSE_Sign1 Comprehensive Tests ===\n\n");
 
 #if defined(WOLFCOSE_HAVE_ES256) && !defined(WOLFCOSE_NO_SIGN_ALL_ES256)
-    /* ES256 - 4 combinations */
-    PRINT_TEST("es256_inline_noaad");
-    ret = test_sign1(WOLFCOSE_ALG_ES256, 32, 0, 0);
-    CHECK_RESULT(ret, "es256_inline_noaad");
+    /* ESP256 - 4 combinations */
+    PRINT_TEST("esp256_inline_noaad");
+    ret = test_sign1(WOLFCOSE_ALG_ESP256, 32, 0, 0);
+    CHECK_RESULT(ret, "esp256_inline_noaad");
 
-    PRINT_TEST("es256_inline_aad");
-    ret = test_sign1(WOLFCOSE_ALG_ES256, 32, 0, 1);
-    CHECK_RESULT(ret, "es256_inline_aad");
+    PRINT_TEST("esp256_inline_aad");
+    ret = test_sign1(WOLFCOSE_ALG_ESP256, 32, 0, 1);
+    CHECK_RESULT(ret, "esp256_inline_aad");
 
-    PRINT_TEST("es256_detached_noaad");
-    ret = test_sign1(WOLFCOSE_ALG_ES256, 32, 1, 0);
-    CHECK_RESULT(ret, "es256_detached_noaad");
+    PRINT_TEST("esp256_detached_noaad");
+    ret = test_sign1(WOLFCOSE_ALG_ESP256, 32, 1, 0);
+    CHECK_RESULT(ret, "esp256_detached_noaad");
 
-    PRINT_TEST("es256_detached_aad");
-    ret = test_sign1(WOLFCOSE_ALG_ES256, 32, 1, 1);
-    CHECK_RESULT(ret, "es256_detached_aad");
+    PRINT_TEST("esp256_detached_aad");
+    ret = test_sign1(WOLFCOSE_ALG_ESP256, 32, 1, 1);
+    CHECK_RESULT(ret, "esp256_detached_aad");
 #endif
 
 #if defined(WOLFCOSE_HAVE_ES384) && \
     !defined(WOLFCOSE_NO_SIGN_ALL_ES384)
-    /* ES384 - 4 combinations */
-    PRINT_TEST("es384_inline_noaad");
-    ret = test_sign1(WOLFCOSE_ALG_ES384, 48, 0, 0);
-    CHECK_RESULT(ret, "es384_inline_noaad");
+    /* ESP384 - 4 combinations */
+    PRINT_TEST("esp384_inline_noaad");
+    ret = test_sign1(WOLFCOSE_ALG_ESP384, 48, 0, 0);
+    CHECK_RESULT(ret, "esp384_inline_noaad");
 
-    PRINT_TEST("es384_inline_aad");
-    ret = test_sign1(WOLFCOSE_ALG_ES384, 48, 0, 1);
-    CHECK_RESULT(ret, "es384_inline_aad");
+    PRINT_TEST("esp384_inline_aad");
+    ret = test_sign1(WOLFCOSE_ALG_ESP384, 48, 0, 1);
+    CHECK_RESULT(ret, "esp384_inline_aad");
 
-    PRINT_TEST("es384_detached_noaad");
-    ret = test_sign1(WOLFCOSE_ALG_ES384, 48, 1, 0);
-    CHECK_RESULT(ret, "es384_detached_noaad");
+    PRINT_TEST("esp384_detached_noaad");
+    ret = test_sign1(WOLFCOSE_ALG_ESP384, 48, 1, 0);
+    CHECK_RESULT(ret, "esp384_detached_noaad");
 
-    PRINT_TEST("es384_detached_aad");
-    ret = test_sign1(WOLFCOSE_ALG_ES384, 48, 1, 1);
-    CHECK_RESULT(ret, "es384_detached_aad");
+    PRINT_TEST("esp384_detached_aad");
+    ret = test_sign1(WOLFCOSE_ALG_ESP384, 48, 1, 1);
+    CHECK_RESULT(ret, "esp384_detached_aad");
 #endif
 
 #if defined(WOLFCOSE_HAVE_ES512) && \
     !defined(WOLFCOSE_NO_SIGN_ALL_ES512)
-    /* ES512 - 4 combinations */
-    PRINT_TEST("es512_inline_noaad");
-    ret = test_sign1(WOLFCOSE_ALG_ES512, 66, 0, 0);
-    CHECK_RESULT(ret, "es512_inline_noaad");
+    /* ESP512 - 4 combinations */
+    PRINT_TEST("esp512_inline_noaad");
+    ret = test_sign1(WOLFCOSE_ALG_ESP512, 66, 0, 0);
+    CHECK_RESULT(ret, "esp512_inline_noaad");
 
-    PRINT_TEST("es512_inline_aad");
-    ret = test_sign1(WOLFCOSE_ALG_ES512, 66, 0, 1);
-    CHECK_RESULT(ret, "es512_inline_aad");
+    PRINT_TEST("esp512_inline_aad");
+    ret = test_sign1(WOLFCOSE_ALG_ESP512, 66, 0, 1);
+    CHECK_RESULT(ret, "esp512_inline_aad");
 
-    PRINT_TEST("es512_detached_noaad");
-    ret = test_sign1(WOLFCOSE_ALG_ES512, 66, 1, 0);
-    CHECK_RESULT(ret, "es512_detached_noaad");
+    PRINT_TEST("esp512_detached_noaad");
+    ret = test_sign1(WOLFCOSE_ALG_ESP512, 66, 1, 0);
+    CHECK_RESULT(ret, "esp512_detached_noaad");
 
-    PRINT_TEST("es512_detached_aad");
-    ret = test_sign1(WOLFCOSE_ALG_ES512, 66, 1, 1);
-    CHECK_RESULT(ret, "es512_detached_aad");
+    PRINT_TEST("esp512_detached_aad");
+    ret = test_sign1(WOLFCOSE_ALG_ESP512, 66, 1, 1);
+    CHECK_RESULT(ret, "esp512_detached_aad");
 #endif
 
 #if defined(WOLFCOSE_HAVE_EDDSA) && !defined(WOLFCOSE_NO_SIGN_ALL_EDDSA)
-    /* EdDSA - 4 combinations */
-    PRINT_TEST("eddsa_inline_noaad");
-    ret = test_sign1(WOLFCOSE_ALG_EDDSA, 0, 0, 0);
-    CHECK_RESULT(ret, "eddsa_inline_noaad");
+    /* Ed25519 - 4 combinations */
+    PRINT_TEST("ed25519_inline_noaad");
+    ret = test_sign1(WOLFCOSE_ALG_ED25519, 0, 0, 0);
+    CHECK_RESULT(ret, "ed25519_inline_noaad");
 
-    PRINT_TEST("eddsa_inline_aad");
-    ret = test_sign1(WOLFCOSE_ALG_EDDSA, 0, 0, 1);
-    CHECK_RESULT(ret, "eddsa_inline_aad");
+    PRINT_TEST("ed25519_inline_aad");
+    ret = test_sign1(WOLFCOSE_ALG_ED25519, 0, 0, 1);
+    CHECK_RESULT(ret, "ed25519_inline_aad");
 
-    PRINT_TEST("eddsa_detached_noaad");
-    ret = test_sign1(WOLFCOSE_ALG_EDDSA, 0, 1, 0);
-    CHECK_RESULT(ret, "eddsa_detached_noaad");
+    PRINT_TEST("ed25519_detached_noaad");
+    ret = test_sign1(WOLFCOSE_ALG_ED25519, 0, 1, 0);
+    CHECK_RESULT(ret, "ed25519_detached_noaad");
 
-    PRINT_TEST("eddsa_detached_aad");
-    ret = test_sign1(WOLFCOSE_ALG_EDDSA, 0, 1, 1);
-    CHECK_RESULT(ret, "eddsa_detached_aad");
+    PRINT_TEST("ed25519_detached_aad");
+    ret = test_sign1(WOLFCOSE_ALG_ED25519, 0, 1, 1);
+    CHECK_RESULT(ret, "ed25519_detached_aad");
 #endif
 
     printf("\nSign1 Summary: %d passed, %d failed\n", passed, failed);
@@ -785,207 +785,207 @@ static int test_sign_multi_all(void)
     printf("\n=== COSE_Sign Multi-Signer Comprehensive Tests ===\n\n");
 
     /* Two-signer: ES256 + ES256 (4 modes) */
-    PRINT_TEST("multi2_es256_es256_inline_noaad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES256, 32, 0, 0);
-    CHECK_RESULT(ret, "multi2_es256_es256_inline_noaad");
+    PRINT_TEST("multi2_esp256_esp256_inline_noaad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP256, 32, 0, 0);
+    CHECK_RESULT(ret, "multi2_esp256_esp256_inline_noaad");
 
-    PRINT_TEST("multi2_es256_es256_inline_aad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES256, 32, 0, 1);
-    CHECK_RESULT(ret, "multi2_es256_es256_inline_aad");
+    PRINT_TEST("multi2_esp256_esp256_inline_aad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP256, 32, 0, 1);
+    CHECK_RESULT(ret, "multi2_esp256_esp256_inline_aad");
 
-    PRINT_TEST("multi2_es256_es256_detached_noaad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES256, 32, 1, 0);
-    CHECK_RESULT(ret, "multi2_es256_es256_detached_noaad");
+    PRINT_TEST("multi2_esp256_esp256_detached_noaad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP256, 32, 1, 0);
+    CHECK_RESULT(ret, "multi2_esp256_esp256_detached_noaad");
 
-    PRINT_TEST("multi2_es256_es256_detached_aad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES256, 32, 1, 1);
-    CHECK_RESULT(ret, "multi2_es256_es256_detached_aad");
+    PRINT_TEST("multi2_esp256_esp256_detached_aad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP256, 32, 1, 1);
+    CHECK_RESULT(ret, "multi2_esp256_esp256_detached_aad");
 
 #ifdef WOLFCOSE_HAVE_ES384
     /* Two-signer: ES256 + ES384 */
-    PRINT_TEST("multi2_es256_es384_inline_noaad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES384, 48, 0, 0);
-    CHECK_RESULT(ret, "multi2_es256_es384_inline_noaad");
+    PRINT_TEST("multi2_esp256_esp384_inline_noaad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP384, 48, 0, 0);
+    CHECK_RESULT(ret, "multi2_esp256_esp384_inline_noaad");
 
-    PRINT_TEST("multi2_es256_es384_inline_aad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES384, 48, 0, 1);
-    CHECK_RESULT(ret, "multi2_es256_es384_inline_aad");
+    PRINT_TEST("multi2_esp256_esp384_inline_aad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP384, 48, 0, 1);
+    CHECK_RESULT(ret, "multi2_esp256_esp384_inline_aad");
 
-    PRINT_TEST("multi2_es256_es384_detached_noaad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES384, 48, 1, 0);
-    CHECK_RESULT(ret, "multi2_es256_es384_detached_noaad");
+    PRINT_TEST("multi2_esp256_esp384_detached_noaad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP384, 48, 1, 0);
+    CHECK_RESULT(ret, "multi2_esp256_esp384_detached_noaad");
 
-    PRINT_TEST("multi2_es256_es384_detached_aad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES384, 48, 1, 1);
-    CHECK_RESULT(ret, "multi2_es256_es384_detached_aad");
+    PRINT_TEST("multi2_esp256_esp384_detached_aad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP384, 48, 1, 1);
+    CHECK_RESULT(ret, "multi2_esp256_esp384_detached_aad");
 #endif
 
 #ifdef WOLFCOSE_HAVE_ES512
     /* Two-signer: ES256 + ES512 */
-    PRINT_TEST("multi2_es256_es512_inline_noaad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES512, 66, 0, 0);
-    CHECK_RESULT(ret, "multi2_es256_es512_inline_noaad");
+    PRINT_TEST("multi2_esp256_esp512_inline_noaad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP512, 66, 0, 0);
+    CHECK_RESULT(ret, "multi2_esp256_esp512_inline_noaad");
 
-    PRINT_TEST("multi2_es256_es512_inline_aad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES512, 66, 0, 1);
-    CHECK_RESULT(ret, "multi2_es256_es512_inline_aad");
+    PRINT_TEST("multi2_esp256_esp512_inline_aad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP512, 66, 0, 1);
+    CHECK_RESULT(ret, "multi2_esp256_esp512_inline_aad");
 
-    PRINT_TEST("multi2_es256_es512_detached_noaad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES512, 66, 1, 0);
-    CHECK_RESULT(ret, "multi2_es256_es512_detached_noaad");
+    PRINT_TEST("multi2_esp256_esp512_detached_noaad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP512, 66, 1, 0);
+    CHECK_RESULT(ret, "multi2_esp256_esp512_detached_noaad");
 
-    PRINT_TEST("multi2_es256_es512_detached_aad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES512, 66, 1, 1);
-    CHECK_RESULT(ret, "multi2_es256_es512_detached_aad");
+    PRINT_TEST("multi2_esp256_esp512_detached_aad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP512, 66, 1, 1);
+    CHECK_RESULT(ret, "multi2_esp256_esp512_detached_aad");
 #endif
 
 #ifdef WOLFCOSE_HAVE_EDDSA
     /* Two-signer: ES256 + EdDSA */
-    PRINT_TEST("multi2_es256_eddsa_inline_noaad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_EDDSA, 0, 0, 0);
-    CHECK_RESULT(ret, "multi2_es256_eddsa_inline_noaad");
+    PRINT_TEST("multi2_esp256_ed25519_inline_noaad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ED25519, 0, 0, 0);
+    CHECK_RESULT(ret, "multi2_esp256_ed25519_inline_noaad");
 
-    PRINT_TEST("multi2_es256_eddsa_inline_aad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_EDDSA, 0, 0, 1);
-    CHECK_RESULT(ret, "multi2_es256_eddsa_inline_aad");
+    PRINT_TEST("multi2_esp256_ed25519_inline_aad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ED25519, 0, 0, 1);
+    CHECK_RESULT(ret, "multi2_esp256_ed25519_inline_aad");
 
-    PRINT_TEST("multi2_es256_eddsa_detached_noaad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_EDDSA, 0, 1, 0);
-    CHECK_RESULT(ret, "multi2_es256_eddsa_detached_noaad");
+    PRINT_TEST("multi2_esp256_ed25519_detached_noaad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ED25519, 0, 1, 0);
+    CHECK_RESULT(ret, "multi2_esp256_ed25519_detached_noaad");
 
-    PRINT_TEST("multi2_es256_eddsa_detached_aad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_EDDSA, 0, 1, 1);
-    CHECK_RESULT(ret, "multi2_es256_eddsa_detached_aad");
+    PRINT_TEST("multi2_esp256_ed25519_detached_aad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ED25519, 0, 1, 1);
+    CHECK_RESULT(ret, "multi2_esp256_ed25519_detached_aad");
 #endif
 
 #if defined(WOLFCOSE_HAVE_ES384) && defined(WOLFCOSE_HAVE_ES512)
     /* Two-signer: ES384 + ES512 */
-    PRINT_TEST("multi2_es384_es512_inline_noaad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES384, 48, WOLFCOSE_ALG_ES512, 66, 0, 0);
-    CHECK_RESULT(ret, "multi2_es384_es512_inline_noaad");
+    PRINT_TEST("multi2_esp384_esp512_inline_noaad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP384, 48, WOLFCOSE_ALG_ESP512, 66, 0, 0);
+    CHECK_RESULT(ret, "multi2_esp384_esp512_inline_noaad");
 
-    PRINT_TEST("multi2_es384_es512_inline_aad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES384, 48, WOLFCOSE_ALG_ES512, 66, 0, 1);
-    CHECK_RESULT(ret, "multi2_es384_es512_inline_aad");
+    PRINT_TEST("multi2_esp384_esp512_inline_aad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP384, 48, WOLFCOSE_ALG_ESP512, 66, 0, 1);
+    CHECK_RESULT(ret, "multi2_esp384_esp512_inline_aad");
 
-    PRINT_TEST("multi2_es384_es512_detached_noaad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES384, 48, WOLFCOSE_ALG_ES512, 66, 1, 0);
-    CHECK_RESULT(ret, "multi2_es384_es512_detached_noaad");
+    PRINT_TEST("multi2_esp384_esp512_detached_noaad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP384, 48, WOLFCOSE_ALG_ESP512, 66, 1, 0);
+    CHECK_RESULT(ret, "multi2_esp384_esp512_detached_noaad");
 
-    PRINT_TEST("multi2_es384_es512_detached_aad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES384, 48, WOLFCOSE_ALG_ES512, 66, 1, 1);
-    CHECK_RESULT(ret, "multi2_es384_es512_detached_aad");
+    PRINT_TEST("multi2_esp384_esp512_detached_aad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP384, 48, WOLFCOSE_ALG_ESP512, 66, 1, 1);
+    CHECK_RESULT(ret, "multi2_esp384_esp512_detached_aad");
 #endif
 
 #if defined(WOLFCOSE_HAVE_ES384) && defined(WOLFCOSE_HAVE_EDDSA)
     /* Two-signer: ES384 + EdDSA */
-    PRINT_TEST("multi2_es384_eddsa_inline_noaad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES384, 48, WOLFCOSE_ALG_EDDSA, 0, 0, 0);
-    CHECK_RESULT(ret, "multi2_es384_eddsa_inline_noaad");
+    PRINT_TEST("multi2_esp384_ed25519_inline_noaad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP384, 48, WOLFCOSE_ALG_ED25519, 0, 0, 0);
+    CHECK_RESULT(ret, "multi2_esp384_ed25519_inline_noaad");
 
-    PRINT_TEST("multi2_es384_eddsa_inline_aad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES384, 48, WOLFCOSE_ALG_EDDSA, 0, 0, 1);
-    CHECK_RESULT(ret, "multi2_es384_eddsa_inline_aad");
+    PRINT_TEST("multi2_esp384_ed25519_inline_aad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP384, 48, WOLFCOSE_ALG_ED25519, 0, 0, 1);
+    CHECK_RESULT(ret, "multi2_esp384_ed25519_inline_aad");
 
-    PRINT_TEST("multi2_es384_eddsa_detached_noaad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES384, 48, WOLFCOSE_ALG_EDDSA, 0, 1, 0);
-    CHECK_RESULT(ret, "multi2_es384_eddsa_detached_noaad");
+    PRINT_TEST("multi2_esp384_ed25519_detached_noaad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP384, 48, WOLFCOSE_ALG_ED25519, 0, 1, 0);
+    CHECK_RESULT(ret, "multi2_esp384_ed25519_detached_noaad");
 
-    PRINT_TEST("multi2_es384_eddsa_detached_aad");
-    ret = test_sign_multi_2(WOLFCOSE_ALG_ES384, 48, WOLFCOSE_ALG_EDDSA, 0, 1, 1);
-    CHECK_RESULT(ret, "multi2_es384_eddsa_detached_aad");
+    PRINT_TEST("multi2_esp384_ed25519_detached_aad");
+    ret = test_sign_multi_2(WOLFCOSE_ALG_ESP384, 48, WOLFCOSE_ALG_ED25519, 0, 1, 1);
+    CHECK_RESULT(ret, "multi2_esp384_ed25519_detached_aad");
 #endif
 
 #if defined(WOLFCOSE_HAVE_ES384) && defined(WOLFCOSE_HAVE_ES512)
     /* Three-signer: ES256 + ES384 + ES512 */
-    PRINT_TEST("multi3_es256_es384_es512_inline_noaad");
-    ret = test_sign_multi_3(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES384, 48,
-                             WOLFCOSE_ALG_ES512, 66, 0, 0);
-    CHECK_RESULT(ret, "multi3_es256_es384_es512_inline_noaad");
+    PRINT_TEST("multi3_esp256_esp384_esp512_inline_noaad");
+    ret = test_sign_multi_3(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP384, 48,
+                             WOLFCOSE_ALG_ESP512, 66, 0, 0);
+    CHECK_RESULT(ret, "multi3_esp256_esp384_esp512_inline_noaad");
 
-    PRINT_TEST("multi3_es256_es384_es512_inline_aad");
-    ret = test_sign_multi_3(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES384, 48,
-                             WOLFCOSE_ALG_ES512, 66, 0, 1);
-    CHECK_RESULT(ret, "multi3_es256_es384_es512_inline_aad");
+    PRINT_TEST("multi3_esp256_esp384_esp512_inline_aad");
+    ret = test_sign_multi_3(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP384, 48,
+                             WOLFCOSE_ALG_ESP512, 66, 0, 1);
+    CHECK_RESULT(ret, "multi3_esp256_esp384_esp512_inline_aad");
 
-    PRINT_TEST("multi3_es256_es384_es512_detached_noaad");
-    ret = test_sign_multi_3(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES384, 48,
-                             WOLFCOSE_ALG_ES512, 66, 1, 0);
-    CHECK_RESULT(ret, "multi3_es256_es384_es512_detached_noaad");
+    PRINT_TEST("multi3_esp256_esp384_esp512_detached_noaad");
+    ret = test_sign_multi_3(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP384, 48,
+                             WOLFCOSE_ALG_ESP512, 66, 1, 0);
+    CHECK_RESULT(ret, "multi3_esp256_esp384_esp512_detached_noaad");
 
-    PRINT_TEST("multi3_es256_es384_es512_detached_aad");
-    ret = test_sign_multi_3(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES384, 48,
-                             WOLFCOSE_ALG_ES512, 66, 1, 1);
-    CHECK_RESULT(ret, "multi3_es256_es384_es512_detached_aad");
+    PRINT_TEST("multi3_esp256_esp384_esp512_detached_aad");
+    ret = test_sign_multi_3(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP384, 48,
+                             WOLFCOSE_ALG_ESP512, 66, 1, 1);
+    CHECK_RESULT(ret, "multi3_esp256_esp384_esp512_detached_aad");
 #endif
 
 #if defined(WOLFCOSE_HAVE_ES384) && defined(WOLFCOSE_HAVE_EDDSA)
     /* Three-signer: ES256 + ES384 + EdDSA */
-    PRINT_TEST("multi3_es256_es384_eddsa_inline_noaad");
-    ret = test_sign_multi_3(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES384, 48,
-                             WOLFCOSE_ALG_EDDSA, 0, 0, 0);
-    CHECK_RESULT(ret, "multi3_es256_es384_eddsa_inline_noaad");
+    PRINT_TEST("multi3_esp256_esp384_ed25519_inline_noaad");
+    ret = test_sign_multi_3(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP384, 48,
+                             WOLFCOSE_ALG_ED25519, 0, 0, 0);
+    CHECK_RESULT(ret, "multi3_esp256_esp384_ed25519_inline_noaad");
 
-    PRINT_TEST("multi3_es256_es384_eddsa_inline_aad");
-    ret = test_sign_multi_3(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES384, 48,
-                             WOLFCOSE_ALG_EDDSA, 0, 0, 1);
-    CHECK_RESULT(ret, "multi3_es256_es384_eddsa_inline_aad");
+    PRINT_TEST("multi3_esp256_esp384_ed25519_inline_aad");
+    ret = test_sign_multi_3(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP384, 48,
+                             WOLFCOSE_ALG_ED25519, 0, 0, 1);
+    CHECK_RESULT(ret, "multi3_esp256_esp384_ed25519_inline_aad");
 
-    PRINT_TEST("multi3_es256_es384_eddsa_detached_noaad");
-    ret = test_sign_multi_3(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES384, 48,
-                             WOLFCOSE_ALG_EDDSA, 0, 1, 0);
-    CHECK_RESULT(ret, "multi3_es256_es384_eddsa_detached_noaad");
+    PRINT_TEST("multi3_esp256_esp384_ed25519_detached_noaad");
+    ret = test_sign_multi_3(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP384, 48,
+                             WOLFCOSE_ALG_ED25519, 0, 1, 0);
+    CHECK_RESULT(ret, "multi3_esp256_esp384_ed25519_detached_noaad");
 
-    PRINT_TEST("multi3_es256_es384_eddsa_detached_aad");
-    ret = test_sign_multi_3(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES384, 48,
-                             WOLFCOSE_ALG_EDDSA, 0, 1, 1);
-    CHECK_RESULT(ret, "multi3_es256_es384_eddsa_detached_aad");
+    PRINT_TEST("multi3_esp256_esp384_ed25519_detached_aad");
+    ret = test_sign_multi_3(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP384, 48,
+                             WOLFCOSE_ALG_ED25519, 0, 1, 1);
+    CHECK_RESULT(ret, "multi3_esp256_esp384_ed25519_detached_aad");
 #endif
 
 #if defined(WOLFCOSE_HAVE_ES512) && defined(WOLFCOSE_HAVE_EDDSA)
     /* Three-signer: ES256 + ES512 + EdDSA */
-    PRINT_TEST("multi3_es256_es512_eddsa_inline_noaad");
-    ret = test_sign_multi_3(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES512, 66,
-                             WOLFCOSE_ALG_EDDSA, 0, 0, 0);
-    CHECK_RESULT(ret, "multi3_es256_es512_eddsa_inline_noaad");
+    PRINT_TEST("multi3_esp256_esp512_ed25519_inline_noaad");
+    ret = test_sign_multi_3(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP512, 66,
+                             WOLFCOSE_ALG_ED25519, 0, 0, 0);
+    CHECK_RESULT(ret, "multi3_esp256_esp512_ed25519_inline_noaad");
 
-    PRINT_TEST("multi3_es256_es512_eddsa_inline_aad");
-    ret = test_sign_multi_3(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES512, 66,
-                             WOLFCOSE_ALG_EDDSA, 0, 0, 1);
-    CHECK_RESULT(ret, "multi3_es256_es512_eddsa_inline_aad");
+    PRINT_TEST("multi3_esp256_esp512_ed25519_inline_aad");
+    ret = test_sign_multi_3(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP512, 66,
+                             WOLFCOSE_ALG_ED25519, 0, 0, 1);
+    CHECK_RESULT(ret, "multi3_esp256_esp512_ed25519_inline_aad");
 
-    PRINT_TEST("multi3_es256_es512_eddsa_detached_noaad");
-    ret = test_sign_multi_3(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES512, 66,
-                             WOLFCOSE_ALG_EDDSA, 0, 1, 0);
-    CHECK_RESULT(ret, "multi3_es256_es512_eddsa_detached_noaad");
+    PRINT_TEST("multi3_esp256_esp512_ed25519_detached_noaad");
+    ret = test_sign_multi_3(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP512, 66,
+                             WOLFCOSE_ALG_ED25519, 0, 1, 0);
+    CHECK_RESULT(ret, "multi3_esp256_esp512_ed25519_detached_noaad");
 
-    PRINT_TEST("multi3_es256_es512_eddsa_detached_aad");
-    ret = test_sign_multi_3(WOLFCOSE_ALG_ES256, 32, WOLFCOSE_ALG_ES512, 66,
-                             WOLFCOSE_ALG_EDDSA, 0, 1, 1);
-    CHECK_RESULT(ret, "multi3_es256_es512_eddsa_detached_aad");
+    PRINT_TEST("multi3_esp256_esp512_ed25519_detached_aad");
+    ret = test_sign_multi_3(WOLFCOSE_ALG_ESP256, 32, WOLFCOSE_ALG_ESP512, 66,
+                             WOLFCOSE_ALG_ED25519, 0, 1, 1);
+    CHECK_RESULT(ret, "multi3_esp256_esp512_ed25519_detached_aad");
 #endif
 
 #if defined(WOLFCOSE_HAVE_ES384) && defined(WOLFCOSE_HAVE_ES512) && defined(WOLFCOSE_HAVE_EDDSA)
     /* Three-signer: ES384 + ES512 + EdDSA */
-    PRINT_TEST("multi3_es384_es512_eddsa_inline_noaad");
-    ret = test_sign_multi_3(WOLFCOSE_ALG_ES384, 48, WOLFCOSE_ALG_ES512, 66,
-                             WOLFCOSE_ALG_EDDSA, 0, 0, 0);
-    CHECK_RESULT(ret, "multi3_es384_es512_eddsa_inline_noaad");
+    PRINT_TEST("multi3_esp384_esp512_ed25519_inline_noaad");
+    ret = test_sign_multi_3(WOLFCOSE_ALG_ESP384, 48, WOLFCOSE_ALG_ESP512, 66,
+                             WOLFCOSE_ALG_ED25519, 0, 0, 0);
+    CHECK_RESULT(ret, "multi3_esp384_esp512_ed25519_inline_noaad");
 
-    PRINT_TEST("multi3_es384_es512_eddsa_inline_aad");
-    ret = test_sign_multi_3(WOLFCOSE_ALG_ES384, 48, WOLFCOSE_ALG_ES512, 66,
-                             WOLFCOSE_ALG_EDDSA, 0, 0, 1);
-    CHECK_RESULT(ret, "multi3_es384_es512_eddsa_inline_aad");
+    PRINT_TEST("multi3_esp384_esp512_ed25519_inline_aad");
+    ret = test_sign_multi_3(WOLFCOSE_ALG_ESP384, 48, WOLFCOSE_ALG_ESP512, 66,
+                             WOLFCOSE_ALG_ED25519, 0, 0, 1);
+    CHECK_RESULT(ret, "multi3_esp384_esp512_ed25519_inline_aad");
 
-    PRINT_TEST("multi3_es384_es512_eddsa_detached_noaad");
-    ret = test_sign_multi_3(WOLFCOSE_ALG_ES384, 48, WOLFCOSE_ALG_ES512, 66,
-                             WOLFCOSE_ALG_EDDSA, 0, 1, 0);
-    CHECK_RESULT(ret, "multi3_es384_es512_eddsa_detached_noaad");
+    PRINT_TEST("multi3_esp384_esp512_ed25519_detached_noaad");
+    ret = test_sign_multi_3(WOLFCOSE_ALG_ESP384, 48, WOLFCOSE_ALG_ESP512, 66,
+                             WOLFCOSE_ALG_ED25519, 0, 1, 0);
+    CHECK_RESULT(ret, "multi3_esp384_esp512_ed25519_detached_noaad");
 
-    PRINT_TEST("multi3_es384_es512_eddsa_detached_aad");
-    ret = test_sign_multi_3(WOLFCOSE_ALG_ES384, 48, WOLFCOSE_ALG_ES512, 66,
-                             WOLFCOSE_ALG_EDDSA, 0, 1, 1);
-    CHECK_RESULT(ret, "multi3_es384_es512_eddsa_detached_aad");
+    PRINT_TEST("multi3_esp384_esp512_ed25519_detached_aad");
+    ret = test_sign_multi_3(WOLFCOSE_ALG_ESP384, 48, WOLFCOSE_ALG_ESP512, 66,
+                             WOLFCOSE_ALG_ED25519, 0, 1, 1);
+    CHECK_RESULT(ret, "multi3_esp384_esp512_ed25519_detached_aad");
 #endif
 
 #if defined(WOLFCOSE_HAVE_ES384) && defined(WOLFCOSE_HAVE_ES512) && defined(WOLFCOSE_HAVE_EDDSA)
@@ -1082,9 +1082,9 @@ static int test_sign1_interop(void)
     }
 
     /* Sign with known key */
-    PRINT_TEST("interop_sign1_es256_roundtrip");
+    PRINT_TEST("interop_sign1_esp256_roundtrip");
     if (ret == 0) {
-        ret = wc_CoseSign1_Sign(&cosKey, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&cosKey, WOLFCOSE_ALG_ESP256,
             NULL, 0,
             payload, sizeof(payload) - 1u,
             NULL, 0, NULL, 0,
@@ -1101,7 +1101,7 @@ static int test_sign1_interop(void)
     }
 
     /* Validate */
-    if ((ret == 0) && (hdr.alg != WOLFCOSE_ALG_ES256)) {
+    if ((ret == 0) && (hdr.alg != WOLFCOSE_ALG_ESP256)) {
         ret = -1;
     }
     if ((ret == 0) && (decPayloadLen != (sizeof(payload) - 1u))) {

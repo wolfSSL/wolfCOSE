@@ -43,7 +43,7 @@ static int demo_sign1_es256(void)
     WOLFCOSE_KEY key;
     ecc_key eccKey;
     WC_RNG rng;
-    const uint8_t payload[] ="ES256 test payload";
+    const uint8_t payload[] ="ESP256 test payload";
     uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
     uint8_t out[512];
     size_t outLen = 0;
@@ -52,7 +52,7 @@ static int demo_sign1_es256(void)
     WOLFCOSE_HDR hdr;
     int ret;
 
-    printf("--- COSE_Sign1 ES256 (P-256) ---\n");
+    printf("--- COSE_Sign1 ESP256 (P-256) ---\n");
     printf("  Payload: \"%s\" (%zu bytes)\n", payload, sizeof(payload) - 1u);
 
     ret = wc_InitRng(&rng);
@@ -66,7 +66,7 @@ static int demo_sign1_es256(void)
     ret = wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
     DEMO_ASSERT(ret == 0, "Set ECC key");
 
-    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
         NULL, 0,                           /* kid, kidLen */
         payload, sizeof(payload) - 1u,      /* payload, payloadLen */
         NULL, 0,                           /* detachedPayload, detachedLen */
@@ -84,7 +84,7 @@ static int demo_sign1_es256(void)
     DEMO_ASSERT(ret == 0, "Verify");
     DEMO_ASSERT(decPayloadLen == sizeof(payload) - 1u, "Payload length");
     DEMO_ASSERT(memcmp(decPayload, payload, decPayloadLen) == 0, "Payload match");
-    DEMO_ASSERT(hdr.alg == WOLFCOSE_ALG_ES256, "Algorithm");
+    DEMO_ASSERT(hdr.alg == WOLFCOSE_ALG_ESP256, "Algorithm");
 
     (void)wc_ecc_free(&eccKey);
     (void)wc_FreeRng(&rng);
@@ -98,7 +98,7 @@ static int demo_sign1_es384(void)
     WOLFCOSE_KEY key;
     ecc_key eccKey;
     WC_RNG rng;
-    const uint8_t payload[] ="ES384 test payload";
+    const uint8_t payload[] ="ESP384 test payload";
     uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
     uint8_t out[512];
     size_t outLen = 0;
@@ -107,7 +107,7 @@ static int demo_sign1_es384(void)
     WOLFCOSE_HDR hdr;
     int ret;
 
-    printf("--- COSE_Sign1 ES384 (P-384) ---\n");
+    printf("--- COSE_Sign1 ESP384 (P-384) ---\n");
     printf("  Payload: \"%s\" (%zu bytes)\n", payload, sizeof(payload) - 1u);
 
     ret = wc_InitRng(&rng);
@@ -121,7 +121,7 @@ static int demo_sign1_es384(void)
     ret = wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P384, &eccKey);
     DEMO_ASSERT(ret == 0, "Set ECC key");
 
-    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES384,
+    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP384,
         NULL, 0,                           /* kid, kidLen */
         payload, sizeof(payload) - 1u,      /* payload, payloadLen */
         NULL, 0,                           /* detachedPayload, detachedLen */
@@ -137,7 +137,7 @@ static int demo_sign1_es384(void)
         scratch, sizeof(scratch),
         &hdr, &decPayload, &decPayloadLen);
     DEMO_ASSERT(ret == 0, "Verify");
-    DEMO_ASSERT(hdr.alg == WOLFCOSE_ALG_ES384, "Algorithm");
+    DEMO_ASSERT(hdr.alg == WOLFCOSE_ALG_ESP384, "Algorithm");
 
     (void)wc_ecc_free(&eccKey);
     (void)wc_FreeRng(&rng);
@@ -152,7 +152,7 @@ static int demo_sign1_es512(void)
     WOLFCOSE_KEY key;
     ecc_key eccKey;
     WC_RNG rng;
-    const uint8_t payload[] ="ES512 test payload";
+    const uint8_t payload[] ="ESP512 test payload";
     uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
     uint8_t out[640];
     size_t outLen = 0;
@@ -161,7 +161,7 @@ static int demo_sign1_es512(void)
     WOLFCOSE_HDR hdr;
     int ret;
 
-    printf("--- COSE_Sign1 ES512 (P-521) ---\n");
+    printf("--- COSE_Sign1 ESP512 (P-521) ---\n");
     printf("  Payload: \"%s\" (%zu bytes)\n", payload, sizeof(payload) - 1u);
 
     ret = wc_InitRng(&rng);
@@ -175,7 +175,7 @@ static int demo_sign1_es512(void)
     ret = wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P521, &eccKey);
     DEMO_ASSERT(ret == 0, "Set ECC key");
 
-    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES512,
+    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP512,
         NULL, 0,                           /* kid, kidLen */
         payload, sizeof(payload) - 1u,      /* payload, payloadLen */
         NULL, 0,                           /* detachedPayload, detachedLen */
@@ -191,7 +191,7 @@ static int demo_sign1_es512(void)
         scratch, sizeof(scratch),
         &hdr, &decPayload, &decPayloadLen);
     DEMO_ASSERT(ret == 0, "Verify");
-    DEMO_ASSERT(hdr.alg == WOLFCOSE_ALG_ES512, "Algorithm");
+    DEMO_ASSERT(hdr.alg == WOLFCOSE_ALG_ESP512, "Algorithm");
 
     (void)wc_ecc_free(&eccKey);
     (void)wc_FreeRng(&rng);
@@ -233,7 +233,7 @@ static int demo_sign1_with_aad(void)
     ret = wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
     DEMO_ASSERT(ret == 0, "Set ECC key");
 
-    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
         NULL, 0,                           /* kid, kidLen */
         payload, sizeof(payload) - 1u,      /* payload, payloadLen */
         NULL, 0,                           /* detachedPayload, detachedLen */
@@ -272,7 +272,7 @@ static int demo_sign1_eddsa(void)
     WOLFCOSE_KEY key;
     ed25519_key edKey;
     WC_RNG rng;
-    const uint8_t payload[] ="EdDSA test payload";
+    const uint8_t payload[] ="Ed25519 test payload";
     uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
     uint8_t out[512];
     size_t outLen = 0;
@@ -281,7 +281,7 @@ static int demo_sign1_eddsa(void)
     WOLFCOSE_HDR hdr;
     int ret;
 
-    printf("--- COSE_Sign1 EdDSA (Ed25519) ---\n");
+    printf("--- COSE_Sign1 Ed25519 ---\n");
     printf("  Payload: \"%s\" (%zu bytes)\n", payload, sizeof(payload) - 1u);
 
     ret = wc_InitRng(&rng);
@@ -295,7 +295,7 @@ static int demo_sign1_eddsa(void)
     ret = wc_CoseKey_SetEd25519(&key, &edKey);
     DEMO_ASSERT(ret == 0, "Set Ed25519 key");
 
-    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_EDDSA,
+    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ED25519,
         NULL, 0,                           /* kid, kidLen */
         payload, sizeof(payload) - 1u,      /* payload, payloadLen */
         NULL, 0,                           /* detachedPayload, detachedLen */
@@ -311,7 +311,7 @@ static int demo_sign1_eddsa(void)
         scratch, sizeof(scratch),
         &hdr, &decPayload, &decPayloadLen);
     DEMO_ASSERT(ret == 0, "Verify");
-    DEMO_ASSERT(hdr.alg == WOLFCOSE_ALG_EDDSA, "Algorithm");
+    DEMO_ASSERT(hdr.alg == WOLFCOSE_ALG_ED25519, "Algorithm");
 
     (void)wc_ed25519_free(&edKey);
     (void)wc_FreeRng(&rng);

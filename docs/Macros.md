@@ -46,7 +46,7 @@ and graduation plan.
 
 ## Lean Configuration Layer
 
-Defining `WOLFCOSE_LEAN` keeps only the core — `COSE_Sign1`/`Encrypt0`/`Mac0` with ES256, AES-GCM, and HMAC-SHA256 — and turns every other algorithm into an opt-in. This is the recommended starting point for constrained targets.
+Defining `WOLFCOSE_LEAN` keeps only the core (`COSE_Sign1`/`Encrypt0`/`Mac0` with ESP256, AES-GCM, and HMAC-SHA256) and turns every other algorithm into an opt-in. This is the recommended starting point for constrained targets.
 
 | Define | Description |
 |--------|-------------|
@@ -80,7 +80,7 @@ and verifiers. The two claim-map limits exist only in verifier builds.
 | `WOLFCOSE_ENABLE_EAT_PSA_LEGACY` | Legacy `PSA_IOT_PROFILE_1` consumption | off |
 | `WOLFCOSE_ENABLE_EAT_PSA_UEID_RESOLVER` | UEID-selected key lookup helper | off |
 | `WOLFCOSE_ENABLE_EAT_PSA_COMPONENT_ITERATOR` | Zero-copy component callback helper | off |
-| `WOLFCOSE_EAT_PSA_TFM_FULL` | Derived: all RFC 9783 `#tfm` receiver algorithms/envelopes are present; do not define manually | derived |
+| `WOLFCOSE_EAT_PSA_TFM_FULL` | Derived: all RFC 9783 `#tfm` receiver algorithms/envelopes and the deprecated RFC 9053 ECDSA IDs are enabled; do not define manually | derived |
 | `WOLFCOSE_EAT_PSA_MAX_COMPONENTS` | Maximum accepted software-component maps | 32 |
 | `WOLFCOSE_EAT_PSA_MAX_CLAIMS` | Verifier-only maximum claim-map entries, including extensions | 64 |
 | `WOLFCOSE_EAT_PSA_MAX_COMPONENT_CLAIMS` | Verifier-only maximum entries in each component map | 16 |
@@ -98,8 +98,8 @@ The generic operation and algorithm gates remain authoritative:
 
 | PSA/EAT path | Required generic operation | Algorithm selection |
 |--------------|----------------------------|---------------------|
-| Sign1 consume | `WOLFCOSE_SIGN1_VERIFY` | ES256, ES384, and/or ES512 |
-| Sign1 issue | `WOLFCOSE_SIGN1_SIGN` | ES256, ES384, and/or ES512 |
+| Sign1 consume | `WOLFCOSE_SIGN1_VERIFY` | `WOLFCOSE_ENABLE_DEPRECATED_ALGS` plus ES256, ES384, and/or ES512 |
+| Sign1 issue | `WOLFCOSE_SIGN1_SIGN` | `WOLFCOSE_ENABLE_DEPRECATED_ALGS` plus ES256, ES384, and/or ES512 |
 | Mac0 consume | `WOLFCOSE_MAC0_VERIFY` | HMAC256, HMAC384, and/or HMAC512 |
 | Mac0 issue | `WOLFCOSE_MAC0_CREATE` | HMAC256, HMAC384, and/or HMAC512 |
 
@@ -130,11 +130,11 @@ Per-algorithm opt-outs for the default (non-lean) build. Each also has a `WOLFCO
 
 | Opt-out | Algorithm | wolfSSL requirement |
 |---------|-----------|---------------------|
-| `WOLFCOSE_NO_ES256` | ECDSA P-256 (ES256) | `HAVE_ECC`, SHA-256, P-256 not disabled by `NO_ECC256`, and `ECC_MIN_KEY_SZ <= 256` |
-| `WOLFCOSE_NO_ES384` | ECDSA P-384 (ES384) | `HAVE_ECC`, `WOLFSSL_SHA384`, `HAVE_ECC384` or `HAVE_ALL_CURVES`, and `ECC_MIN_KEY_SZ <= 384` |
-| `WOLFCOSE_NO_ES512` | ECDSA P-521 (ES512) | `HAVE_ECC`, `WOLFSSL_SHA512`, `HAVE_ECC521` or `HAVE_ALL_CURVES`, and `ECC_MIN_KEY_SZ <= 521` |
-| `WOLFCOSE_NO_EDDSA` | Ed25519 | `HAVE_ED25519` |
-| `WOLFCOSE_NO_ED448` | Ed448 | `HAVE_ED448` |
+| `WOLFCOSE_NO_ES256` | ECDSA P-256 (ESP256, and ES256 with deprecated IDs enabled) | `HAVE_ECC`, SHA-256, P-256 not disabled by `NO_ECC256`, and `ECC_MIN_KEY_SZ <= 256` |
+| `WOLFCOSE_NO_ES384` | ECDSA P-384 (ESP384, and ES384 with deprecated IDs enabled) | `HAVE_ECC`, `WOLFSSL_SHA384`, `HAVE_ECC384` or `HAVE_ALL_CURVES`, and `ECC_MIN_KEY_SZ <= 384` |
+| `WOLFCOSE_NO_ES512` | ECDSA P-521 (ESP512, and ES512 with deprecated IDs enabled) | `HAVE_ECC`, `WOLFSSL_SHA512`, `HAVE_ECC521` or `HAVE_ALL_CURVES`, and `ECC_MIN_KEY_SZ <= 521` |
+| `WOLFCOSE_NO_EDDSA` | Ed25519 (and deprecated EdDSA with an Ed25519 key) | `HAVE_ED25519` |
+| `WOLFCOSE_NO_ED448` | Ed448 (and deprecated EdDSA with an Ed448 key) | `HAVE_ED448` |
 | `WOLFCOSE_NO_RSAPSS` | RSA-PSS (PS256/384/512) | `WC_RSA_PSS` |
 | `WOLFCOSE_NO_MLDSA` | ML-DSA (FIPS 204) | `WOLFSSL_HAVE_MLDSA` (wolfSSL newer than 5.9.1) |
 | `WOLFCOSE_NO_LMS` | HSS/LMS (RFC 8778) | `WOLFSSL_HAVE_LMS` (wolfSSL 5.9.2+) |
@@ -145,6 +145,16 @@ Per-algorithm opt-outs for the default (non-lean) build. Each also has a `WOLFCO
 | `WOLFCOSE_NO_HMAC384` | HMAC-SHA384 | `WOLFSSL_SHA384` |
 | `WOLFCOSE_NO_HMAC512` | HMAC-SHA512 | `WOLFSSL_SHA512` |
 | `WOLFCOSE_NO_AESMAC` | AES-CBC-MAC | `HAVE_AES_CBC` |
+
+### Deprecated Algorithm IDs (RFC 9864)
+
+RFC 9864 deprecates the polymorphic RFC 9053 signature IDs `ES256` (-7), `ES384` (-35), `ES512` (-36), and `EdDSA` (-8) in favour of the fully-specified `ESP256` (-9), `ESP384` (-51), `ESP512` (-52), `Ed25519` (-19), and `Ed448` (-53). The key format and signature encoding are unchanged, but the protected `alg` value is part of the signed `Sig_structure`, so relabelling an existing message to a replacement ID requires re-signing it. The new IDs bind the curve, so `Ed25519` with an Ed448 key (or `ESP256` with a P-384 key) is rejected with `WOLFCOSE_E_COSE_BAD_ALG`.
+
+| Define | Description |
+|--------|-------------|
+| `WOLFCOSE_ENABLE_DEPRECATED_ALGS` | Also accept the deprecated `ES256`/`ES384`/`ES512`/`EdDSA` IDs on sign and verify. Off by default in both full and lean builds. |
+
+Without it the deprecated IDs fail with `WOLFCOSE_E_COSE_BAD_ALG`. Enable it to verify messages from peers that still emit the RFC 9053 IDs, including the pinned t_cose, go-cose, coset, and python-cwt interop peers, the COSE WG example vectors, and the RFC 9783 PSA attestation tokens (`ES256`). The CLI tool accepts the `ES256` and `EdDSA` names only in such a build; `Ed448` on the CLI always means -53.
 
 RSA-PSS operations enforce RFC 8230's minimum 2048-bit modulus. A minimal
 wolfSSL RSA verify-only build must define `WOLFSSL_EXPORT_INT` so wolfCOSE can

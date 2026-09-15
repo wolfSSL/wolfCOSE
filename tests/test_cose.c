@@ -285,7 +285,7 @@ static void test_cose_countersign_ecdsa_curves(void)
         TEST_ASSERT(ret == 0, "ES384 countersign key");
         if (ret == 0) {
             ret = test_cose_countersign_roundtrip(&signKey, &signKey,
-                WOLFCOSE_ALG_ES384, &rng, "ES384");
+                WOLFCOSE_ALG_ESP384, &rng, "ESP384");
             wc_CoseKey_Free(&signKey);
         }
         (void)wc_ecc_free(&eccKey);
@@ -309,7 +309,7 @@ static void test_cose_countersign_ecdsa_curves(void)
         TEST_ASSERT(ret == 0, "ES512 countersign key");
         if (ret == 0) {
             (void)test_cose_countersign_roundtrip(&signKey, &signKey,
-                WOLFCOSE_ALG_ES512, &rng, "ES512");
+                WOLFCOSE_ALG_ESP512, &rng, "ESP512");
             wc_CoseKey_Free(&signKey);
         }
         (void)wc_ecc_free(&eccKey);
@@ -716,7 +716,7 @@ static void test_cose_key_ed25519(void)
                 "key set ed25519");
     key.kid = kid;
     key.kidLen = sizeof(kid) - 1u;
-    key.alg = WOLFCOSE_ALG_EDDSA;
+    key.alg = WOLFCOSE_ALG_ED25519;
 
     /* Encode/decode round-trip */
     /* empty-brace-scan: allow - test-local temporary scope */
@@ -738,7 +738,7 @@ static void test_cose_key_ed25519(void)
         ret = wc_CoseKey_Decode(&key2, cbuf, cLen);
         TEST_ASSERT(ret == 0 && key2.kty == WOLFCOSE_KTY_OKP &&
                     key2.hasPrivate == 1 &&
-                    key2.alg == WOLFCOSE_ALG_EDDSA &&
+                    key2.alg == WOLFCOSE_ALG_ED25519 &&
                     key2.kidLen == (sizeof(kid) - 1u) &&
                     memcmp(key2.kid, kid, sizeof(kid) - 1u) == 0,
                     "key ed decode");
@@ -1084,7 +1084,7 @@ static void test_cose_sign1_ecc(const char* label, int32_t alg, int32_t crv,
     if (ret == 0) {
         /* Error: null args */
         int nullRet;
-        nullRet = wc_CoseSign1_Sign(NULL, WOLFCOSE_ALG_ES256, NULL, 0,
+        nullRet = wc_CoseSign1_Sign(NULL, WOLFCOSE_ALG_ESP256, NULL, 0,
             payload, sizeof(payload), NULL, 0, NULL, 0,
             scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
         TEST_ASSERT(nullRet == WOLFCOSE_E_INVALID_ARG, "sign1 null key");
@@ -1102,7 +1102,7 @@ static void test_cose_sign1_ecc(const char* label, int32_t alg, int32_t crv,
         pubOnly.kty = WOLFCOSE_KTY_EC2;
         pubOnly.hasPrivate = 0;
         pubOnly.key.ecc = &eccKey;
-        pubRet = wc_CoseSign1_Sign(&pubOnly, WOLFCOSE_ALG_ES256, NULL, 0,
+        pubRet = wc_CoseSign1_Sign(&pubOnly, WOLFCOSE_ALG_ESP256, NULL, 0,
             payload, sizeof(payload), NULL, 0, NULL, 0,
             scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
         TEST_ASSERT(pubRet == WOLFCOSE_E_COSE_KEY_TYPE, "sign1 no privkey");
@@ -1256,7 +1256,7 @@ static void test_cose_sign1_ext_sign(void)
         TEST_ASSERT(signKey.key.ecc == NULL, "ext-sign no local ecc key");
     }
     if (ret == 0) {
-        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ESP256,
             kid, sizeof(kid) - 1,
             payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0,
@@ -1282,14 +1282,14 @@ static void test_cose_sign1_ext_sign(void)
                     (decPayload != NULL) &&
                     memcmp(decPayload, payload, decPayloadLen) == 0,
                     "ext-sign payload match");
-        TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_ES256, "ext-sign hdr alg");
+        TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_ESP256, "ext-sign hdr alg");
     }
 
 #if defined(WOLFCOSE_COUNTERSIGN_SIGN) && \
     defined(WOLFCOSE_COUNTERSIGN_VERIFY)
     if (ret == 0) {
         ret = test_cose_countersign_roundtrip(&signKey, &verifyKey,
-            WOLFCOSE_ALG_ES256, NULL, "external ES256");
+            WOLFCOSE_ALG_ESP256, NULL, "external ESP256");
     }
 #endif
 
@@ -1301,7 +1301,7 @@ static void test_cose_sign1_ext_sign(void)
         int badRet;
         (void)wc_CoseKey_Init(&badKey);
         (void)wc_CoseKey_SetExtSigner(&badKey, test_ext_sign_cb_badlen, NULL);
-        badRet = wc_CoseSign1_Sign(&badKey, WOLFCOSE_ALG_ES256,
+        badRet = wc_CoseSign1_Sign(&badKey, WOLFCOSE_ALG_ESP256,
             NULL, 0, payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0, scratch, sizeof(scratch),
             badOut, sizeof(badOut), &badOutLen, NULL);
@@ -1323,7 +1323,7 @@ static void test_cose_sign1_ext_sign(void)
         injKey.crv = WOLFCOSE_CRV_P256;
         (void)wc_CoseKey_SetExtSigner(&injKey, test_ext_sign_cb, &ctx);
         wolfForceFailure_Set(WOLF_FAIL_EXT_SIGN);
-        injRet = wc_CoseSign1_Sign(&injKey, WOLFCOSE_ALG_ES256,
+        injRet = wc_CoseSign1_Sign(&injKey, WOLFCOSE_ALG_ESP256,
             NULL, 0, payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0, scratch, sizeof(scratch),
             injOut, sizeof(injOut), &injOutLen, NULL);
@@ -1349,7 +1349,7 @@ static void test_cose_sign1_ext_sign(void)
         shortKey.kty = WOLFCOSE_KTY_EC2;
         shortKey.crv = WOLFCOSE_CRV_P256;
         (void)wc_CoseKey_SetExtSigner(&shortKey, test_ext_sign_cb_short, NULL);
-        shortRet = wc_CoseSign1_Sign(&shortKey, WOLFCOSE_ALG_ES256, NULL, 0,
+        shortRet = wc_CoseSign1_Sign(&shortKey, WOLFCOSE_ALG_ESP256, NULL, 0,
             NULL, 0, payload, sizeof(payload) - 1, NULL, 0,
             scratch, sizeof(scratch), shortOut, sizeof(shortOut),
             &shortOutLen, NULL);
@@ -1372,7 +1372,7 @@ static void test_cose_sign1_ext_sign(void)
 
         (void)wc_CoseKey_Init(&failKey);
         (void)wc_CoseKey_SetExtSigner(&failKey, test_ext_sign_cb_fail, NULL);
-        failRet = wc_CoseSign1_Sign(&failKey, WOLFCOSE_ALG_ES256,
+        failRet = wc_CoseSign1_Sign(&failKey, WOLFCOSE_ALG_ESP256,
             NULL, 0, payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0, scratch, sizeof(scratch),
             failOut, sizeof(failOut), &failOutLen, NULL);
@@ -1396,7 +1396,7 @@ static void test_cose_sign1_ext_sign(void)
                     WOLFCOSE_SUCCESS, "ext-sign detach accepted");
         /* rng is supplied so the NULL-rng precheck cannot mask the result:
          * the detach itself must be what refuses the signature. */
-        tmpRet = wc_CoseSign1_Sign(&tmp, WOLFCOSE_ALG_ES256,
+        tmpRet = wc_CoseSign1_Sign(&tmp, WOLFCOSE_ALG_ESP256,
             NULL, 0, payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0, scratch, sizeof(scratch),
             tmpOut, sizeof(tmpOut), &tmpOutLen, &rng);
@@ -1420,7 +1420,7 @@ static void test_cose_sign1_ext_sign(void)
         reRet = wc_CoseKey_SetEcc(&reKey, WOLFCOSE_CRV_P256, &eccKey);
         TEST_ASSERT(reRet == WOLFCOSE_SUCCESS, "ext-sign SetEcc over signer");
         calledBefore = ctx.called;
-        reRet = wc_CoseSign1_Sign(&reKey, WOLFCOSE_ALG_ES256,
+        reRet = wc_CoseSign1_Sign(&reKey, WOLFCOSE_ALG_ESP256,
             NULL, 0, payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0, scratch, sizeof(scratch),
             reOut, sizeof(reOut), &reOutLen, &rng);
@@ -1466,7 +1466,7 @@ static void test_cose_sign1_ext_sign(void)
         TEST_ASSERT(privLen > 0u && privBuf[0] == 0xA5u,
                     "ext-sign detach restores private scalar export");
         privLen = 0;
-        privRet = wc_CoseSign1_Sign(&privKey, WOLFCOSE_ALG_ES256,
+        privRet = wc_CoseSign1_Sign(&privKey, WOLFCOSE_ALG_ESP256,
             NULL, 0, payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0, scratch, sizeof(scratch),
             privBuf, sizeof(privBuf), &privLen, &rng);
@@ -1524,7 +1524,7 @@ static void test_cose_sign1_ext_sign(void)
         smallKey.kty = WOLFCOSE_KTY_EC2;
         smallKey.crv = WOLFCOSE_CRV_P256;
         (void)wc_CoseKey_SetExtSigner(&smallKey, test_ext_sign_cb, &ctx);
-        smallRet = wc_CoseSign1_Sign(&smallKey, WOLFCOSE_ALG_ES256,
+        smallRet = wc_CoseSign1_Sign(&smallKey, WOLFCOSE_ALG_ESP256,
             NULL, 0, payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0, smallScratch, sizeof(smallScratch),
             smallOut, sizeof(smallOut), &smallOutLen, NULL);
@@ -1591,7 +1591,7 @@ static void test_cose_sign1_ext_sign_eddsa_capacity(void)
 
     if (ret == 0) {
         /* scratch leaves well under 64 bytes once the Sig_structure is built */
-        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_EDDSA, NULL, 0,
+        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ED25519, NULL, 0,
             payload, sizeof(payload) - 1, NULL, 0, NULL, 0,
             scratch, sizeof(scratch), out, sizeof(out), &outLen, NULL);
         TEST_ASSERT(ret == WOLFCOSE_E_BUFFER_TOO_SMALL,
@@ -1669,7 +1669,7 @@ static void test_cose_sign1_ext_sign_ed25519(void)
         TEST_ASSERT(signKey.key.ed25519 == NULL, "ed25519 ext no local key");
     }
     if (ret == 0) {
-        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_EDDSA, NULL, 0,
+        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ED25519, NULL, 0,
             payload, sizeof(payload) - 1, NULL, 0, NULL, 0,
             scratch, sizeof(scratch), out, sizeof(out), &outLen, NULL);
         TEST_ASSERT(ret == 0 && outLen > 0, "ed25519 ext delegated sign");
@@ -1687,7 +1687,7 @@ static void test_cose_sign1_ext_sign_ed25519(void)
             (decPayload != NULL) &&
             memcmp(decPayload, payload, decPayloadLen) == 0,
             "ed25519 ext payload match");
-        TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_EDDSA, "ed25519 ext hdr alg");
+        TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_ED25519, "ed25519 ext hdr alg");
     }
 
     if (edInited != 0) {
@@ -2043,11 +2043,11 @@ static void test_cose_sign_ext_sign_multi(void)
         TEST_ASSERT(ret == 0, "multi ext signer");
     }
 
-    signers[0].algId = WOLFCOSE_ALG_ES256;
+    signers[0].algId = WOLFCOSE_ALG_ESP256;
     signers[0].key = &localKey;
     signers[0].kid = kidA;
     signers[0].kidLen = sizeof(kidA) - 1;
-    signers[1].algId = WOLFCOSE_ALG_ES256;
+    signers[1].algId = WOLFCOSE_ALG_ESP256;
     signers[1].key = &extKey;
     signers[1].kid = kidB;
     signers[1].kidLen = sizeof(kidB) - 1;
@@ -2142,7 +2142,7 @@ static void test_cose_sign_ext_sign_ed25519(void)
         TEST_ASSERT(ret == 0, "multi ed ext set signer");
     }
 
-    signers[0].algId = WOLFCOSE_ALG_EDDSA;
+    signers[0].algId = WOLFCOSE_ALG_ED25519;
     signers[0].key = &signKey;
     signers[0].kid = NULL;
     signers[0].kidLen = 0;
@@ -2193,7 +2193,7 @@ static void test_cose_sign1_eddsa(void)
     size_t decPayloadLen = 0;
     WOLFCOSE_HDR hdr;
 
-    TEST_LOG("  [Sign1 EdDSA]\n");
+    TEST_LOG("  [Sign1 Ed25519]\n");
 
     ret = wc_InitRng(&rng);
     if (ret != 0) { TEST_ASSERT(0, "rng init"); }
@@ -2212,6 +2212,7 @@ static void test_cose_sign1_eddsa(void)
         (void)wc_CoseKey_Init(&signKey);
         (void)wc_CoseKey_SetEd25519(&signKey, &edKey);
 
+#ifdef WOLFCOSE_HAVE_DEPRECATED_ALGS
 #if defined(WOLFCOSE_HAVE_EDDSA) && defined(WOLFCOSE_HAVE_ED448)
         TEST_ASSERT(wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_EDDSA,
             0u, sizeof(payload) - 1u, 0u, 0u, &sizedLen) ==
@@ -2221,21 +2222,26 @@ static void test_cose_sign1_eddsa(void)
             0u, sizeof(payload) - 1u, 0u, 0u, &sizedLen) == 0,
             "sign1 eddsa size without key");
 #endif
-        ret = wc_CoseSign1_SignSize_ex(&signKey, WOLFCOSE_ALG_EDDSA,
+#endif /* WOLFCOSE_HAVE_DEPRECATED_ALGS */
+        /* RFC 9864 Ed25519 pins the curve, so no key is needed to size. */
+        TEST_ASSERT(wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_ED25519,
+            0u, sizeof(payload) - 1u, 0u, 0u, &sizedLen) == 0,
+            "sign1 ed25519 size without key");
+        ret = wc_CoseSign1_SignSize_ex(&signKey, WOLFCOSE_ALG_ED25519,
             0u, sizeof(payload) - 1u, 0u, 0u, &sizedLen);
-        TEST_ASSERT(ret == 0, "sign1 eddsa size");
+        TEST_ASSERT(ret == 0, "sign1 ed25519 size");
 
         /* Sign */
         if (ret == 0) {
-            ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_EDDSA,
+            ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ED25519,
                 NULL, 0,
                 payload, sizeof(payload) - 1,
                 NULL, 0, /* detachedPayload, detachedLen */
                 NULL, 0, /* extAad, extAadLen */
                 scratch, sizeof(scratch),
                 out, sizeof(out), &outLen, &rng);
-            TEST_ASSERT(ret == 0 && outLen > 0, "sign1 eddsa sign");
-            TEST_ASSERT(outLen == sizedLen, "sign1 eddsa exact size");
+            TEST_ASSERT(ret == 0 && outLen > 0, "sign1 ed25519 sign");
+            TEST_ASSERT(outLen == sizedLen, "sign1 ed25519 exact size");
         }
     }
 
@@ -2244,18 +2250,18 @@ static void test_cose_sign1_eddsa(void)
         ret = wc_CoseSign1_Verify(&signKey, out, outLen,
             NULL, 0, NULL, 0, scratch, sizeof(scratch),
             &hdr, &decPayload, &decPayloadLen);
-        TEST_ASSERT(ret == 0, "sign1 eddsa verify");
+        TEST_ASSERT(ret == 0, "sign1 ed25519 verify");
         TEST_ASSERT(decPayloadLen == sizeof(payload) - 1 &&
                     memcmp(decPayload, payload, decPayloadLen) == 0,
-                    "sign1 eddsa payload match");
-        TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_EDDSA, "sign1 eddsa hdr alg");
+                    "sign1 ed25519 payload match");
+        TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_ED25519, "sign1 ed25519 hdr alg");
     }
 
 #if defined(WOLFCOSE_COUNTERSIGN_SIGN) && \
     defined(WOLFCOSE_COUNTERSIGN_VERIFY)
     if (ret == 0) {
         ret = test_cose_countersign_roundtrip(&signKey, &signKey,
-            WOLFCOSE_ALG_EDDSA, &rng, "Ed25519");
+            WOLFCOSE_ALG_ED25519, &rng, "Ed25519");
     }
 #endif
 
@@ -2268,7 +2274,7 @@ static void test_cose_sign1_eddsa(void)
             NULL, 0, NULL, 0, scratch, sizeof(scratch),
             &hdr, &decPayload, &decPayloadLen);
         TEST_ASSERT(wrongRet == WOLFCOSE_E_COSE_KEY_TYPE,
-                    "sign1 eddsa attachedType mismatch rejected");
+                    "sign1 ed25519 attachedType mismatch rejected");
     }
 
     if (ret == 0) {
@@ -2284,7 +2290,7 @@ static void test_cose_sign1_eddsa(void)
             wrongRet = wc_CoseSign1_Verify(&wrongKey, out, outLen,
                 NULL, 0, NULL, 0, scratch, sizeof(scratch),
                 &hdr, &decPayload, &decPayloadLen);
-            TEST_ASSERT(wrongRet != 0, "sign1 eddsa wrong key fails");
+            TEST_ASSERT(wrongRet != 0, "sign1 ed25519 wrong key fails");
         }
         (void)wc_ed25519_free(&edWrong);
     }
@@ -2336,13 +2342,13 @@ static void test_cose_sign1_ed448(void)
         (void)wc_CoseKey_Init(&signKey);
         (void)wc_CoseKey_SetEd448(&signKey, &edKey);
 
-        ret = wc_CoseSign1_SignSize_ex(&signKey, WOLFCOSE_ALG_EDDSA,
+        ret = wc_CoseSign1_SignSize_ex(&signKey, WOLFCOSE_ALG_ED448,
             0u, sizeof(payload) - 1u, 0u, 0u, &sizedLen);
         TEST_ASSERT(ret == 0, "sign1 ed448 size");
 
         /* Sign */
         if (ret == 0) {
-            ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_EDDSA,
+            ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ED448,
                 NULL, 0,
                 payload, sizeof(payload) - 1,
                 NULL, 0, /* detachedPayload, detachedLen */
@@ -2365,14 +2371,14 @@ static void test_cose_sign1_ed448(void)
         TEST_ASSERT(decPayloadLen == sizeof(payload) - 1 &&
                     memcmp(decPayload, payload, decPayloadLen) == 0,
                     "sign1 ed448 payload match");
-        TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_EDDSA, "sign1 ed448 hdr alg");
+        TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_ED448, "sign1 ed448 hdr alg");
     }
 
 #if defined(WOLFCOSE_COUNTERSIGN_SIGN) && \
     defined(WOLFCOSE_COUNTERSIGN_VERIFY)
     if (ret == 0) {
         ret = test_cose_countersign_roundtrip(&signKey, &signKey,
-            WOLFCOSE_ALG_EDDSA, &rng, "Ed448");
+            WOLFCOSE_ALG_ED448, &rng, "Ed448");
     }
 #endif
 
@@ -2419,7 +2425,7 @@ static void test_cose_sign1_ed448(void)
 
         signKey.kid = kid;
         signKey.kidLen = sizeof(kid) - 1u;
-        signKey.alg = WOLFCOSE_ALG_EDDSA;
+        signKey.alg = WOLFCOSE_ALG_ED448;
 
         encRet = wc_CoseKey_Encode(&signKey, keyBuf, sizeof(keyBuf), &keyLen);
         TEST_ASSERT(encRet == 0 && keyLen > 0, "key ed448 encode");
@@ -2431,7 +2437,7 @@ static void test_cose_sign1_ed448(void)
             encRet = wc_CoseKey_Decode(&decKey, keyBuf, keyLen);
             TEST_ASSERT(encRet == 0 && decKey.kty == WOLFCOSE_KTY_OKP &&
                         decKey.crv == WOLFCOSE_CRV_ED448 &&
-                        decKey.alg == WOLFCOSE_ALG_EDDSA &&
+                        decKey.alg == WOLFCOSE_ALG_ED448 &&
                         decKey.kidLen == (sizeof(kid) - 1u) &&
                         memcmp(decKey.kid, kid, sizeof(kid) - 1u) == 0,
                         "key ed448 decode");
@@ -2581,7 +2587,7 @@ static void test_cose_sign1_word32_overflow_guard(void)
 
     /* payloadLen above word32 range must be rejected before the Sig_structure
      * length is cast to word32 for hashing, not truncated. */
-    ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ES256,
+    ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ESP256,
         NULL, 0,
         payload, hugeLen,
         NULL, 0, NULL, 0,
@@ -4347,7 +4353,7 @@ static void test_cose_key_lms(void)
         (void)wc_CBOR_EncodeInt(&enc, WOLFCOSE_KEY_LABEL_KTY);
         (void)wc_CBOR_EncodeUint(&enc, WOLFCOSE_KTY_HSS_LMS);
         (void)wc_CBOR_EncodeInt(&enc, WOLFCOSE_KEY_LABEL_ALG);
-        (void)wc_CBOR_EncodeInt(&enc, WOLFCOSE_ALG_ES256);
+        (void)wc_CBOR_EncodeInt(&enc, WOLFCOSE_ALG_ESP256);
         (void)wc_CBOR_EncodeInt(&enc, WOLFCOSE_KEY_LABEL_PUB);
         (void)wc_CBOR_EncodeBstr(&enc, pubRaw, (size_t)pubRawLen);
         negRet = wc_CoseKey_Decode(&decKey, badBuf, enc.idx);
@@ -4473,7 +4479,7 @@ static void test_cose_lms_negative(void)
     if (ret == 0) {
         int32_t savedAlg = signKey.alg;
         int badAlgRet;
-        signKey.alg = WOLFCOSE_ALG_ES256;
+        signKey.alg = WOLFCOSE_ALG_ESP256;
         encLen = 0;
         badAlgRet = wc_CoseKey_EncodeSize(&signKey, &encLen);
         TEST_ASSERT(badAlgRet == WOLFCOSE_E_COSE_BAD_ALG,
@@ -4765,7 +4771,7 @@ static void test_cose_sign_lms(void)
             (void)wc_CoseKey_Init(&esKey);
             (void)wc_CoseKey_SetEcc(&esKey, WOLFCOSE_CRV_P256, &eccKey);
             mixed[0] = signers[0];
-            mixed[1].algId = WOLFCOSE_ALG_ES256;
+            mixed[1].algId = WOLFCOSE_ALG_ESP256;
             mixed[1].key = &esKey;
             mixed[1].kid = NULL;
             mixed[1].kidLen = 0;
@@ -4779,7 +4785,7 @@ static void test_cose_sign_lms(void)
                                sizeof(g_lmsPrivSnap)) == 0,
                         "sign lms not last preserves state");
             mixed[1] = signers[0];
-            mixed[0].algId = WOLFCOSE_ALG_ES256;
+            mixed[0].algId = WOLFCOSE_ALG_ESP256;
             mixed[0].key = &esKey;
             mixed[0].kid = NULL;
             mixed[0].kidLen = 0;
@@ -5132,7 +5138,7 @@ static void test_cose_sign1_with_aad(void)
         (void)wc_CoseKey_Init(&key);
         (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
 
-        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
             NULL, 0,
             payload, sizeof(payload) - 1,
             NULL, 0, /* detachedPayload, detachedLen */
@@ -6142,31 +6148,31 @@ static void test_cose_sign1_buffer_too_small(void)
     (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
 
     /* scratch too small */
-    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256, NULL, 0,
+    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256, NULL, 0,
         payload, sizeof(payload), NULL, 0, NULL, 0,
         scratch, 10, out, sizeof(out), &outLen, &rng);
     TEST_ASSERT(ret != 0, "sign1 scratch too small");
 
     /* output too small */
-    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256, NULL, 0,
+    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256, NULL, 0,
         payload, sizeof(payload), NULL, 0, NULL, 0,
         scratch, sizeof(scratch), out, 5, &outLen, &rng);
     TEST_ASSERT(ret != 0, "sign1 out too small");
 
     /* NULL scratch */
-    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256, NULL, 0,
+    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256, NULL, 0,
         payload, sizeof(payload), NULL, 0, NULL, 0,
         NULL, 0, out, sizeof(out), &outLen, &rng);
     TEST_ASSERT(ret != 0, "sign1 null scratch");
 
     /* NULL output */
-    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256, NULL, 0,
+    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256, NULL, 0,
         payload, sizeof(payload), NULL, 0, NULL, 0,
         scratch, sizeof(scratch), NULL, 0, &outLen, &rng);
     TEST_ASSERT(ret != 0, "sign1 null out");
 
     /* NULL outLen */
-    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256, NULL, 0,
+    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256, NULL, 0,
         payload, sizeof(payload), NULL, 0, NULL, 0,
         scratch, sizeof(scratch), out, sizeof(out), NULL, &rng);
     TEST_ASSERT(ret != 0, "sign1 null outLen");
@@ -6178,7 +6184,7 @@ static void test_cose_sign1_buffer_too_small(void)
     TEST_ASSERT(ret != 0, "sign1 bad alg");
 
     /* verify with truncated input */
-    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256, NULL, 0,
+    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256, NULL, 0,
         payload, sizeof(payload), NULL, 0, NULL, 0,
         scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
     if (ret == 0) {
@@ -6237,7 +6243,7 @@ static void test_cose_sign1_detached(void)
         (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
 
         /* Sign with detached payload (payload in message is null) */
-        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
             NULL, 0,          /* kid */
             NULL, 0,          /* payload in message = null */
             payload, sizeof(payload) - 1,  /* detached payload for signature */
@@ -6769,7 +6775,11 @@ static void test_cose_key_decode_type_confusion(void)
     TEST_ASSERT(ret == 0, "typeconf ecc init");
 
     blobLen = typeconf_key_blob(blob, sizeof(blob), WOLFCOSE_KTY_OKP,
+#ifdef WOLFCOSE_HAVE_EDDSA
+                                WOLFCOSE_CRV_ED25519, 32);
+#else
                                 WOLFCOSE_CRV_ED448, 57);
+#endif
     (void)wc_CoseKey_Init(&key);
     (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
     ret = wc_CoseKey_Decode(&key, blob, blobLen);
@@ -7721,7 +7731,7 @@ static void test_cose_key_mldsa_negative(void)
     wc_CBOR_EncodeInt(&enc, WOLFCOSE_KEY_LABEL_KTY);
     wc_CBOR_EncodeUint(&enc, WOLFCOSE_KTY_AKP);
     wc_CBOR_EncodeInt(&enc, WOLFCOSE_KEY_LABEL_ALG);
-    wc_CBOR_EncodeInt(&enc, WOLFCOSE_ALG_ES256);
+    wc_CBOR_EncodeInt(&enc, WOLFCOSE_ALG_ESP256);
     wc_CBOR_EncodeInt(&enc, WOLFCOSE_KEY_LABEL_PUB);
     wc_CBOR_EncodeBstr(&enc, pubBuf, (size_t)pubSz);
     (void)wc_CoseKey_Init(&key);
@@ -7975,7 +7985,7 @@ static void test_cose_key_encode_public_only_ecc(void)
     (void)wc_CoseKey_Init(&key);
     ret = wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
     TEST_ASSERT(ret == 0 && key.hasPrivate == 1, "pubonly set ecc");
-    key.alg = WOLFCOSE_ALG_ES256;
+    key.alg = WOLFCOSE_ALG_ESP256;
 
     ret = wc_CoseKey_Encode(&key, full, sizeof(full), &fullLen);
     TEST_ASSERT(ret == 0, "pubonly default encode");
@@ -8077,7 +8087,7 @@ static void test_cose_key_encode_ecc_raw(void)
 
     (void)wc_CoseKey_Init(&key);
     (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
-    key.alg = WOLFCOSE_ALG_ES256;
+    key.alg = WOLFCOSE_ALG_ESP256;
     key.kid = kid;
     key.kidLen = sizeof(kid) - 1u;
 
@@ -8086,7 +8096,7 @@ static void test_cose_key_encode_ecc_raw(void)
                                WOLFCOSE_KEY_PUBLIC_ONLY);
     TEST_ASSERT(ret == 0, "eccraw encode via key");
     ret = wc_CoseKey_EncodeEccRaw(WOLFCOSE_CRV_P256, xBuf, yBuf, NULL, 32u,
-                                  kid, sizeof(kid) - 1u, WOLFCOSE_ALG_ES256,
+                                  kid, sizeof(kid) - 1u, WOLFCOSE_ALG_ESP256,
                                   viaRaw, sizeof(viaRaw), &viaRawLen);
     TEST_ASSERT(ret == 0, "eccraw encode public");
     TEST_ASSERT(viaRawLen == viaKeyLen &&
@@ -8097,7 +8107,7 @@ static void test_cose_key_encode_ecc_raw(void)
     ret = wc_CoseKey_Encode(&key, viaKey, sizeof(viaKey), &viaKeyLen);
     TEST_ASSERT(ret == 0, "eccraw encode priv via key");
     ret = wc_CoseKey_EncodeEccRaw(WOLFCOSE_CRV_P256, xBuf, yBuf, dBuf, 32u,
-                                  kid, sizeof(kid) - 1u, WOLFCOSE_ALG_ES256,
+                                  kid, sizeof(kid) - 1u, WOLFCOSE_ALG_ESP256,
                                   viaRaw, sizeof(viaRaw), &viaRawLen);
     TEST_ASSERT(ret == 0, "eccraw encode private");
     TEST_ASSERT(viaRawLen == viaKeyLen &&
@@ -8387,7 +8397,7 @@ static void test_cose_key_encode_size_exact(void)
         if (wc_ed25519_make_key(&rng, ED25519_KEY_SIZE, &edKey) == 0) {
             (void)wc_CoseKey_Init(&edCoseKey);
             (void)wc_CoseKey_SetEd25519(&edCoseKey, &edKey);
-            edCoseKey.alg = WOLFCOSE_ALG_EDDSA;
+            edCoseKey.alg = WOLFCOSE_ALG_ED25519;
             ret = wc_CoseKey_Encode(&edCoseKey, out, sizeof(out), &outLen);
             TEST_ASSERT(ret == 0, "size ed25519 encode");
             ret = wc_CoseKey_EncodeSize(&edCoseKey, &sized);
@@ -8546,7 +8556,7 @@ static void test_cose_key_encode_public_only_types(void)
         if (wc_ed25519_make_key(&rng, ED25519_KEY_SIZE, &edKey) == 0) {
             (void)wc_CoseKey_Init(&key);
             (void)wc_CoseKey_SetEd25519(&key, &edKey);
-            key.alg = WOLFCOSE_ALG_EDDSA;
+            key.alg = WOLFCOSE_ALG_ED25519;
 
             ret = wc_CoseKey_Encode(&key, full, sizeof(full), &fullLen);
             TEST_ASSERT(ret == 0 && key.hasPrivate == 1,
@@ -9130,12 +9140,12 @@ static void test_cose_key_peek_info_alg(void)
     (void)wc_CBOR_EncodeInt(&enc, WOLFCOSE_KEY_LABEL_KTY);
     (void)wc_CBOR_EncodeUint(&enc, WOLFCOSE_KTY_EC2);
     (void)wc_CBOR_EncodeInt(&enc, WOLFCOSE_KEY_LABEL_ALG);
-    (void)wc_CBOR_EncodeInt(&enc, WOLFCOSE_ALG_ES256);
+    (void)wc_CBOR_EncodeInt(&enc, WOLFCOSE_ALG_ESP256);
     (void)wc_CBOR_EncodeInt(&enc, WOLFCOSE_KEY_LABEL_CRV);
     (void)wc_CBOR_EncodeUint(&enc, WOLFCOSE_CRV_P256);
     ret = wc_CoseKey_PeekInfo(buf, enc.idx, &info);
     TEST_ASSERT(ret == 0 && info.kty == WOLFCOSE_KTY_EC2 &&
-                info.alg == WOLFCOSE_ALG_ES256 &&
+                info.alg == WOLFCOSE_ALG_ESP256 &&
                 info.crv == WOLFCOSE_CRV_P256, "peek negative alg");
 
     /* alg below INT32_MIN is rejected, not truncated. */
@@ -9164,7 +9174,7 @@ static void test_cose_key_peek_info_alg(void)
 /* ----- RFC 9052 interop test vectors (cose-wg/Examples) ----- */
 
 /* ECDSA-01: P-256 / ES256 Sign1 (ecdsa-sig-01.json) */
-#ifdef WOLFCOSE_HAVE_ES256
+#if defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
 static void test_rfc_sign1_ecdsa_01(void)
 {
     /* Known P-256 public key (x, y from test vector) */
@@ -9242,7 +9252,7 @@ static void test_rfc_sign1_ecdsa_01(void)
     wc_CoseKey_Free(&key);
     (void)wc_ecc_free(&eccKey);
 }
-#endif /* WOLFCOSE_HAVE_ES256 */
+#endif /* WOLFCOSE_HAVE_ES256 && WOLFCOSE_HAVE_DEPRECATED_ALGS */
 
 /* HMAC-01: HMAC-SHA256 Mac0 (mac0-tests/HMac-01.json) */
 #if defined(WOLFCOSE_HAVE_HMAC256)
@@ -10128,12 +10138,12 @@ static void test_cose_sign_multi_signer(void)
     TEST_ASSERT(ret == 0, "sign key2 set");
 
     /* Setup signers array */
-    signers[0].algId = WOLFCOSE_ALG_ES256;
+    signers[0].algId = WOLFCOSE_ALG_ESP256;
     signers[0].key = &key1;
     signers[0].kid = kid1;
     signers[0].kidLen = sizeof(kid1) - 1;
 
-    signers[1].algId = WOLFCOSE_ALG_ES256;
+    signers[1].algId = WOLFCOSE_ALG_ESP256;
     signers[1].key = &key2;
     signers[1].kid = kid2;
     signers[1].kidLen = sizeof(kid2) - 1;
@@ -10160,7 +10170,7 @@ static void test_cose_sign_multi_signer(void)
     TEST_ASSERT(ret == 0, "sign verify signer 0");
     TEST_ASSERT(decPayloadLen == sizeof(payload) - 1, "sign payload len 0");
     TEST_ASSERT(memcmp(decPayload, payload, decPayloadLen) == 0, "sign payload match 0");
-    TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_ES256, "sign verify hdr alg 0");
+    TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_ESP256, "sign verify hdr alg 0");
 
     /* Verify second signer */
     memset(&hdr, 0, sizeof(hdr));
@@ -10174,7 +10184,7 @@ static void test_cose_sign_multi_signer(void)
     TEST_ASSERT(ret == 0, "sign verify signer 1");
     TEST_ASSERT(decPayloadLen == sizeof(payload) - 1, "sign payload len 1");
     TEST_ASSERT(memcmp(decPayload, payload, decPayloadLen) == 0, "sign payload match 1");
-    TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_ES256, "sign verify hdr alg 1");
+    TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_ESP256, "sign verify hdr alg 1");
 
     /* Wrong key for signer 0 should fail */
     ret = wc_CoseSign_Verify(&key2, 0,  /* key2 for signer 0 */
@@ -10334,7 +10344,7 @@ static void test_cose_sign_verify_key_alg_mismatch(void)
     (void)wc_CoseKey_Init(&signKey);
     ret = wc_CoseKey_SetEcc(&signKey, WOLFCOSE_CRV_P256, &eccKey);
     TEST_ASSERT(ret == 0, "sv-mismatch sign key set");
-    signers[0].algId = WOLFCOSE_ALG_ES256;
+    signers[0].algId = WOLFCOSE_ALG_ESP256;
     signers[0].key = &signKey;
     signers[0].kid = NULL;
     signers[0].kidLen = 0;
@@ -10351,7 +10361,7 @@ static void test_cose_sign_verify_key_alg_mismatch(void)
     (void)wc_CoseKey_Init(&verifyKey);
     ret = wc_CoseKey_SetEcc(&verifyKey, WOLFCOSE_CRV_P256, &eccKey);
     TEST_ASSERT(ret == 0, "sv-mismatch verify key set");
-    verifyKey.alg = WOLFCOSE_ALG_ES384;
+    verifyKey.alg = WOLFCOSE_ALG_ESP384;
 
     memset(&hdr, 0, sizeof(hdr));
     ret = wc_CoseSign_Verify(&verifyKey, 0, out, outLen,
@@ -10399,7 +10409,7 @@ static void test_cose_sign_verify_unprotected_alg(void)
     (void)wc_CoseKey_Init(&key);
     ret = wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
     TEST_ASSERT(ret == 0, "unprotected signer alg key set");
-    key.alg = WOLFCOSE_ALG_ES256;
+    key.alg = WOLFCOSE_ALG_ESP256;
 
     ret = wolfCose_BuildToBeSignedMaced(
         WOLFCOSE_CTX_SIGNATURE, sizeof(WOLFCOSE_CTX_SIGNATURE),
@@ -10447,7 +10457,7 @@ static void test_cose_sign_verify_unprotected_alg(void)
         ret = wc_CBOR_EncodeInt(&enc, WOLFCOSE_HDR_ALG);
     }
     if (ret == 0) {
-        ret = wc_CBOR_EncodeInt(&enc, WOLFCOSE_ALG_ES256);
+        ret = wc_CBOR_EncodeInt(&enc, WOLFCOSE_ALG_ESP256);
     }
     if (ret == 0) {
         ret = wc_CBOR_EncodeBstr(&enc, signature, signatureLen);
@@ -10595,7 +10605,7 @@ static void test_cose_sign_both_payloads(void)
     (void)wc_CoseKey_Init(&key);
     ret = wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
     TEST_ASSERT(ret == 0, "sign-both key set");
-    signers[0].algId = WOLFCOSE_ALG_ES256;
+    signers[0].algId = WOLFCOSE_ALG_ESP256;
     signers[0].key = &key;
     signers[0].kid = NULL;
     signers[0].kidLen = 0;
@@ -10647,7 +10657,7 @@ static void test_cose_sign_with_aad(void)
     ret = wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
     TEST_ASSERT(ret == 0, "sign aad key set");
 
-    signers[0].algId = WOLFCOSE_ALG_ES256;
+    signers[0].algId = WOLFCOSE_ALG_ESP256;
     signers[0].key = &key;
     signers[0].kid = NULL;
     signers[0].kidLen = 0;
@@ -10729,7 +10739,7 @@ static void test_cose_sign_detached(void)
     ret = wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
     TEST_ASSERT(ret == 0, "sign detached key set");
 
-    signers[0].algId = WOLFCOSE_ALG_ES256;
+    signers[0].algId = WOLFCOSE_ALG_ESP256;
     signers[0].key = &key;
     signers[0].kid = NULL;
     signers[0].kidLen = 0;
@@ -10827,12 +10837,12 @@ static void test_cose_sign_mixed_algorithms(void)
     TEST_ASSERT(ret == 0, "sign mixed ed key set");
 
     /* Setup signers: ES256 + EdDSA */
-    signers[0].algId = WOLFCOSE_ALG_ES256;
+    signers[0].algId = WOLFCOSE_ALG_ESP256;
     signers[0].key = &keyEc;
     signers[0].kid = NULL;
     signers[0].kidLen = 0;
 
-    signers[1].algId = WOLFCOSE_ALG_EDDSA;
+    signers[1].algId = WOLFCOSE_ALG_ED25519;
     signers[1].key = &keyEd;
     signers[1].kid = NULL;
     signers[1].kidLen = 0;
@@ -16228,7 +16238,7 @@ static void test_cose_mac_wrong_key_type(void)
 
 /* ----- Phase 1: Algorithm Combination Tests ----- */
 #ifdef WOLFCOSE_HAVE_ES384
-static void test_cose_sign1_es384(void)
+static void test_cose_sign1_esp384(void)
 {
     WOLFCOSE_KEY key;
     ecc_key eccKey;
@@ -16267,7 +16277,7 @@ static void test_cose_sign1_es384(void)
 
     if (ret == 0) {
         /* Sign */
-        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES384,
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP384,
             NULL, 0, payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0,
             scratch, sizeof(scratch),
@@ -16282,7 +16292,7 @@ static void test_cose_sign1_es384(void)
             scratch, sizeof(scratch),
             &hdr, &decPayload, &decPayloadLen);
         TEST_ASSERT(ret == 0, "sign1 es384 verify");
-        TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_ES384, "sign1 es384 alg");
+        TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_ESP384, "sign1 es384 alg");
         TEST_ASSERT(decPayloadLen == sizeof(payload) - 1, "sign1 es384 payload len");
     }
 
@@ -16297,7 +16307,7 @@ static void test_cose_sign1_es384(void)
 #endif /* WOLFCOSE_HAVE_ES384 */
 
 #ifdef WOLFCOSE_HAVE_ES512
-static void test_cose_sign1_es512(void)
+static void test_cose_sign1_esp512(void)
 {
     WOLFCOSE_KEY key;
     ecc_key eccKey;
@@ -16336,7 +16346,7 @@ static void test_cose_sign1_es512(void)
 
     if (ret == 0) {
         /* Sign */
-        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES512,
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP512,
             NULL, 0, payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0,
             scratch, sizeof(scratch),
@@ -16351,7 +16361,7 @@ static void test_cose_sign1_es512(void)
             scratch, sizeof(scratch),
             &hdr, &decPayload, &decPayloadLen);
         TEST_ASSERT(ret == 0, "sign1 es512 verify");
-        TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_ES512, "sign1 es512 alg");
+        TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_ESP512, "sign1 es512 alg");
     }
 
     /* Cleanup */
@@ -16454,7 +16464,7 @@ static void test_cose_sign1_tampered_sig_byte(void)
         (void)wc_CoseKey_Init(&key);
         (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
 
-        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
             NULL, 0, payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0,
             scratch, sizeof(scratch),
@@ -16520,7 +16530,7 @@ static void test_cose_sign1_trailing_bytes(void)
         (void)wc_CoseKey_Init(&key);
         (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
 
-        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
             NULL, 0, payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0,
             scratch, sizeof(scratch),
@@ -16581,7 +16591,7 @@ static void test_cose_sign1_hdr_cleared_on_failure(void)
     if (ret == 0) {
         (void)wc_CoseKey_Init(&key);
         (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
-        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
             NULL, 0, payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0,
             scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
@@ -16642,7 +16652,7 @@ static void test_cose_sign1_tampered_payload_byte(void)
         (void)wc_CoseKey_Init(&key);
         (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
 
-        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
             NULL, 0, payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0,
             scratch, sizeof(scratch),
@@ -16705,7 +16715,7 @@ static void test_cose_sign1_tampered_protected_hdr(void)
         (void)wc_CoseKey_Init(&key);
         (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
 
-        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
             NULL, 0, payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0,
             scratch, sizeof(scratch),
@@ -16714,8 +16724,8 @@ static void test_cose_sign1_tampered_protected_hdr(void)
     }
 
     /* Flip the inner alg byte: layout is 0xD2 (tag) 0x84 (array4)
-     * 0x43 (bstr3) 0xA1 0x01 0x26 ... protected map. Byte 5 is the alg
-     * value (0x26 == -7). The flip must change the protected-bstr
+     * 0x43 (bstr3) 0xA1 0x01 0x28 ... protected map. Byte 5 is the alg
+     * value (0x28 == -9). The flip must change the protected-bstr
      * contents so Sig_structure reconstruction picks up the tampered
      * bytes and the signature check fails. */
     if (ret == 0) {
@@ -16771,7 +16781,7 @@ static void test_cose_sign1_truncated_sig(void)
         (void)wc_CoseKey_Init(&key);
         (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
 
-        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
             NULL, 0, payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0,
             scratch, sizeof(scratch),
@@ -17061,7 +17071,7 @@ static void test_cose_empty_payload(void)
         (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
 
         /* Sign with zero-length payload (valid per RFC 9052) */
-        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
             NULL, 0,
             emptyPayload, 0,  /* empty payload */
             NULL, 0, NULL, 0,
@@ -17130,7 +17140,7 @@ static void test_cose_large_payload(void)
         (void)wc_CoseKey_Init(&key);
         (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
 
-        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
             NULL, 0,
             largePayload, sizeof(largePayload),
             NULL, 0, NULL, 0,
@@ -17196,7 +17206,7 @@ static void test_cose_empty_aad(void)
         (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
 
         /* Sign with zero-length AAD (valid per RFC 9052) */
-        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
             NULL, 0,
             payload, sizeof(payload) - 1,
             NULL, 0,
@@ -17266,7 +17276,7 @@ static void test_cose_long_kid(void)
         (void)wc_CoseKey_Init(&key);
         (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
 
-        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
             longKid, sizeof(longKid),
             payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0,
@@ -17329,7 +17339,7 @@ static void test_cose_sign_output_too_small(void)
         (void)wc_CoseKey_Init(&key);
         (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
 
-        signRet = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+        signRet = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
             NULL, 0,
             payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0,
@@ -17380,7 +17390,7 @@ static void test_cose_sign_scratch_too_small(void)
         (void)wc_CoseKey_Init(&key);
         (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
 
-        signRet = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+        signRet = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
             NULL, 0,
             payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0,
@@ -17469,7 +17479,7 @@ static void test_decode_truncated_message(void)
         (void)wc_CoseKey_Init(&key);
         (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
 
-        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
             NULL, 0, payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0,
             scratch, sizeof(scratch),
@@ -17531,7 +17541,7 @@ static void test_decode_wrong_tag(void)
         (void)wc_CoseKey_Init(&key);
         (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
 
-        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
             NULL, 0, payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0,
             scratch, sizeof(scratch),
@@ -17901,7 +17911,7 @@ static void test_cose_error_paths(void)
         (void)wc_CoseKey_SetSymmetric(&symKey, keyData, sizeof(keyData));
 
         /* Try to sign with symmetric key using ECC algorithm */
-        ret = wc_CoseSign1_Sign(&symKey, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&symKey, WOLFCOSE_ALG_ESP256,
             NULL, 0, payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0,
             scratch, sizeof(scratch),
@@ -18177,7 +18187,7 @@ static void test_cose_error_paths(void)
         (void)wc_CoseKey_SetEcc(&wrongKey, WOLFCOSE_CRV_P256, &eccWrongKey);
 
         /* Sign */
-        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
             NULL, 0, payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0,
             scratch, sizeof(scratch),
@@ -18219,7 +18229,7 @@ static void test_cose_error_paths(void)
         (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
 
         /* Sign */
-        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
             NULL, 0, payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0,
             scratch, sizeof(scratch),
@@ -18321,7 +18331,7 @@ static void test_cose_error_paths(void)
         (void)wc_CoseKey_Init(&key);
         (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
 
-        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
             NULL, 0, payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0,
             scratch, sizeof(scratch),
@@ -19458,18 +19468,18 @@ static void test_cose_sign_dup_signer_unprot_hdr(void)
     const uint8_t* payload = NULL;
     size_t payloadLen = 0;
     /* COSE_Sign with one signer whose unprotected map repeats label 4 (kid).
-     * [ h'', {}, 'x', [ [ h'A10126', {4:h'01',4:h'02'}, h'0000' ] ] ] */
+     * [ h'', {}, 'x', [ [ h'A10128', {4:h'01',4:h'02'}, h'0000' ] ] ] */
     uint8_t msg[] = {
         0x84u, 0x40u, 0xA0u, 0x41u, 0x78u, 0x81u,
-        0x83u, 0x43u, 0xA1u, 0x01u, 0x26u,
+        0x83u, 0x43u, 0xA1u, 0x01u, 0x28u,
         0xA2u, 0x04u, 0x41u, 0x01u, 0x04u, 0x41u, 0x02u,
         0x42u, 0x00u, 0x00u
     };
     uint8_t unselectedMsg[] = {
         0x84u, 0x40u, 0xA0u, 0x41u, 0x78u, 0x82u,
-        0x83u, 0x43u, 0xA1u, 0x01u, 0x26u, 0xA0u,
+        0x83u, 0x43u, 0xA1u, 0x01u, 0x28u, 0xA0u,
         0x42u, 0x00u, 0x00u,
-        0x83u, 0x43u, 0xA1u, 0x01u, 0x26u,
+        0x83u, 0x43u, 0xA1u, 0x01u, 0x28u,
         0xA2u, 0x04u, 0x41u, 0x01u, 0x04u, 0x41u, 0x02u,
         0x42u, 0x00u, 0x00u
     };
@@ -20690,7 +20700,7 @@ static void test_cose_sign1_alg_curve_mismatch(void)
 
     /* Do not trust a declaration changed after key attachment. */
     key.crv = WOLFCOSE_CRV_P384;
-    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES384,
+    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP384,
         NULL, 0,
         payload, sizeof(payload) - 1,
         NULL, 0,
@@ -20703,7 +20713,7 @@ static void test_cose_sign1_alg_curve_mismatch(void)
 
     key.crv = WOLFCOSE_CRV_P256;
     /* Ask for ES384 with a P-256 key -> bad alg */
-    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES384,
+    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP384,
         NULL, 0,
         payload, sizeof(payload) - 1,
         NULL, 0,
@@ -20745,7 +20755,7 @@ static void test_cose_sign1_inconsistent_kid(void)
     TEST_ASSERT(ret == 0, "set ECC key");
 
     /* kid non-NULL but kidLen == 0 */
-    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
         kid, 0,
         payload, sizeof(payload) - 1,
         NULL, 0,
@@ -20757,7 +20767,7 @@ static void test_cose_sign1_inconsistent_kid(void)
                 "Sign1 rejects non-NULL kid with kidLen 0");
 
     /* kid NULL but kidLen != 0 */
-    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
         NULL, 4,
         payload, sizeof(payload) - 1,
         NULL, 0,
@@ -20806,11 +20816,11 @@ static void test_cose_sign_multi_public_only_key(void)
     (void)wc_CoseKey_SetEcc(&key2, WOLFCOSE_CRV_P256, &eccKey2);
     key2.hasPrivate = 0u; /* second signer is public-only */
 
-    signers[0].algId = WOLFCOSE_ALG_ES256;
+    signers[0].algId = WOLFCOSE_ALG_ESP256;
     signers[0].key = &key1;
     signers[0].kid = NULL;
     signers[0].kidLen = 0;
-    signers[1].algId = WOLFCOSE_ALG_ES256;
+    signers[1].algId = WOLFCOSE_ALG_ESP256;
     signers[1].key = &key2;
     signers[1].kid = NULL;
     signers[1].kidLen = 0;
@@ -21068,18 +21078,18 @@ static void test_cose_alg_to_hash_constants(void)
     TEST_LOG("  [Algorithm-to-hash constants]\n");
 
 #ifdef WOLFCOSE_HAVE_ES256
-    ret = wolfCose_AlgToHashType(WOLFCOSE_ALG_ES256, &ht);
+    ret = wolfCose_AlgToHashType(WOLFCOSE_ALG_ESP256, &ht);
     TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (ht == WC_HASH_TYPE_SHA256),
-                "AlgToHashType ES256 -> SHA-256");
+                "AlgToHashType ESP256 -> SHA-256");
 #ifdef WOLFCOSE_HAVE_ES384
-    ret = wolfCose_AlgToHashType(WOLFCOSE_ALG_ES384, &ht);
+    ret = wolfCose_AlgToHashType(WOLFCOSE_ALG_ESP384, &ht);
     TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (ht == WC_HASH_TYPE_SHA384),
-                "AlgToHashType ES384 -> SHA-384");
+                "AlgToHashType ESP384 -> SHA-384");
 #endif
 #ifdef WOLFCOSE_HAVE_ES512
-    ret = wolfCose_AlgToHashType(WOLFCOSE_ALG_ES512, &ht);
+    ret = wolfCose_AlgToHashType(WOLFCOSE_ALG_ESP512, &ht);
     TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (ht == WC_HASH_TYPE_SHA512),
-                "AlgToHashType ES512 -> SHA-512");
+                "AlgToHashType ESP512 -> SHA-512");
 #endif
 #endif /* WOLFCOSE_HAVE_ES256 */
 #ifdef WOLFCOSE_HAVE_RSAPSS
@@ -21100,6 +21110,1177 @@ static void test_cose_alg_to_hash_constants(void)
     (void)ret;
     (void)ht;
 }
+
+/* ----- RFC 9864 fully-specified algorithm IDs ----- */
+
+static void test_cose_rfc9864_alg_helpers(void)
+{
+    int ret;
+    int32_t crv = 0;
+    enum wc_HashType ht = WC_HASH_TYPE_NONE;
+    size_t sz = 0;
+
+    TEST_LOG("  [RFC 9864 alg helpers]\n");
+
+#ifdef WOLFCOSE_HAVE_ES256
+    ret = wolfCose_AlgToHashType(WOLFCOSE_ALG_ESP256, &ht);
+    TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (ht == WC_HASH_TYPE_SHA256),
+                "AlgToHashType ESP256 -> SHA-256");
+    ret = wolfCose_AlgToCrv(WOLFCOSE_ALG_ESP256, &crv);
+    TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (crv == WOLFCOSE_CRV_P256),
+                "AlgToCrv ESP256 -> P-256");
+    ret = wolfCose_AlgCheckCrv(WOLFCOSE_ALG_ESP256, WOLFCOSE_CRV_P256);
+    TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "AlgCheckCrv ESP256 P-256");
+    ret = wolfCose_AlgCheckCrv(WOLFCOSE_ALG_ESP256, WOLFCOSE_CRV_P384);
+    TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG, "AlgCheckCrv ESP256 P-384");
+    TEST_ASSERT(wolfCose_AlgIsEcdsa(WOLFCOSE_ALG_ESP256) == 1,
+                "AlgIsEcdsa ESP256");
+    TEST_ASSERT(wolfCose_AlgIsEddsa(WOLFCOSE_ALG_ESP256) == 0,
+                "AlgIsEddsa ESP256");
+#endif
+#ifdef WOLFCOSE_HAVE_ES384
+    ret = wolfCose_AlgToHashType(WOLFCOSE_ALG_ESP384, &ht);
+    TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (ht == WC_HASH_TYPE_SHA384),
+                "AlgToHashType ESP384 -> SHA-384");
+    ret = wolfCose_AlgToCrv(WOLFCOSE_ALG_ESP384, &crv);
+    TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (crv == WOLFCOSE_CRV_P384),
+                "AlgToCrv ESP384 -> P-384");
+    TEST_ASSERT(wolfCose_AlgIsEcdsa(WOLFCOSE_ALG_ESP384) == 1,
+                "AlgIsEcdsa ESP384");
+#endif
+#ifdef WOLFCOSE_HAVE_ES512
+    ret = wolfCose_AlgToHashType(WOLFCOSE_ALG_ESP512, &ht);
+    TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (ht == WC_HASH_TYPE_SHA512),
+                "AlgToHashType ESP512 -> SHA-512");
+    ret = wolfCose_AlgToCrv(WOLFCOSE_ALG_ESP512, &crv);
+    TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (crv == WOLFCOSE_CRV_P521),
+                "AlgToCrv ESP512 -> P-521");
+    ret = wolfCose_SigSize(WOLFCOSE_ALG_ESP512, &sz);
+    TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (sz == 132u),
+                "SigSize ESP512 -> 132");
+    TEST_ASSERT(wolfCose_AlgIsEcdsa(WOLFCOSE_ALG_ESP512) == 1,
+                "AlgIsEcdsa ESP512");
+#endif
+#ifdef WOLFCOSE_HAVE_EDDSA
+    ret = wolfCose_AlgToHashType(WOLFCOSE_ALG_ED25519, &ht);
+    TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (ht == WC_HASH_TYPE_SHA512),
+                "AlgToHashType Ed25519");
+    ret = wolfCose_AlgToCrv(WOLFCOSE_ALG_ED25519, &crv);
+    TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (crv == WOLFCOSE_CRV_ED25519),
+                "AlgToCrv Ed25519");
+    ret = wolfCose_AlgCheckCrv(WOLFCOSE_ALG_ED25519, WOLFCOSE_CRV_ED448);
+    TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG, "AlgCheckCrv Ed25519 Ed448");
+    TEST_ASSERT(wolfCose_AlgIsEddsa(WOLFCOSE_ALG_ED25519) == 1,
+                "AlgIsEddsa Ed25519");
+    TEST_ASSERT(wolfCose_AlgIsEcdsa(WOLFCOSE_ALG_ED25519) == 0,
+                "AlgIsEcdsa Ed25519");
+#endif
+#ifdef WOLFCOSE_HAVE_ED448
+    ret = wolfCose_AlgToHashType(WOLFCOSE_ALG_ED448, &ht);
+    TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (ht == WC_HASH_TYPE_SHA512),
+                "AlgToHashType Ed448");
+    ret = wolfCose_AlgToCrv(WOLFCOSE_ALG_ED448, &crv);
+    TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (crv == WOLFCOSE_CRV_ED448),
+                "AlgToCrv Ed448");
+    TEST_ASSERT(wolfCose_AlgIsEddsa(WOLFCOSE_ALG_ED448) == 1,
+                "AlgIsEddsa Ed448");
+#endif
+#if defined(WOLFCOSE_HAVE_ECDSA) || defined(WOLFCOSE_HAVE_EDDSA) || \
+    defined(WOLFCOSE_HAVE_ED448)
+    ret = wolfCose_AlgToCrv(WOLFCOSE_ALG_PS256, &crv);
+    TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG, "AlgToCrv PS256 unbound");
+    ret = wolfCose_AlgToCrv(WOLFCOSE_ALG_PS256, NULL);
+    TEST_ASSERT(ret == WOLFCOSE_E_INVALID_ARG, "AlgToCrv NULL out");
+    ret = wolfCose_AlgCheckCrv(WOLFCOSE_ALG_PS256, WOLFCOSE_CRV_P256);
+    TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG, "AlgCheckCrv PS256 unbound");
+#endif
+    TEST_ASSERT(wolfCose_AlgIsEcdsa(WOLFCOSE_ALG_PS256) == 0,
+                "AlgIsEcdsa PS256");
+    TEST_ASSERT(wolfCose_AlgIsEddsa(WOLFCOSE_ALG_PS256) == 0,
+                "AlgIsEddsa PS256");
+
+#ifdef WOLFCOSE_HAVE_DEPRECATED_ALGS
+#ifdef WOLFCOSE_HAVE_ES256
+    TEST_ASSERT(wolfCose_AlgIsEcdsa(WOLFCOSE_ALG_ES256) == 1,
+                "AlgIsEcdsa ES256 (deprecated)");
+    ret = wolfCose_AlgToCrv(WOLFCOSE_ALG_ES256, &crv);
+    TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (crv == WOLFCOSE_CRV_P256),
+                "AlgToCrv ES256 -> P-256");
+#endif
+#ifdef WOLFCOSE_HAVE_ES384
+    TEST_ASSERT(wolfCose_AlgIsEcdsa(WOLFCOSE_ALG_ES384) == 1,
+                "AlgIsEcdsa ES384 (deprecated)");
+    ret = wolfCose_AlgToCrv(WOLFCOSE_ALG_ES384, &crv);
+    TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (crv == WOLFCOSE_CRV_P384),
+                "AlgToCrv ES384 -> P-384");
+    ret = wolfCose_AlgToHashType(WOLFCOSE_ALG_ES384, &ht);
+    TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (ht == WC_HASH_TYPE_SHA384),
+                "AlgToHashType ES384");
+    ret = wolfCose_SigSize(WOLFCOSE_ALG_ES384, &sz);
+    TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (sz == 96u), "SigSize ES384");
+#endif
+#ifdef WOLFCOSE_HAVE_ES512
+    TEST_ASSERT(wolfCose_AlgIsEcdsa(WOLFCOSE_ALG_ES512) == 1,
+                "AlgIsEcdsa ES512 (deprecated)");
+    ret = wolfCose_AlgToCrv(WOLFCOSE_ALG_ES512, &crv);
+    TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (crv == WOLFCOSE_CRV_P521),
+                "AlgToCrv ES512 -> P-521");
+    ret = wolfCose_AlgToHashType(WOLFCOSE_ALG_ES512, &ht);
+    TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (ht == WC_HASH_TYPE_SHA512),
+                "AlgToHashType ES512");
+    ret = wolfCose_SigSize(WOLFCOSE_ALG_ES512, &sz);
+    TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (sz == 132u), "SigSize ES512");
+#endif
+#if defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)
+    TEST_ASSERT(wolfCose_AlgIsEddsa(WOLFCOSE_ALG_EDDSA) == 1,
+                "AlgIsEddsa EdDSA (deprecated)");
+    ret = wolfCose_AlgToCrv(WOLFCOSE_ALG_EDDSA, &crv);
+    TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (crv == 0), "AlgToCrv EdDSA");
+    ret = wolfCose_AlgCheckCrv(WOLFCOSE_ALG_EDDSA, WOLFCOSE_CRV_ED448);
+    TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "AlgCheckCrv EdDSA any OKP curve");
+    ret = wolfCose_AlgToHashType(WOLFCOSE_ALG_EDDSA, &ht);
+    TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (ht == WC_HASH_TYPE_SHA512),
+                "AlgToHashType EdDSA");
+#endif
+#else
+#ifdef WOLFCOSE_HAVE_ES256
+    ret = wolfCose_AlgToHashType(WOLFCOSE_ALG_ES256, &ht);
+    TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG, "ES256 rejected by default");
+    ret = wolfCose_SigSize(WOLFCOSE_ALG_ES256, &sz);
+    TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG, "SigSize ES256 rejected");
+    ret = wolfCose_AlgToCrv(WOLFCOSE_ALG_ES256, &crv);
+    TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG, "AlgToCrv ES256 rejected");
+    TEST_ASSERT(wolfCose_AlgIsEcdsa(WOLFCOSE_ALG_ES256) == 0,
+                "AlgIsEcdsa ES256 off");
+#endif
+#ifdef WOLFCOSE_HAVE_ES384
+    ret = wolfCose_AlgToHashType(WOLFCOSE_ALG_ES384, &ht);
+    TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG, "ES384 rejected by default");
+    TEST_ASSERT(wolfCose_AlgIsEcdsa(WOLFCOSE_ALG_ES384) == 0,
+                "AlgIsEcdsa ES384 off");
+#endif
+#ifdef WOLFCOSE_HAVE_ES512
+    ret = wolfCose_AlgToHashType(WOLFCOSE_ALG_ES512, &ht);
+    TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG, "ES512 rejected by default");
+    TEST_ASSERT(wolfCose_AlgIsEcdsa(WOLFCOSE_ALG_ES512) == 0,
+                "AlgIsEcdsa ES512 off");
+#endif
+#if defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)
+    ret = wolfCose_AlgToHashType(WOLFCOSE_ALG_EDDSA, &ht);
+    TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG, "EdDSA rejected by default");
+    ret = wolfCose_SigSize(WOLFCOSE_ALG_EDDSA, &sz);
+    TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG, "SigSize EdDSA rejected");
+    TEST_ASSERT(wolfCose_AlgIsEddsa(WOLFCOSE_ALG_EDDSA) == 0,
+                "AlgIsEddsa EdDSA off");
+#endif
+#endif /* WOLFCOSE_HAVE_DEPRECATED_ALGS */
+    (void)ret;
+    (void)crv;
+    (void)ht;
+    (void)sz;
+}
+
+#if defined(WOLFCOSE_HAVE_EDDSA) && defined(WOLFCOSE_HAVE_ED448) && \
+    defined(WOLFCOSE_SIGN1_SIGN) && defined(WOLFCOSE_SIGN1_VERIFY)
+/* Ed25519 (-19) and Ed448 (-53) each bind one OKP curve. */
+static void test_cose_rfc9864_sign1_eddsa_curve_pin(void)
+{
+    WOLFCOSE_KEY key25519;
+    WOLFCOSE_KEY key448;
+    ed25519_key ed25519;
+    ed448_key ed448;
+    WC_RNG rng;
+    int ret;
+    int rngInited = 0;
+    int ed25519Inited = 0;
+    int ed448Inited = 0;
+    int coseInited = 0;
+    uint8_t payload[] = "RFC 9864 EdDSA pin";
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    uint8_t out[512];
+    size_t outLen = 0;
+    size_t sizedLen = 0;
+    const uint8_t* decPayload = NULL;
+    size_t decPayloadLen = 0;
+    WOLFCOSE_HDR hdr;
+
+    TEST_LOG("  [Sign1 RFC 9864 Ed25519/Ed448 curve pin]\n");
+
+    ret = wc_InitRng(&rng);
+    if (ret != 0) { TEST_ASSERT(0, "rng init"); }
+    if (ret == 0) {
+        rngInited = 1;
+        wc_ed25519_init(&ed25519);
+        ed25519Inited = 1;
+        ret = wc_ed25519_make_key(&rng, ED25519_KEY_SIZE, &ed25519);
+        if (ret != 0) { TEST_ASSERT(0, "ed25519 keygen"); }
+    }
+    if (ret == 0) {
+        wc_ed448_init(&ed448);
+        ed448Inited = 1;
+        ret = wc_ed448_make_key(&rng, ED448_KEY_SIZE, &ed448);
+        if (ret != 0) { TEST_ASSERT(0, "ed448 keygen"); }
+    }
+    if (ret == 0) {
+        (void)wc_CoseKey_Init(&key25519);
+        (void)wc_CoseKey_SetEd25519(&key25519, &ed25519);
+        (void)wc_CoseKey_Init(&key448);
+        (void)wc_CoseKey_SetEd448(&key448, &ed448);
+        coseInited = 1;
+
+        ret = wc_CoseSign1_SignSize_ex(&key448, WOLFCOSE_ALG_ED25519,
+            0u, sizeof(payload) - 1u, 0u, 0u, &sizedLen);
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG,
+                    "SignSize Ed25519 with Ed448 key");
+        ret = wc_CoseSign1_SignSize_ex(&key25519, WOLFCOSE_ALG_ED448,
+            0u, sizeof(payload) - 1u, 0u, 0u, &sizedLen);
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG,
+                    "SignSize Ed448 with Ed25519 key");
+#ifdef WOLFCOSE_HAVE_DEPRECATED_ALGS
+        /* EdDSA (-8) sizes from whichever OKP curve the key carries. */
+        ret = wc_CoseSign1_SignSize_ex(&key448, WOLFCOSE_ALG_EDDSA,
+            0u, sizeof(payload) - 1u, 0u, 0u, &sizedLen);
+        TEST_ASSERT(ret == 0, "SignSize EdDSA with Ed448 key");
+        ret = wc_CoseSign1_SignSize_ex(&key25519, WOLFCOSE_ALG_EDDSA,
+            0u, sizeof(payload) - 1u, 0u, 0u, &sizedLen);
+        TEST_ASSERT(ret == 0, "SignSize EdDSA with Ed25519 key");
+#endif
+
+        ret = wc_CoseSign1_Sign(&key448, WOLFCOSE_ALG_ED25519, NULL, 0,
+            payload, sizeof(payload) - 1u, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG,
+                    "Sign1 Ed25519 with Ed448 key");
+        ret = wc_CoseSign1_Sign(&key25519, WOLFCOSE_ALG_ED448, NULL, 0,
+            payload, sizeof(payload) - 1u, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG,
+                    "Sign1 Ed448 with Ed25519 key");
+
+        ret = wc_CoseSign1_Sign(&key25519, WOLFCOSE_ALG_ED25519, NULL, 0,
+            payload, sizeof(payload) - 1u, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == 0, "Sign1 Ed25519 sign");
+    }
+    if (ret == 0) {
+        ret = wc_CoseSign1_Verify(&key448, out, outLen, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), &hdr, &decPayload, &decPayloadLen);
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG,
+                    "Verify Ed25519 message with Ed448 key");
+        ret = wc_CoseSign1_Verify(&key25519, out, outLen, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), &hdr, &decPayload, &decPayloadLen);
+        TEST_ASSERT((ret == 0) && (hdr.alg == WOLFCOSE_ALG_ED25519),
+                    "Verify Ed25519 message with Ed25519 key");
+    }
+    if (ret == 0) {
+        ret = wc_CoseSign1_Sign(&key448, WOLFCOSE_ALG_ED448, NULL, 0,
+            payload, sizeof(payload) - 1u, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == 0, "Sign1 Ed448 sign");
+    }
+    if (ret == 0) {
+        ret = wc_CoseSign1_Verify(&key25519, out, outLen, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), &hdr, &decPayload, &decPayloadLen);
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG,
+                    "Verify Ed448 message with Ed25519 key");
+        ret = wc_CoseSign1_Verify(&key448, out, outLen, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), &hdr, &decPayload, &decPayloadLen);
+        TEST_ASSERT((ret == 0) && (hdr.alg == WOLFCOSE_ALG_ED448),
+                    "Verify Ed448 message with Ed448 key");
+    }
+
+    if (coseInited != 0) {
+        wc_CoseKey_Free(&key25519);
+        wc_CoseKey_Free(&key448);
+    }
+    if (ed25519Inited != 0) { (void)wc_ed25519_free(&ed25519); }
+    if (ed448Inited != 0) { (void)wc_ed448_free(&ed448); }
+    if (rngInited != 0) { (void)wc_FreeRng(&rng); }
+}
+#endif /* EDDSA && ED448 && SIGN1_SIGN && SIGN1_VERIFY */
+
+#if defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_HAVE_EDDSA) && \
+    defined(WOLFCOSE_SIGN1_SIGN)
+/* Sizing honours the key type an RFC 9864 alg binds. */
+static void test_cose_rfc9864_sign1_kty_pin(void)
+{
+    WOLFCOSE_KEY eccCoseKey;
+    WOLFCOSE_KEY edCoseKey;
+    ecc_key eccKey;
+    ed25519_key edKey;
+    WC_RNG rng;
+    int ret;
+    int rngInited = 0;
+    int eccInited = 0;
+    int edInited = 0;
+    uint8_t payload[] = "RFC 9864 kty pin";
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    uint8_t out[512];
+    size_t outLen = 0;
+    size_t sizedLen = 0;
+
+    TEST_LOG("  [Sign1 RFC 9864 alg/kty pin]\n");
+
+    ret = wc_InitRng(&rng);
+    if (ret != 0) { TEST_ASSERT(0, "rng init"); }
+    if (ret == 0) {
+        rngInited = 1;
+        wc_ecc_init(&eccKey);
+        eccInited = 1;
+        ret = wc_ecc_make_key(&rng, 32, &eccKey);
+        if (ret != 0) { TEST_ASSERT(0, "ecc keygen"); }
+    }
+    if (ret == 0) {
+        wc_ed25519_init(&edKey);
+        edInited = 1;
+        ret = wc_ed25519_make_key(&rng, ED25519_KEY_SIZE, &edKey);
+        if (ret != 0) { TEST_ASSERT(0, "ed25519 keygen"); }
+    }
+    if (ret == 0) {
+        (void)wc_CoseKey_Init(&eccCoseKey);
+        (void)wc_CoseKey_SetEcc(&eccCoseKey, WOLFCOSE_CRV_P256, &eccKey);
+        (void)wc_CoseKey_Init(&edCoseKey);
+        (void)wc_CoseKey_SetEd25519(&edCoseKey, &edKey);
+
+        ret = wc_CoseSign1_SignSize_ex(&eccCoseKey, WOLFCOSE_ALG_ED25519,
+            0u, sizeof(payload) - 1u, 0u, 0u, &sizedLen);
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_KEY_TYPE,
+                    "SignSize Ed25519 with EC2 key");
+        ret = wc_CoseSign1_SignSize_ex(&edCoseKey, WOLFCOSE_ALG_ESP256,
+            0u, sizeof(payload) - 1u, 0u, 0u, &sizedLen);
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_KEY_TYPE,
+                    "SignSize ESP256 with OKP key");
+        ret = wc_CoseSign1_Sign(&eccCoseKey, WOLFCOSE_ALG_ED25519, NULL, 0,
+            payload, sizeof(payload) - 1u, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_KEY_TYPE,
+                    "Sign1 Ed25519 with EC2 key");
+#ifdef WOLFCOSE_HAVE_DEPRECATED_ALGS
+        ret = wc_CoseSign1_SignSize_ex(&edCoseKey, WOLFCOSE_ALG_EDDSA,
+            0u, sizeof(payload) - 1u, 0u, 0u, &sizedLen);
+        TEST_ASSERT(ret == 0, "SignSize EdDSA with Ed25519 key");
+        ret = wc_CoseSign1_SignSize_ex(&eccCoseKey, WOLFCOSE_ALG_EDDSA,
+            0u, sizeof(payload) - 1u, 0u, 0u, &sizedLen);
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_KEY_TYPE,
+                    "SignSize EdDSA with EC2 key");
+        edCoseKey.crv = WOLFCOSE_CRV_P256;
+        ret = wc_CoseSign1_SignSize_ex(&edCoseKey, WOLFCOSE_ALG_EDDSA,
+            0u, sizeof(payload) - 1u, 0u, 0u, &sizedLen);
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_KEY_TYPE,
+                    "SignSize EdDSA with unknown OKP curve");
+        edCoseKey.crv = WOLFCOSE_CRV_ED25519;
+#endif
+        wc_CoseKey_Free(&eccCoseKey);
+        wc_CoseKey_Free(&edCoseKey);
+    }
+
+    if (edInited != 0) { (void)wc_ed25519_free(&edKey); }
+    if (eccInited != 0) { (void)wc_ecc_free(&eccKey); }
+    if (rngInited != 0) { (void)wc_FreeRng(&rng); }
+}
+#endif /* ES256 && EDDSA && SIGN1_SIGN */
+
+#if defined(WOLFCOSE_SIGN) && defined(WOLFCOSE_HAVE_EDDSA) && \
+    defined(WOLFCOSE_HAVE_ED448)
+static void test_cose_rfc9864_sign_multi_eddsa_curve_pin(void)
+{
+    WOLFCOSE_KEY key25519;
+    WOLFCOSE_KEY key448;
+    ed25519_key ed25519;
+    ed448_key ed448;
+    WC_RNG rng;
+    WOLFCOSE_SIGNATURE signers[2];
+    int ret;
+    int rngInited = 0;
+    int ed25519Inited = 0;
+    int ed448Inited = 0;
+    int coseInited = 0;
+    uint8_t payload[] = "RFC 9864 multi EdDSA pin";
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    uint8_t out[1024];
+    size_t outLen = 0;
+    const uint8_t* decPayload = NULL;
+    size_t decPayloadLen = 0;
+    WOLFCOSE_HDR hdr;
+
+    TEST_LOG("  [Sign Multi RFC 9864 Ed25519/Ed448 curve pin]\n");
+
+    ret = wc_InitRng(&rng);
+    if (ret != 0) { TEST_ASSERT(0, "rng init"); }
+    if (ret == 0) {
+        rngInited = 1;
+        wc_ed25519_init(&ed25519);
+        ed25519Inited = 1;
+        ret = wc_ed25519_make_key(&rng, ED25519_KEY_SIZE, &ed25519);
+        if (ret != 0) { TEST_ASSERT(0, "ed25519 keygen"); }
+    }
+    if (ret == 0) {
+        wc_ed448_init(&ed448);
+        ed448Inited = 1;
+        ret = wc_ed448_make_key(&rng, ED448_KEY_SIZE, &ed448);
+        if (ret != 0) { TEST_ASSERT(0, "ed448 keygen"); }
+    }
+    if (ret == 0) {
+        (void)wc_CoseKey_Init(&key25519);
+        (void)wc_CoseKey_SetEd25519(&key25519, &ed25519);
+        (void)wc_CoseKey_Init(&key448);
+        (void)wc_CoseKey_SetEd448(&key448, &ed448);
+        coseInited = 1;
+
+        XMEMSET(signers, 0, sizeof(signers));
+        signers[0].algId = WOLFCOSE_ALG_ED25519;
+        signers[0].key = &key448;
+        signers[0].kid = NULL;
+        signers[0].kidLen = 0;
+        ret = wc_CoseSign_Sign(signers, 1, payload, sizeof(payload) - 1u,
+            NULL, 0, NULL, 0, scratch, sizeof(scratch),
+            out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG,
+                    "Sign_Sign Ed25519 with Ed448 key");
+
+        signers[0].algId = WOLFCOSE_ALG_ED25519;
+        signers[0].key = &key25519;
+        signers[1].algId = WOLFCOSE_ALG_ED448;
+        signers[1].key = &key448;
+        signers[1].kid = NULL;
+        signers[1].kidLen = 0;
+        ret = wc_CoseSign_Sign(signers, 2, payload, sizeof(payload) - 1u,
+            NULL, 0, NULL, 0, scratch, sizeof(scratch),
+            out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == 0, "Sign_Sign Ed25519 + Ed448");
+    }
+    if (ret == 0) {
+        ret = wc_CoseSign_Verify(&key25519, 1, out, outLen, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), &hdr, &decPayload, &decPayloadLen);
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG,
+                    "Sign_Verify Ed448 signer with Ed25519 key");
+        ret = wc_CoseSign_Verify(&key448, 1, out, outLen, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), &hdr, &decPayload, &decPayloadLen);
+        TEST_ASSERT(ret == 0, "Sign_Verify Ed448 signer");
+        ret = wc_CoseSign_Verify(&key25519, 0, out, outLen, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), &hdr, &decPayload, &decPayloadLen);
+        TEST_ASSERT(ret == 0, "Sign_Verify Ed25519 signer");
+    }
+
+    if (coseInited != 0) {
+        wc_CoseKey_Free(&key25519);
+        wc_CoseKey_Free(&key448);
+    }
+    if (ed25519Inited != 0) { (void)wc_ed25519_free(&ed25519); }
+    if (ed448Inited != 0) { (void)wc_ed448_free(&ed448); }
+    if (rngInited != 0) { (void)wc_FreeRng(&rng); }
+}
+#endif /* SIGN && EDDSA && ED448 */
+
+#if defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_SIGN1_SIGN) && \
+    defined(WOLFCOSE_SIGN1_VERIFY)
+/* The RFC 9053 IDs are rejected unless WOLFCOSE_ENABLE_DEPRECATED_ALGS. */
+static void test_cose_rfc9864_deprecated_ids(void)
+{
+    WOLFCOSE_KEY key;
+    ecc_key eccKey;
+    WC_RNG rng;
+    int ret;
+    int rngInited = 0;
+    int eccInited = 0;
+    int keyInited = 0;
+    uint8_t payload[] = "RFC 9053 ES256";
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    uint8_t out[512];
+    size_t outLen = 0;
+    size_t sizedLen = 0;
+    const uint8_t* decPayload = NULL;
+    size_t decPayloadLen = 0;
+    WOLFCOSE_HDR hdr;
+
+    TEST_LOG("  [Sign1 RFC 9053 deprecated IDs]\n");
+
+    ret = wc_InitRng(&rng);
+    if (ret != 0) { TEST_ASSERT(0, "rng init"); }
+    if (ret == 0) {
+        rngInited = 1;
+        wc_ecc_init(&eccKey);
+        eccInited = 1;
+        ret = wc_ecc_make_key(&rng, 32, &eccKey);
+        if (ret != 0) { TEST_ASSERT(0, "ecc keygen"); }
+    }
+    if (ret == 0) {
+        (void)wc_CoseKey_Init(&key);
+        (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
+        keyInited = 1;
+
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256, NULL, 0,
+            payload, sizeof(payload) - 1u, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == 0, "Sign1 ESP256");
+    }
+    if (ret == 0) {
+        /* Tag(18), array(4), bstr(3) {1: alg}: byte 5 is the alg. */
+        TEST_ASSERT((outLen > 6u) && (out[5] == 0x28u),
+                    "ESP256 protected header carries -9");
+        out[5] = 0x26u; /* -7, ES256 */
+        ret = wc_CoseSign1_Verify(&key, out, outLen, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), &hdr, &decPayload, &decPayloadLen);
+#ifdef WOLFCOSE_HAVE_DEPRECATED_ALGS
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_SIG_FAIL,
+                    "ES256 relabel reaches the signature check");
+        ret = wc_CoseSign1_SignSize_ex(&key, WOLFCOSE_ALG_ES256,
+            0u, sizeof(payload) - 1u, 0u, 0u, &sizedLen);
+        TEST_ASSERT(ret == 0, "SignSize ES256 (deprecated on)");
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256, NULL, 0,
+            payload, sizeof(payload) - 1u, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == 0, "Sign1 ES256 (deprecated on)");
+        if (ret == 0) {
+            ret = wc_CoseSign1_Verify(&key, out, outLen, NULL, 0, NULL, 0,
+                scratch, sizeof(scratch), &hdr, &decPayload, &decPayloadLen);
+            TEST_ASSERT((ret == 0) && (hdr.alg == WOLFCOSE_ALG_ES256),
+                        "Verify ES256 (deprecated on)");
+        }
+#else
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG,
+                    "Verify rejects ES256 by default");
+        ret = wc_CoseSign1_SignSize_ex(&key, WOLFCOSE_ALG_ES256,
+            0u, sizeof(payload) - 1u, 0u, 0u, &sizedLen);
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG,
+                    "SignSize rejects ES256 by default");
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256, NULL, 0,
+            payload, sizeof(payload) - 1u, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG,
+                    "Sign1 rejects ES256 by default");
+        ret = 0;
+#endif
+    }
+
+    if (keyInited != 0) { wc_CoseKey_Free(&key); }
+    if (eccInited != 0) { (void)wc_ecc_free(&eccKey); }
+    if (rngInited != 0) { (void)wc_FreeRng(&rng); }
+}
+#endif /* ES256 && SIGN1_SIGN && SIGN1_VERIFY */
+
+#if defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_SIGN1_VERIFY)
+/* RFC 9864 ECDSA (ESP256/384/512) known-answer verify vectors for the default
+ * profile. ECDSA signing is non-deterministic, so these are fixed public keys
+ * and fixed COSE_Sign1 messages signed once; they guard the decode and
+ * Sig_structure paths that the self-round-trips cannot, plus a tampered-byte
+ * rejection case. */
+static const uint8_t katPayloadEcdsa[] = "This is the content.";
+
+static const uint8_t katEsp256X[] = {
+    0xC9, 0x29, 0xE4, 0xA5, 0xEF, 0x9F, 0xE0, 0xEB, 0x28, 0x9B, 0x52, 0xCF,
+    0x24, 0x99, 0x9D, 0xB0, 0xFA, 0x66, 0x60, 0x32, 0x53, 0x26, 0xF8, 0x8A,
+    0x4D, 0xC4, 0x03, 0x1C, 0x76, 0xDA, 0x61, 0xC4
+};
+static const uint8_t katEsp256Y[] = {
+    0xE2, 0x3B, 0x99, 0x60, 0xF1, 0xA7, 0xD4, 0x8A, 0x31, 0x45, 0x02, 0x48,
+    0x70, 0x3E, 0x9B, 0xAC, 0x1A, 0xEC, 0xDF, 0x48, 0xE3, 0xE3, 0xDE, 0x3E,
+    0x5F, 0xD1, 0x7E, 0xD5, 0xCD, 0xFD, 0x41, 0x4B
+};
+static const uint8_t katEsp256Cose[] = {
+    0xD2, 0x84, 0x43, 0xA1, 0x01, 0x28, 0xA0, 0x54, 0x54, 0x68, 0x69, 0x73,
+    0x20, 0x69, 0x73, 0x20, 0x74, 0x68, 0x65, 0x20, 0x63, 0x6F, 0x6E, 0x74,
+    0x65, 0x6E, 0x74, 0x2E, 0x58, 0x40, 0xBC, 0x4E, 0x73, 0xA5, 0x5A, 0x98,
+    0x86, 0xCA, 0x28, 0x11, 0x3A, 0x07, 0x80, 0xBA, 0xA4, 0x61, 0x22, 0x97,
+    0x4A, 0x25, 0x80, 0xD8, 0x47, 0x37, 0x55, 0x2A, 0x4A, 0xA2, 0x41, 0xAC,
+    0x7F, 0x8E, 0x50, 0xF9, 0xF9, 0x1B, 0x80, 0x9E, 0x59, 0x79, 0xE2, 0x70,
+    0x82, 0x86, 0x74, 0xE2, 0xDE, 0x2F, 0xA7, 0x8D, 0xD8, 0x5D, 0xA2, 0xE9,
+    0x50, 0x21, 0x09, 0x5D, 0x6B, 0xA4, 0x0E, 0xD4, 0x8B, 0xE4
+};
+#ifdef WOLFCOSE_HAVE_ES384
+static const uint8_t katEsp384X[] = {
+    0xEC, 0xE9, 0x88, 0xA0, 0x99, 0xBA, 0x87, 0x9E, 0xE3, 0x30, 0x6A, 0x9D,
+    0x4B, 0xC4, 0xCF, 0x34, 0x69, 0xE1, 0x23, 0x56, 0x3F, 0x1D, 0xFF, 0xB0,
+    0xC8, 0x92, 0x89, 0x9C, 0x33, 0x54, 0xC0, 0x33, 0xD8, 0xF8, 0xB4, 0x5E,
+    0xEA, 0xEB, 0xBE, 0x06, 0x52, 0x02, 0x49, 0xB3, 0x7A, 0xDD, 0xDD, 0x30
+};
+static const uint8_t katEsp384Y[] = {
+    0xFF, 0xF3, 0xE8, 0x52, 0x07, 0xA9, 0x82, 0xC4, 0xFF, 0x93, 0x57, 0xFD,
+    0x1A, 0x03, 0x31, 0xBB, 0xA4, 0x2B, 0x79, 0x07, 0x5F, 0x88, 0x6D, 0xE5,
+    0xFE, 0x6D, 0x7D, 0x7D, 0x45, 0x8A, 0x7B, 0x70, 0x76, 0xAC, 0x73, 0x76,
+    0x1E, 0xDA, 0x57, 0x02, 0x3A, 0xDC, 0x63, 0xE4, 0x37, 0xCD, 0x2E, 0xFB
+};
+static const uint8_t katEsp384Cose[] = {
+    0xD2, 0x84, 0x44, 0xA1, 0x01, 0x38, 0x32, 0xA0, 0x54, 0x54, 0x68, 0x69,
+    0x73, 0x20, 0x69, 0x73, 0x20, 0x74, 0x68, 0x65, 0x20, 0x63, 0x6F, 0x6E,
+    0x74, 0x65, 0x6E, 0x74, 0x2E, 0x58, 0x60, 0x08, 0xB1, 0xEE, 0x7D, 0xE3,
+    0xE0, 0xEB, 0xDB, 0xC3, 0x6D, 0xF0, 0xBE, 0xEB, 0x74, 0xFD, 0xE3, 0xF0,
+    0x43, 0x8D, 0xCB, 0xC8, 0x54, 0x63, 0x89, 0x63, 0x08, 0xBE, 0x5E, 0xAF,
+    0x3F, 0x47, 0x23, 0x14, 0x5A, 0x7B, 0x61, 0x34, 0x22, 0xFC, 0x15, 0x38,
+    0xC6, 0xD7, 0xA4, 0x97, 0x35, 0x4B, 0x5E, 0x1F, 0x55, 0x03, 0x79, 0x73,
+    0xDB, 0x84, 0xB5, 0x50, 0x4B, 0x31, 0x57, 0xBA, 0x16, 0x32, 0x69, 0xF5,
+    0x84, 0xA2, 0xA4, 0x64, 0xE1, 0x83, 0x61, 0x4E, 0xBC, 0x0F, 0xBC, 0xEB,
+    0xFD, 0x65, 0xA3, 0x17, 0x08, 0xCC, 0x16, 0xB2, 0x7E, 0x50, 0x36, 0xCC,
+    0x13, 0x10, 0x5C, 0xD5, 0xA8, 0x89, 0x61
+};
+#endif
+#ifdef WOLFCOSE_HAVE_ES512
+static const uint8_t katEsp512X[] = {
+    0x00, 0x3C, 0x93, 0xCF, 0x51, 0xD4, 0x7F, 0xD3, 0x81, 0xF0, 0x33, 0x91,
+    0xFD, 0x75, 0xD4, 0x4D, 0x4B, 0xEF, 0x03, 0x30, 0xFF, 0x1F, 0xAE, 0x4B,
+    0x7D, 0xC7, 0xD9, 0x51, 0x0B, 0xF2, 0x8F, 0x41, 0x94, 0xB7, 0x37, 0xDD,
+    0x0D, 0x4B, 0xE7, 0x34, 0x7D, 0x28, 0xD3, 0x45, 0x92, 0x1A, 0x36, 0x58,
+    0x4A, 0xD6, 0xEC, 0x0E, 0xF5, 0x50, 0xFE, 0x7E, 0x62, 0x6C, 0x3A, 0x81,
+    0xDC, 0x8B, 0xCC, 0x16, 0xCE, 0xCF
+};
+static const uint8_t katEsp512Y[] = {
+    0x01, 0x29, 0x66, 0xCE, 0x5A, 0x90, 0x0A, 0x0C, 0x79, 0xC2, 0xB7, 0x42,
+    0xBB, 0x62, 0x0C, 0xA8, 0x86, 0x50, 0xC6, 0xF6, 0x0E, 0xC8, 0x4C, 0x34,
+    0x49, 0x17, 0xA5, 0x5A, 0x9D, 0x55, 0xBF, 0x9F, 0x44, 0x60, 0xD9, 0x60,
+    0xBF, 0x4B, 0x1A, 0xBC, 0x51, 0xE1, 0x72, 0x07, 0xF8, 0x0C, 0x93, 0xCA,
+    0x3B, 0x3E, 0xB1, 0xB9, 0xAB, 0xEA, 0x61, 0xF1, 0x89, 0xFF, 0xDC, 0x4D,
+    0xCE, 0x60, 0xA8, 0xEE, 0xA9, 0xC6
+};
+static const uint8_t katEsp512Cose[] = {
+    0xD2, 0x84, 0x44, 0xA1, 0x01, 0x38, 0x33, 0xA0, 0x54, 0x54, 0x68, 0x69,
+    0x73, 0x20, 0x69, 0x73, 0x20, 0x74, 0x68, 0x65, 0x20, 0x63, 0x6F, 0x6E,
+    0x74, 0x65, 0x6E, 0x74, 0x2E, 0x58, 0x84, 0x00, 0x52, 0xCE, 0x51, 0x17,
+    0xCA, 0x9B, 0x69, 0x71, 0x05, 0x9D, 0x7D, 0xBB, 0x90, 0x0F, 0xBC, 0x41,
+    0xC9, 0xD0, 0xC8, 0x3B, 0xDA, 0xB7, 0x36, 0x69, 0x04, 0x0B, 0xF0, 0xFF,
+    0xA9, 0x71, 0x00, 0x31, 0x0E, 0xA3, 0x2A, 0xFB, 0x2F, 0x51, 0x46, 0x82,
+    0xFE, 0x9A, 0x91, 0x19, 0x78, 0xF2, 0x22, 0x76, 0x79, 0x29, 0xB9, 0x8C,
+    0x79, 0xEE, 0xE7, 0x84, 0x9A, 0x70, 0xF2, 0x19, 0xC7, 0x27, 0x32, 0xEE,
+    0x1A, 0x00, 0x24, 0x06, 0xFE, 0x87, 0x70, 0x89, 0x8E, 0x25, 0x26, 0x30,
+    0x6B, 0x5C, 0x55, 0xCA, 0x77, 0x4F, 0xD6, 0x24, 0xF2, 0xC3, 0xBD, 0x64,
+    0x79, 0xBD, 0xE6, 0x28, 0xE3, 0x0B, 0x38, 0xFF, 0xAF, 0x17, 0x7A, 0x42,
+    0xCF, 0xF0, 0x40, 0x91, 0x9C, 0xD0, 0x85, 0x6C, 0xC7, 0x09, 0x52, 0xBA,
+    0x6A, 0x25, 0x54, 0x2F, 0x35, 0x75, 0xB1, 0x10, 0x34, 0x68, 0x4E, 0x4C,
+    0x02, 0xF2, 0xE1, 0x7E, 0x30, 0x90, 0x18
+};
+#endif
+
+/* Verify one fixed ECDSA COSE_Sign1, check its alg and payload, then confirm a
+ * one-byte tamper of the message is rejected. */
+static void test_cose_esp_verify_kat(const char* tag, int wcCurve,
+    int32_t coseCrv, int32_t expectAlg,
+    const uint8_t* x, size_t xLen, const uint8_t* y, size_t yLen,
+    const uint8_t* cose, size_t coseLen)
+{
+    WOLFCOSE_KEY key;
+    ecc_key eccKey;
+    int ret;
+    int eccInited = 0;
+    int keyInited = 0;
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    uint8_t tampered[300];
+    const uint8_t* decPayload = NULL;
+    size_t decPayloadLen = 0;
+    WOLFCOSE_HDR hdr;
+
+    TEST_LOG("  [Sign1 RFC 9864 ECDSA known-answer vector]\n");
+    (void)tag;
+
+    ret = wc_ecc_init(&eccKey);
+    if (ret == 0) {
+        eccInited = 1;
+        ret = wc_ecc_import_unsigned(&eccKey, x, y, NULL, wcCurve);
+        (void)xLen;
+        (void)yLen;
+    }
+    if (ret == 0) {
+        (void)wc_CoseKey_Init(&key);
+        (void)wc_CoseKey_SetEcc(&key, coseCrv, &eccKey);
+        key.hasPrivate = 0;
+        keyInited = 1;
+        ret = wc_CoseSign1_Verify(&key, cose, coseLen, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), &hdr, &decPayload, &decPayloadLen);
+        TEST_ASSERT(ret == 0, "KAT ECDSA verifies");
+        TEST_ASSERT(hdr.alg == expectAlg, "KAT ECDSA alg");
+        TEST_ASSERT((decPayloadLen == sizeof(katPayloadEcdsa) - 1u) &&
+                    (XMEMCMP(decPayload, katPayloadEcdsa, decPayloadLen) == 0),
+                    "KAT ECDSA payload");
+
+        /* Negative: flipping the last signature byte must fail verification. */
+        if (coseLen <= sizeof(tampered)) {
+            XMEMCPY(tampered, cose, coseLen);
+            tampered[coseLen - 1u] ^= 0x01u;
+            ret = wc_CoseSign1_Verify(&key, tampered, coseLen, NULL, 0, NULL, 0,
+                scratch, sizeof(scratch), &hdr, &decPayload, &decPayloadLen);
+            TEST_ASSERT(ret != 0, "KAT ECDSA rejects tampered signature");
+        }
+    }
+    else {
+        TEST_ASSERT(0, "KAT ECDSA public import");
+    }
+
+    if (keyInited != 0) { wc_CoseKey_Free(&key); }
+    if (eccInited != 0) { (void)wc_ecc_free(&eccKey); }
+}
+
+static void test_cose_rfc9864_esp256_kat(void)
+{
+    test_cose_esp_verify_kat("ESP256", ECC_SECP256R1, WOLFCOSE_CRV_P256,
+        WOLFCOSE_ALG_ESP256, katEsp256X, sizeof(katEsp256X),
+        katEsp256Y, sizeof(katEsp256Y), katEsp256Cose, sizeof(katEsp256Cose));
+#ifdef WOLFCOSE_HAVE_ES384
+    test_cose_esp_verify_kat("ESP384", ECC_SECP384R1, WOLFCOSE_CRV_P384,
+        WOLFCOSE_ALG_ESP384, katEsp384X, sizeof(katEsp384X),
+        katEsp384Y, sizeof(katEsp384Y), katEsp384Cose, sizeof(katEsp384Cose));
+#endif
+#ifdef WOLFCOSE_HAVE_ES512
+    test_cose_esp_verify_kat("ESP512", ECC_SECP521R1, WOLFCOSE_CRV_P521,
+        WOLFCOSE_ALG_ESP512, katEsp512X, sizeof(katEsp512X),
+        katEsp512Y, sizeof(katEsp512Y), katEsp512Cose, sizeof(katEsp512Cose));
+#endif
+}
+#endif /* ES256 && SIGN1_VERIFY */
+
+#if defined(WOLFCOSE_HAVE_EDDSA) && defined(WOLFCOSE_SIGN1_VERIFY)
+/* RFC 9864 Ed25519 known-answer vector for the default profile. Ed25519 is
+ * deterministic (RFC 8032), so the whole COSE_Sign1 is fixed for a fixed key
+ * and payload; this guards the encode and Sig_structure paths that the
+ * self-round-trip tests cannot. Generated from the seed below. */
+static void test_cose_rfc9864_ed25519_kat(void)
+{
+    static const uint8_t katSeed[] = {
+        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B,
+        0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+        0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F
+    };
+    static const uint8_t katPub[] = {
+        0x03, 0xA1, 0x07, 0xBF, 0xF3, 0xCE, 0x10, 0xBE, 0x1D, 0x70, 0xDD, 0x18,
+        0xE7, 0x4B, 0xC0, 0x99, 0x67, 0xE4, 0xD6, 0x30, 0x9B, 0xA5, 0x0D, 0x5F,
+        0x1D, 0xDC, 0x86, 0x64, 0x12, 0x55, 0x31, 0xB8
+    };
+    static const uint8_t katCose[] = {
+        0xD2, 0x84, 0x43, 0xA1, 0x01, 0x32, 0xA0, 0x54, 0x54, 0x68, 0x69, 0x73,
+        0x20, 0x69, 0x73, 0x20, 0x74, 0x68, 0x65, 0x20, 0x63, 0x6F, 0x6E, 0x74,
+        0x65, 0x6E, 0x74, 0x2E, 0x58, 0x40, 0x48, 0xBA, 0x59, 0x63, 0x9B, 0x3A,
+        0x0D, 0x70, 0x55, 0x23, 0x2D, 0xA6, 0xE8, 0x03, 0xE2, 0xF5, 0x73, 0x25,
+        0x40, 0xDE, 0x83, 0xC6, 0xBE, 0x72, 0x19, 0x23, 0xB4, 0x2F, 0x32, 0x73,
+        0x94, 0x8B, 0x99, 0x13, 0xB1, 0x9F, 0x82, 0xF2, 0x1F, 0x17, 0x20, 0x9F,
+        0x58, 0x38, 0xC8, 0xE4, 0xCE, 0x82, 0xF6, 0x1C, 0xC3, 0x1F, 0x20, 0x86,
+        0x67, 0xFE, 0xA6, 0x22, 0x16, 0x2E, 0xA3, 0xD0, 0x6A, 0x05
+    };
+    static const uint8_t katPayload[] = "This is the content.";
+    WOLFCOSE_KEY key;
+    ed25519_key edKey;
+    WC_RNG rng;
+    int ret;
+    int rngInited = 0;
+    int edInited = 0;
+    int keyInited = 0;
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    const uint8_t* decPayload = NULL;
+    size_t decPayloadLen = 0;
+    WOLFCOSE_HDR hdr;
+
+    TEST_LOG("  [Sign1 RFC 9864 Ed25519 known-answer vector]\n");
+
+    wc_ed25519_init(&edKey);
+    edInited = 1;
+
+    /* Import the full key from the seed so one key both verifies and re-signs;
+     * Ed25519 needs no private key to verify, but importing it keeps a single
+     * key lifetime (a verify-only build simply skips the re-sign below). */
+    ret = wc_ed25519_import_private_key(katSeed, (word32)sizeof(katSeed),
+        katPub, (word32)sizeof(katPub), &edKey);
+    if (ret == 0) {
+        (void)wc_CoseKey_Init(&key);
+        (void)wc_CoseKey_SetEd25519(&key, &edKey);
+        keyInited = 1;
+    }
+    else {
+        TEST_ASSERT(0, "KAT Ed25519 key import");
+    }
+
+#if defined(WOLFCOSE_SIGN1_SIGN)
+    /* Re-sign the fixed payload and byte-compare: deterministic, so exact.
+     * This is the only default-profile guard on the signature encode path. */
+    if (ret == 0) {
+        uint8_t out[128];
+        size_t outLen = 0;
+        int rngRet = wc_InitRng(&rng);
+        TEST_ASSERT(rngRet == 0, "KAT rng init");
+        if (rngRet == 0) {
+            rngInited = 1;
+            ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ED25519, NULL, 0,
+                katPayload, sizeof(katPayload) - 1u, NULL, 0, NULL, 0,
+                scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+            TEST_ASSERT(ret == 0, "KAT Ed25519 re-sign");
+            TEST_ASSERT((outLen == sizeof(katCose)) &&
+                        (XMEMCMP(out, katCose, outLen) == 0),
+                        "KAT Ed25519 re-sign matches vector");
+        }
+    }
+#else
+    (void)katSeed;
+    (void)rng;
+    (void)rngInited;
+#endif
+
+    /* Verify the fixed vector and its parsed header and payload. */
+    if (ret == 0) {
+        ret = wc_CoseSign1_Verify(&key, katCose, sizeof(katCose), NULL, 0,
+            NULL, 0, scratch, sizeof(scratch), &hdr, &decPayload,
+            &decPayloadLen);
+        TEST_ASSERT(ret == 0, "KAT Ed25519 verifies");
+        TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_ED25519, "KAT Ed25519 alg -19");
+        TEST_ASSERT((decPayloadLen == sizeof(katPayload) - 1u) &&
+                    (XMEMCMP(decPayload, katPayload, decPayloadLen) == 0),
+                    "KAT Ed25519 payload");
+    }
+
+    if (keyInited != 0) { wc_CoseKey_Free(&key); }
+    if (edInited != 0) { (void)wc_ed25519_free(&edKey); }
+    if (rngInited != 0) { (void)wc_FreeRng(&rng); }
+}
+#endif /* EDDSA && SIGN1_VERIFY */
+
+#if defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_SIGN) && \
+    !defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
+/* The multi-signer path also refuses the deprecated RFC 9053 IDs by default. */
+static void test_cose_rfc9864_sign_deprecated_rejected(void)
+{
+    WOLFCOSE_KEY key;
+    ecc_key eccKey;
+    WC_RNG rng;
+    WOLFCOSE_SIGNATURE signers[1];
+    int ret;
+    int rngInited = 0;
+    int eccInited = 0;
+    int keyInited = 0;
+    uint8_t payload[] = "RFC 9053 multi";
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    uint8_t out[512];
+    size_t outLen = 0;
+    const uint8_t* decPayload = NULL;
+    size_t decPayloadLen = 0;
+    WOLFCOSE_HDR hdr;
+
+    TEST_LOG("  [Sign multi RFC 9053 rejected by default]\n");
+
+    ret = wc_InitRng(&rng);
+    if (ret != 0) { TEST_ASSERT(0, "rng init"); }
+    if (ret == 0) {
+        rngInited = 1;
+        wc_ecc_init(&eccKey);
+        eccInited = 1;
+        ret = wc_ecc_make_key(&rng, 32, &eccKey);
+        if (ret != 0) { TEST_ASSERT(0, "ecc keygen"); }
+    }
+    if (ret == 0) {
+        (void)wc_CoseKey_Init(&key);
+        (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
+        keyInited = 1;
+
+        XMEMSET(signers, 0, sizeof(signers));
+        signers[0].algId = WOLFCOSE_ALG_ES256;
+        signers[0].key = &key;
+        signers[0].kid = NULL;
+        signers[0].kidLen = 0;
+        ret = wc_CoseSign_Sign(signers, 1, payload, sizeof(payload) - 1u,
+            NULL, 0, NULL, 0, scratch, sizeof(scratch),
+            out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG,
+                    "Sign_Sign rejects ES256 by default");
+
+        /* A well-formed ESP256 COSE_Sign relabelled to -7 must be refused on
+         * verify before the signature check. */
+        signers[0].algId = WOLFCOSE_ALG_ESP256;
+        ret = wc_CoseSign_Sign(signers, 1, payload, sizeof(payload) - 1u,
+            NULL, 0, NULL, 0, scratch, sizeof(scratch),
+            out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == 0, "Sign_Sign ESP256");
+    }
+    if (ret == 0) {
+        size_t i;
+        /* Signer protected bstr {1: -9} carries 0x28; flip to 0x26 (-7). */
+        for (i = 0u; i + 2u < outLen; i++) {
+            if ((out[i] == 0x01u) && (out[i + 1u] == 0x28u)) {
+                out[i + 1u] = 0x26u;
+                break;
+            }
+        }
+        TEST_ASSERT(i + 2u < outLen, "located ESP256 alg byte to relabel");
+        ret = wc_CoseSign_Verify(&key, 0, out, outLen, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), &hdr, &decPayload, &decPayloadLen);
+        TEST_ASSERT(ret == WOLFCOSE_E_COSE_BAD_ALG,
+                    "Sign_Verify rejects -7 by default");
+        ret = 0;
+    }
+
+    if (keyInited != 0) { wc_CoseKey_Free(&key); }
+    if (eccInited != 0) { (void)wc_ecc_free(&eccKey); }
+    if (rngInited != 0) { (void)wc_FreeRng(&rng); }
+}
+#endif /* ES256 && SIGN && !DEPRECATED */
+
+#if defined(WOLFCOSE_HAVE_DEPRECATED_ALGS) && defined(WOLFCOSE_HAVE_EDDSA) && \
+    defined(WOLFCOSE_SIGN1_SIGN) && defined(WOLFCOSE_SIGN1_VERIFY) && \
+    defined(WOLFCOSE_SIGN)
+static void test_cose_rfc9864_deprecated_eddsa(void)
+{
+    WOLFCOSE_KEY key;
+    ed25519_key edKey;
+    WC_RNG rng;
+    WOLFCOSE_SIGNATURE signers[1];
+    int ret;
+    int rngInited = 0;
+    int edInited = 0;
+    int keyInited = 0;
+    uint8_t payload[] = "RFC 9053 EdDSA";
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    uint8_t out[512];
+    size_t outLen = 0;
+    const uint8_t* decPayload = NULL;
+    size_t decPayloadLen = 0;
+    WOLFCOSE_HDR hdr;
+
+    TEST_LOG("  [Sign1/Sign RFC 9053 EdDSA (deprecated on)]\n");
+
+    ret = wc_InitRng(&rng);
+    if (ret != 0) { TEST_ASSERT(0, "rng init"); }
+    if (ret == 0) {
+        rngInited = 1;
+        wc_ed25519_init(&edKey);
+        edInited = 1;
+        ret = wc_ed25519_make_key(&rng, ED25519_KEY_SIZE, &edKey);
+        if (ret != 0) { TEST_ASSERT(0, "ed25519 keygen"); }
+    }
+    if (ret == 0) {
+        (void)wc_CoseKey_Init(&key);
+        (void)wc_CoseKey_SetEd25519(&key, &edKey);
+        keyInited = 1;
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_EDDSA, NULL, 0,
+            payload, sizeof(payload) - 1u, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == 0, "Sign1 EdDSA");
+    }
+    if (ret == 0) {
+        ret = wc_CoseSign1_Verify(&key, out, outLen, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), &hdr, &decPayload, &decPayloadLen);
+        TEST_ASSERT((ret == 0) && (hdr.alg == WOLFCOSE_ALG_EDDSA),
+                    "Verify EdDSA");
+    }
+    if (ret == 0) {
+        signers[0].algId = WOLFCOSE_ALG_EDDSA;
+        signers[0].key = &key;
+        signers[0].kid = NULL;
+        signers[0].kidLen = 0;
+        ret = wc_CoseSign_Sign(signers, 1, payload, sizeof(payload) - 1u,
+            NULL, 0, NULL, 0, scratch, sizeof(scratch),
+            out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == 0, "Sign_Sign EdDSA");
+    }
+    if (ret == 0) {
+        ret = wc_CoseSign_Verify(&key, 0, out, outLen, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), &hdr, &decPayload, &decPayloadLen);
+        TEST_ASSERT(ret == 0, "Sign_Verify EdDSA");
+    }
+
+    if (keyInited != 0) { wc_CoseKey_Free(&key); }
+    if (edInited != 0) { (void)wc_ed25519_free(&edKey); }
+    if (rngInited != 0) { (void)wc_FreeRng(&rng); }
+}
+#endif /* DEPRECATED && EDDSA && SIGN1 && SIGN */
+
+#if defined(WOLFCOSE_HAVE_DEPRECATED_ALGS) && defined(WOLFCOSE_HAVE_ES384) && \
+    defined(WOLFCOSE_SIGN1_SIGN) && defined(WOLFCOSE_SIGN1_VERIFY)
+/* End-to-end sign+verify with the deprecated ES384/ES512 IDs so the -35/-36
+ * dispatch arms are exercised without the network interop job. */
+static void test_cose_rfc9864_deprecated_es384_es512(void)
+{
+    WOLFCOSE_KEY key;
+    ecc_key eccKey;
+    WC_RNG rng;
+    int ret;
+    int rngInited = 0;
+    int eccInited = 0;
+    int keyInited = 0;
+    uint8_t payload[] = "RFC 9053 ES384/ES512";
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    uint8_t out[512];
+    size_t outLen = 0;
+    const uint8_t* decPayload = NULL;
+    size_t decPayloadLen = 0;
+    WOLFCOSE_HDR hdr;
+
+    TEST_LOG("  [Sign1 RFC 9053 ES384/ES512 (deprecated on)]\n");
+
+    ret = wc_InitRng(&rng);
+    if (ret != 0) { TEST_ASSERT(0, "rng init"); }
+    if (ret == 0) { rngInited = 1; }
+
+    if (ret == 0) {
+        ret = wc_ecc_init(&eccKey);
+        if (ret == 0) { eccInited = 1; }
+    }
+    if (ret == 0) {
+        ret = wc_ecc_make_key(&rng, 48, &eccKey);
+        if (ret != 0) { TEST_ASSERT(0, "es384 keygen"); }
+    }
+    if (ret == 0) {
+        (void)wc_CoseKey_Init(&key);
+        (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P384, &eccKey);
+        keyInited = 1;
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES384, NULL, 0,
+            payload, sizeof(payload) - 1u, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == 0, "Sign1 ES384");
+    }
+    if (ret == 0) {
+        ret = wc_CoseSign1_Verify(&key, out, outLen, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), &hdr, &decPayload, &decPayloadLen);
+        TEST_ASSERT((ret == 0) && (hdr.alg == WOLFCOSE_ALG_ES384),
+                    "Verify ES384");
+    }
+
+    if (keyInited != 0) { wc_CoseKey_Free(&key); keyInited = 0; }
+    if (eccInited != 0) { (void)wc_ecc_free(&eccKey); eccInited = 0; }
+
+#ifdef WOLFCOSE_HAVE_ES512
+    if (ret == 0) {
+        ret = wc_ecc_init(&eccKey);
+        if (ret == 0) { eccInited = 1; }
+    }
+    if (ret == 0) {
+        ret = wc_ecc_make_key(&rng, 66, &eccKey);
+        if (ret != 0) { TEST_ASSERT(0, "es512 keygen"); }
+    }
+    if (ret == 0) {
+        (void)wc_CoseKey_Init(&key);
+        (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P521, &eccKey);
+        keyInited = 1;
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES512, NULL, 0,
+            payload, sizeof(payload) - 1u, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == 0, "Sign1 ES512");
+    }
+    if (ret == 0) {
+        ret = wc_CoseSign1_Verify(&key, out, outLen, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), &hdr, &decPayload, &decPayloadLen);
+        TEST_ASSERT((ret == 0) && (hdr.alg == WOLFCOSE_ALG_ES512),
+                    "Verify ES512");
+    }
+    if (keyInited != 0) { wc_CoseKey_Free(&key); }
+    if (eccInited != 0) { (void)wc_ecc_free(&eccKey); }
+#endif /* WOLFCOSE_HAVE_ES512 */
+
+    if (rngInited != 0) { (void)wc_FreeRng(&rng); }
+}
+#endif /* DEPRECATED && ES384 && SIGN1 */
+
+#if defined(WOLFCOSE_HAVE_DEPRECATED_ALGS) && defined(WOLFCOSE_HAVE_ES256) && \
+    defined(WOLFCOSE_SIGN)
+/* COSE_Sign (multi-signer) round trip with the deprecated ES256 ID. */
+static void test_cose_rfc9864_deprecated_sign_es256(void)
+{
+    WOLFCOSE_KEY key;
+    ecc_key eccKey;
+    WC_RNG rng;
+    WOLFCOSE_SIGNATURE signers[1];
+    int ret;
+    int rngInited = 0;
+    int eccInited = 0;
+    int keyInited = 0;
+    uint8_t payload[] = "RFC 9053 COSE_Sign";
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    uint8_t out[512];
+    size_t outLen = 0;
+    const uint8_t* decPayload = NULL;
+    size_t decPayloadLen = 0;
+    WOLFCOSE_HDR hdr;
+
+    TEST_LOG("  [Sign multi RFC 9053 ES256 (deprecated on)]\n");
+
+    ret = wc_InitRng(&rng);
+    if (ret != 0) { TEST_ASSERT(0, "rng init"); }
+    if (ret == 0) {
+        rngInited = 1;
+        ret = wc_ecc_init(&eccKey);
+        if (ret == 0) { eccInited = 1; }
+    }
+    if (ret == 0) {
+        ret = wc_ecc_make_key(&rng, 32, &eccKey);
+        if (ret != 0) { TEST_ASSERT(0, "ecc keygen"); }
+    }
+    if (ret == 0) {
+        (void)wc_CoseKey_Init(&key);
+        (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
+        keyInited = 1;
+        XMEMSET(signers, 0, sizeof(signers));
+        signers[0].algId = WOLFCOSE_ALG_ES256;
+        signers[0].key = &key;
+        signers[0].kid = NULL;
+        signers[0].kidLen = 0;
+        ret = wc_CoseSign_Sign(signers, 1, payload, sizeof(payload) - 1u,
+            NULL, 0, NULL, 0, scratch, sizeof(scratch),
+            out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == 0, "Sign_Sign ES256");
+    }
+    if (ret == 0) {
+        ret = wc_CoseSign_Verify(&key, 0, out, outLen, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), &hdr, &decPayload, &decPayloadLen);
+        TEST_ASSERT((ret == 0) && (hdr.alg == WOLFCOSE_ALG_ES256),
+                    "Sign_Verify ES256");
+    }
+
+    if (keyInited != 0) { wc_CoseKey_Free(&key); }
+    if (eccInited != 0) { (void)wc_ecc_free(&eccKey); }
+    if (rngInited != 0) { (void)wc_FreeRng(&rng); }
+}
+#endif /* DEPRECATED && ES256 && SIGN */
+
+#if defined(WOLFCOSE_HAVE_DEPRECATED_ALGS) && defined(WOLFCOSE_HAVE_ED448) && \
+    defined(WOLFCOSE_SIGN1_SIGN) && defined(WOLFCOSE_SIGN1_VERIFY)
+/* Polymorphic EdDSA (-8) resolves Ed25519 vs Ed448 from the key's curve at
+ * sign/verify time; cover the Ed448 branch end-to-end (works in an Ed448-only
+ * deprecated build). */
+static void test_cose_rfc9864_deprecated_ed448(void)
+{
+    WOLFCOSE_KEY key;
+    ed448_key edKey;
+    WC_RNG rng;
+    int ret;
+    int rngInited = 0;
+    int edInited = 0;
+    int keyInited = 0;
+    uint8_t payload[] = "RFC 9053 EdDSA Ed448";
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    uint8_t out[512];
+    size_t outLen = 0;
+    size_t sizedLen = 0;
+    const uint8_t* decPayload = NULL;
+    size_t decPayloadLen = 0;
+    WOLFCOSE_HDR hdr;
+
+    TEST_LOG("  [Sign1 RFC 9053 EdDSA with Ed448 key (deprecated on)]\n");
+
+    ret = wc_InitRng(&rng);
+    if (ret != 0) { TEST_ASSERT(0, "rng init"); }
+    if (ret == 0) {
+        rngInited = 1;
+        wc_ed448_init(&edKey);
+        edInited = 1;
+        ret = wc_ed448_make_key(&rng, ED448_KEY_SIZE, &edKey);
+        if (ret != 0) { TEST_ASSERT(0, "ed448 keygen"); }
+    }
+    if (ret == 0) {
+        (void)wc_CoseKey_Init(&key);
+        (void)wc_CoseKey_SetEd448(&key, &edKey);
+        keyInited = 1;
+        ret = wc_CoseSign1_SignSize_ex(&key, WOLFCOSE_ALG_EDDSA,
+            0u, sizeof(payload) - 1u, 0u, 0u, &sizedLen);
+        TEST_ASSERT((ret == 0) && (sizedLen > 114u),
+                    "SignSize EdDSA Ed448 includes 114-byte slot");
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_EDDSA, NULL, 0,
+            payload, sizeof(payload) - 1u, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret == 0, "Sign1 EdDSA Ed448");
+    }
+    if (ret == 0) {
+        ret = wc_CoseSign1_Verify(&key, out, outLen, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), &hdr, &decPayload, &decPayloadLen);
+        TEST_ASSERT((ret == 0) && (hdr.alg == WOLFCOSE_ALG_EDDSA),
+                    "Verify EdDSA Ed448");
+    }
+
+    if (keyInited != 0) { wc_CoseKey_Free(&key); }
+    if (edInited != 0) { (void)wc_ed448_free(&edKey); }
+    if (rngInited != 0) { (void)wc_FreeRng(&rng); }
+}
+#endif /* DEPRECATED && ED448 && SIGN1 */
 
 static void test_cose_build_sig_structure_context(void)
 {
@@ -21586,7 +22767,7 @@ static void test_cose_key_kid_alg_roundtrip(void)
     TEST_ASSERT(ret == 0, "key kidAlg src set");
     srcKey.kid = kid;
     srcKey.kidLen = sizeof(kid) - 1;
-    srcKey.alg = WOLFCOSE_ALG_ES256;
+    srcKey.alg = WOLFCOSE_ALG_ESP256;
 
     ret = wc_CoseKey_Encode(&srcKey, encoded, sizeof(encoded), &encodedLen);
     TEST_ASSERT(ret == 0, "key kidAlg encode");
@@ -21602,7 +22783,7 @@ static void test_cose_key_kid_alg_roundtrip(void)
 #else
     TEST_ASSERT(ret == 0, "key kidAlg decode");
 #endif
-    TEST_ASSERT(dstKey.alg == WOLFCOSE_ALG_ES256,
+    TEST_ASSERT(dstKey.alg == WOLFCOSE_ALG_ESP256,
                 "key kidAlg alg preserved");
     TEST_ASSERT(dstKey.kidLen == sizeof(kid) - 1,
                 "key kidAlg kidLen preserved");
@@ -21709,9 +22890,9 @@ static void test_cose_sign_multi_alg_key_mismatch(void)
     (void)wc_CoseKey_Init(&key);
     ret = wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
     TEST_ASSERT(ret == 0, "mismatch key set");
-    key.alg = WOLFCOSE_ALG_ES384; /* key declares ES384 */
+    key.alg = WOLFCOSE_ALG_ESP384; /* key declares ES384 */
 
-    signers[0].algId = WOLFCOSE_ALG_ES256; /* but signer says ES256 */
+    signers[0].algId = WOLFCOSE_ALG_ESP256; /* but signer says ES256 */
     signers[0].key = &key;
     signers[0].kid = NULL;
     signers[0].kidLen = 0;
@@ -21809,7 +22990,7 @@ static void test_cose_sign_multi_ed448_roundtrip(void)
     ret = wc_CoseKey_SetEd448(&key, &edKey);
     TEST_ASSERT(ret == 0, "multi ed448 key set");
 
-    signers[0].algId = WOLFCOSE_ALG_EDDSA;
+    signers[0].algId = WOLFCOSE_ALG_ED448;
     signers[0].key = &key;
     signers[0].kid = NULL;
     signers[0].kidLen = 0;
@@ -21852,19 +23033,30 @@ static void test_cose_sigsize_known_algs(void)
     TEST_LOG("  [SigSize known algorithms]\n");
 
 #ifdef WOLFCOSE_HAVE_ES256
-    ret = wolfCose_SigSize(WOLFCOSE_ALG_ES256, &sz);
+    ret = wolfCose_SigSize(WOLFCOSE_ALG_ESP256, &sz);
     TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (sz == 64u),
-                "SigSize ES256 -> 64");
+                "SigSize ESP256 -> 64");
 #ifdef WOLFCOSE_HAVE_ES384
-    ret = wolfCose_SigSize(WOLFCOSE_ALG_ES384, &sz);
+    ret = wolfCose_SigSize(WOLFCOSE_ALG_ESP384, &sz);
     TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (sz == 96u),
-                "SigSize ES384 -> 96");
+                "SigSize ESP384 -> 96");
 #endif
 #endif
-#if defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)
+#if (defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)) && \
+    defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
     ret = wolfCose_SigSize(WOLFCOSE_ALG_EDDSA, &sz);
     TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && ((sz == 64u) || (sz == 114u)),
                 "SigSize EDDSA returns curve max");
+#endif
+#ifdef WOLFCOSE_HAVE_EDDSA
+    ret = wolfCose_SigSize(WOLFCOSE_ALG_ED25519, &sz);
+    TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (sz == 64u),
+                "SigSize Ed25519 -> 64");
+#endif
+#ifdef WOLFCOSE_HAVE_ED448
+    ret = wolfCose_SigSize(WOLFCOSE_ALG_ED448, &sz);
+    TEST_ASSERT((ret == WOLFCOSE_SUCCESS) && (sz == 114u),
+                "SigSize Ed448 -> 114");
 #endif
     (void)ret;
     (void)sz;
@@ -22524,10 +23716,10 @@ static void test_cose_sign1_key_alg_mismatch(void)
     (void)wc_CoseKey_Init(&key);
     ret = wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
     TEST_ASSERT(ret == 0, "sign1 mismatch key set");
-    key.alg = WOLFCOSE_ALG_ES256;
+    key.alg = WOLFCOSE_ALG_ESP256;
 
     /* Pass ES384 to a key that declares ES256 -> reject. */
-    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES384,
+    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP384,
         NULL, 0,
         payload, sizeof(payload) - 1,
         NULL, 0,
@@ -22571,7 +23763,7 @@ static void test_cose_sign1_verify_key_alg_mismatch(void)
     ret = wc_CoseKey_SetEcc(&signKey, WOLFCOSE_CRV_P256, &eccKey);
     TEST_ASSERT(ret == 0, "v-mismatch sign key set");
 
-    ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ES256,
+    ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ESP256,
         NULL, 0,
         payload, sizeof(payload) - 1,
         NULL, 0,
@@ -22584,7 +23776,7 @@ static void test_cose_sign1_verify_key_alg_mismatch(void)
     (void)wc_CoseKey_Init(&verifyKey);
     ret = wc_CoseKey_SetEcc(&verifyKey, WOLFCOSE_CRV_P256, &eccKey);
     TEST_ASSERT(ret == 0, "v-mismatch verify key set");
-    verifyKey.alg = WOLFCOSE_ALG_ES384;
+    verifyKey.alg = WOLFCOSE_ALG_ESP384;
 
     memset(&hdr, 0, sizeof(hdr));
     ret = wc_CoseSign1_Verify(&verifyKey, out, outLen,
@@ -22631,7 +23823,7 @@ static void test_cose_sign1_verify_unprotected_alg(void)
     (void)wc_CoseKey_Init(&key);
     ret = wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
     TEST_ASSERT(ret == 0, "unprotected Sign1 alg key set");
-    key.alg = WOLFCOSE_ALG_ES256;
+    key.alg = WOLFCOSE_ALG_ESP256;
 
     ret = wolfCose_BuildToBeSignedMaced(
         WOLFCOSE_CTX_SIGNATURE1, sizeof(WOLFCOSE_CTX_SIGNATURE1),
@@ -22654,7 +23846,7 @@ static void test_cose_sign1_verify_unprotected_alg(void)
     if (ret == 0) { ret = wc_CBOR_EncodeBstr(&enc, NULL, 0u); }
     if (ret == 0) { ret = wc_CBOR_EncodeMapStart(&enc, 1u); }
     if (ret == 0) { ret = wc_CBOR_EncodeInt(&enc, WOLFCOSE_HDR_ALG); }
-    if (ret == 0) { ret = wc_CBOR_EncodeInt(&enc, WOLFCOSE_ALG_ES256); }
+    if (ret == 0) { ret = wc_CBOR_EncodeInt(&enc, WOLFCOSE_ALG_ESP256); }
     if (ret == 0) {
         ret = wc_CBOR_EncodeBstr(&enc, payloadData,
                                  sizeof(payloadData) - 1u);
@@ -22707,7 +23899,7 @@ static void test_cose_sign1_both_payloads(void)
     TEST_ASSERT(ret == 0, "sign1 both key set");
 
     /* Both payload and detachedPayload non-NULL must be rejected. */
-    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
         NULL, 0,
         inline_payload, sizeof(inline_payload) - 1,
         detached_payload, sizeof(detached_payload) - 1,
@@ -23005,7 +24197,7 @@ static void test_internal_helpers(void)
 
     /* ----- wolfCose_AlgToHashType ----- */
     /* NULL output pointer */
-    ret = wolfCose_AlgToHashType(WOLFCOSE_ALG_ES256, NULL);
+    ret = wolfCose_AlgToHashType(WOLFCOSE_ALG_ESP256, NULL);
     TEST_ASSERT(ret == WOLFCOSE_E_INVALID_ARG, "AlgToHashType NULL");
 
     /* Invalid algorithm (default case) */
@@ -23014,7 +24206,7 @@ static void test_internal_helpers(void)
 
     /* ----- wolfCose_SigSize ----- */
     /* NULL output pointer */
-    ret = wolfCose_SigSize(WOLFCOSE_ALG_ES256, NULL);
+    ret = wolfCose_SigSize(WOLFCOSE_ALG_ESP256, NULL);
     TEST_ASSERT(ret == WOLFCOSE_E_INVALID_ARG, "SigSize NULL");
 
     /* Invalid algorithm (default case) */
@@ -23102,7 +24294,7 @@ static void test_internal_helpers(void)
 
 #ifdef WOLFCOSE_HAVE_ES512
     /* ES512 signature size */
-    ret = wolfCose_SigSize(WOLFCOSE_ALG_ES512, &sz);
+    ret = wolfCose_SigSize(WOLFCOSE_ALG_ESP512, &sz);
     TEST_ASSERT(ret == WOLFCOSE_SUCCESS && sz == 132, "SigSize ES512");
 #endif
 
@@ -23182,10 +24374,10 @@ static void test_internal_helpers(void)
         WOLFCOSE_HDR_STATE hdrState;
 
         /* EncodeProtectedHdr with NULL */
-        ret = wolfCose_EncodeProtectedHdr(WOLFCOSE_ALG_ES256, NULL, 64, &hdrLen);
+        ret = wolfCose_EncodeProtectedHdr(WOLFCOSE_ALG_ESP256, NULL, 64, &hdrLen);
         TEST_ASSERT(ret == WOLFCOSE_E_INVALID_ARG, "EncodeProtectedHdr NULL buf");
 
-        ret = wolfCose_EncodeProtectedHdr(WOLFCOSE_ALG_ES256, hdrBuf, 64, NULL);
+        ret = wolfCose_EncodeProtectedHdr(WOLFCOSE_ALG_ESP256, hdrBuf, 64, NULL);
         TEST_ASSERT(ret == WOLFCOSE_E_INVALID_ARG, "EncodeProtectedHdr NULL outLen");
 
         /* DecodeProtectedHdr with NULL hdr */
@@ -23258,8 +24450,8 @@ static void test_internal_helpers(void)
         /* Unprotected header with alg (label 1) when hdr->alg == 0 */
         /* empty-brace-scan: allow - test-local temporary scope */
         {
-            /* CBOR: {1: -7} - alg ES256 in unprotected header */
-            uint8_t algHdr[] = {0xA1, 0x01, 0x26}; /* map(1), 1, -7 */
+            /* CBOR: {1: -9} - alg ESP256 in unprotected header */
+            uint8_t algHdr[] = {0xA1, 0x01, 0x28}; /* map(1), 1, -9 */
             ctx.cbuf = algHdr;
             ctx.bufSz = sizeof(algHdr);
             ctx.idx = 0;
@@ -23267,7 +24459,7 @@ static void test_internal_helpers(void)
             XMEMSET(&hdrState, 0, sizeof(hdrState));
             ret = wolfCose_DecodeUnprotectedHdr(&ctx, &hdr, &hdrState);
             TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "DecodeUnprotectedHdr alg");
-            TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_ES256, "alg in unprotected");
+            TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_ESP256, "alg in unprotected");
         }
 
         /* Unprotected header with map count > 16 */
@@ -23332,7 +24524,7 @@ static void test_force_failure_crypto(void)
 
             /* Test ECC sign failure */
             wolfForceFailure_Set(WOLF_FAIL_ECC_SIGN);
-            ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+            ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
                 NULL, 0,                   /* kid */
                 payload, sizeof(payload),
                 NULL, 0,                   /* detached */
@@ -23344,7 +24536,7 @@ static void test_force_failure_crypto(void)
             /* Test ECC sig_to_rs failure */
             coseMsgLen = sizeof(coseMsg);
             wolfForceFailure_Set(WOLF_FAIL_ECC_SIG_TO_RS);
-            ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+            ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
                 NULL, 0,                   /* kid */
                 payload, sizeof(payload),
                 NULL, 0,                   /* detached */
@@ -23355,7 +24547,7 @@ static void test_force_failure_crypto(void)
 
             /* Create a valid signature for verify tests */
             coseMsgLen = sizeof(coseMsg);
-            ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+            ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
                 NULL, 0,                   /* kid */
                 payload, sizeof(payload),
                 NULL, 0,                   /* detached */
@@ -23549,7 +24741,7 @@ static void test_force_failure_crypto(void)
             /* Test Ed25519 sign failure */
             coseMsgLen = sizeof(coseMsg);
             wolfForceFailure_Set(WOLF_FAIL_ED25519_SIGN);
-            ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_EDDSA,
+            ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ED25519,
                 NULL, 0, payload, sizeof(payload), NULL, 0, NULL, 0,
                 scratch, sizeof(scratch),
                 coseMsg, sizeof(coseMsg), &coseMsgLen, &rng);
@@ -23557,7 +24749,7 @@ static void test_force_failure_crypto(void)
 
             /* Create valid signature for verify test */
             coseMsgLen = sizeof(coseMsg);
-            ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_EDDSA,
+            ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ED25519,
                 NULL, 0, payload, sizeof(payload), NULL, 0, NULL, 0,
                 scratch, sizeof(scratch),
                 coseMsg, sizeof(coseMsg), &coseMsgLen, &rng);
@@ -23994,7 +25186,7 @@ static void test_force_failure_crypto(void)
             /* Test Ed448 sign failure */
             ed448CoseMsgLen = sizeof(ed448CoseMsg);
             wolfForceFailure_Set(WOLF_FAIL_ED448_SIGN);
-            ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_EDDSA,
+            ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ED448,
                 NULL, 0, payload, sizeof(payload), NULL, 0, NULL, 0,
                 ed448Scratch, sizeof(ed448Scratch),
                 ed448CoseMsg, sizeof(ed448CoseMsg), &ed448CoseMsgLen, &rng);
@@ -24002,7 +25194,7 @@ static void test_force_failure_crypto(void)
 
             /* Create valid signature for verify test */
             ed448CoseMsgLen = sizeof(ed448CoseMsg);
-            ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_EDDSA,
+            ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ED448,
                 NULL, 0, payload, sizeof(payload), NULL, 0, NULL, 0,
                 ed448Scratch, sizeof(ed448Scratch),
                 ed448CoseMsg, sizeof(ed448CoseMsg), &ed448CoseMsgLen, &rng);
@@ -24654,7 +25846,7 @@ static void test_wrong_key_type_sign(void)
     (void)wc_CoseKey_Init(&symmKey);
     (void)wc_CoseKey_SetSymmetric(&symmKey, keyData, sizeof(keyData));
 
-    ret = wc_CoseSign1_Sign(&symmKey, WOLFCOSE_ALG_ES256,
+    ret = wc_CoseSign1_Sign(&symmKey, WOLFCOSE_ALG_ESP256,
         NULL, 0,
         payload, sizeof(payload) - 1,
         NULL, 0, NULL, 0,
@@ -24982,7 +26174,7 @@ static void test_null_key_operations(void)
     ret = wc_InitRng(&rng);
     if (ret == 0) {
         /* NULL key for sign */
-        ret = wc_CoseSign1_Sign(NULL, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(NULL, WOLFCOSE_ALG_ESP256,
             NULL, 0,
             payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0,
@@ -25435,7 +26627,7 @@ static void test_corrupted_eddsa_signature(void)
     (void)wc_CoseKey_SetEd25519(&key, &edKey);
 
     /* Create valid signature */
-    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_EDDSA,
+    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ED25519,
         NULL, 0,
         payload, sizeof(payload) - 1,
         NULL, 0, NULL, 0,
@@ -25825,7 +27017,11 @@ static void test_key_type_eddsa_wrong_crv(void)
     (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
 
     /* ECC key with EdDSA algorithm (should fail - wrong kty) */
-    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_EDDSA,
+#ifdef WOLFCOSE_HAVE_EDDSA
+    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ED25519,
+#else
+    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ED448,
+#endif
         NULL, 0,
         payload, sizeof(payload) - 1,
         NULL, 0, NULL, 0,
@@ -25868,7 +27064,7 @@ static void test_key_type_okp_for_ecdsa(void)
     (void)wc_CoseKey_SetEd25519(&key, &edKey);
 
     /* OKP/Ed25519 key with ES256 algorithm (should fail - wrong kty) */
-    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+    ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
         NULL, 0,
         payload, sizeof(payload) - 1,
         NULL, 0, NULL, 0,
@@ -26159,9 +27355,9 @@ static void test_multi_sign_verify_wrong_signer(void)
         (void)wc_CoseKey_SetEcc(&wrongKey, WOLFCOSE_CRV_P256, &eccWrongKey);
 
         memset(signers, 0, sizeof(signers));
-        signers[0].algId = WOLFCOSE_ALG_ES256;
+        signers[0].algId = WOLFCOSE_ALG_ESP256;
         signers[0].key = &key1;
-        signers[1].algId = WOLFCOSE_ALG_ES256;
+        signers[1].algId = WOLFCOSE_ALG_ESP256;
         signers[1].key = &key2;
 
         ret = wc_CoseSign_Sign(signers, 2,
@@ -26920,7 +28116,7 @@ static void test_sign_multi_array_count(void)
     ret = wc_CoseKey_SetEcc(&key1, WOLFCOSE_CRV_P256, &eccKey1);
     TEST_ASSERT(ret == 0, "key set");
 
-    signers[0].algId = WOLFCOSE_ALG_ES256;
+    signers[0].algId = WOLFCOSE_ALG_ESP256;
     signers[0].key = &key1;
     signers[0].kid = NULL;
     signers[0].kidLen = 0;
@@ -27347,31 +28543,31 @@ static void test_cose_sign1_size_and_untagged(void)
     TEST_ASSERT(ret == 0, "size test key setup");
 
     for (i = 0u; i < (sizeof(boundaryLen) / sizeof(boundaryLen[0])); i++) {
-        sizeRet = wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_ES256, 0u,
+        sizeRet = wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_ESP256, 0u,
             boundaryLen[i], 0u, 0u, &sizedLen);
         TEST_ASSERT(sizeRet == 0 && sizedLen == payloadExpected[i],
                     "payload size boundary");
-        sizeRet = wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_ES256,
+        sizeRet = wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_ESP256,
             boundaryLen[i], 0u, 0u, 0u, &sizedLen);
         TEST_ASSERT(sizeRet == 0 && sizedLen == kidExpected[i],
                     "kid size boundary");
     }
 
     if (ret == 0) {
-        ret = wc_CoseSign1_Sign_ex(&key, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign_ex(&key, WOLFCOSE_ALG_ESP256,
             kid, sizeof(kid) - 1u, payload, sizeof(payload),
             NULL, 0u, NULL, 0u, scratch, sizeof(scratch),
             tagged, sizeof(tagged), &taggedLen, &rng, 0u);
         TEST_ASSERT(ret == 0, "tagged sign");
     }
     if (ret == 0) {
-        ret = wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_ESP256,
             sizeof(kid) - 1u, sizeof(payload), 0u, 0u, &sizedLen);
         TEST_ASSERT(ret == 0 && sizedLen == taggedLen,
                     "tagged size equals signed size");
     }
     if (ret == 0) {
-        ret = wc_CoseSign1_Sign_ex(&key, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign_ex(&key, WOLFCOSE_ALG_ESP256,
             kid, sizeof(kid) - 1u, payload, sizeof(payload),
             NULL, 0u, NULL, 0u, scratch, sizeof(scratch),
             untagged, sizeof(untagged), &untaggedLen, &rng,
@@ -27380,7 +28576,7 @@ static void test_cose_sign1_size_and_untagged(void)
                     "untagged starts with array(4)");
     }
     if (ret == 0) {
-        ret = wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_ESP256,
             sizeof(kid) - 1u, sizeof(payload), 0u,
             WOLFCOSE_SIGN1_UNTAGGED, &sizedLen);
         TEST_ASSERT(ret == 0 && sizedLen == untaggedLen,
@@ -27397,23 +28593,23 @@ static void test_cose_sign1_size_and_untagged(void)
                     "untagged output verifies");
     }
     if (ret == 0) {
-        ret = wc_CoseSign1_Sign_ex(&key, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign_ex(&key, WOLFCOSE_ALG_ESP256,
             NULL, 0u, NULL, 0u, detached, sizeof(detached),
             NULL, 0u, scratch, sizeof(scratch),
             tagged, sizeof(tagged), &taggedLen, &rng, 0u);
         TEST_ASSERT(ret == 0, "detached sign");
     }
     if (ret == 0) {
-        ret = wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_ESP256,
             0u, 0u, sizeof(detached), 0u, &sizedLen);
         TEST_ASSERT(ret == 0 && sizedLen == taggedLen,
                     "detached size equals signed size");
     }
 
-    TEST_ASSERT(wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_ES256,
+    TEST_ASSERT(wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_ESP256,
         0u, 1u, 1u, 0u, &sizedLen) == WOLFCOSE_E_INVALID_ARG,
         "attached and detached lengths rejected");
-    TEST_ASSERT(wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_ES256,
+    TEST_ASSERT(wc_CoseSign1_SignSize_ex(NULL, WOLFCOSE_ALG_ESP256,
         0u, 1u, 0u, 0x80000000u, &sizedLen) == WOLFCOSE_E_INVALID_ARG,
         "unknown size flags rejected");
     TEST_ASSERT(wc_CoseSign1_SignSize_ex(NULL, 12345,
@@ -27431,7 +28627,7 @@ static void test_cose_sign1_size_and_untagged(void)
         delegatedKey.crv = WOLFCOSE_CRV_P256;
         (void)wc_CoseKey_SetExtSigner(&delegatedKey, test_ext_sign_cb, &extCtx);
         ret = wc_CoseSign1_SignSize_ex(&delegatedKey,
-            WOLFCOSE_ALG_ES256, 0u, sizeof(payload), 0u, 0u, &sizedLen);
+            WOLFCOSE_ALG_ESP256, 0u, sizeof(payload), 0u, 0u, &sizedLen);
         TEST_ASSERT(ret == 0 && extCtx.called == 0,
                     "size query does not invoke delegated signer");
         wc_CoseKey_Free(&delegatedKey);
@@ -27510,7 +28706,7 @@ static void test_ecdh_es_recipient_key_alg_mismatch(void)
     (void)wc_CoseKey_Init(&key);
     (void)wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccKey);
     /* The key claims a different algorithm than the recipient entry. */
-    key.alg = WOLFCOSE_ALG_ES256;
+    key.alg = WOLFCOSE_ALG_ESP256;
 
     recipients[0].algId = WOLFCOSE_ALG_ECDH_ES_HKDF_256;
     recipients[0].key = &key;
@@ -27899,6 +29095,43 @@ static void test_multi_sign_mldsa65_roundtrip(void)
     defined(WOLFCOSE_COUNTERSIGN_VERIFY) && \
     defined(WOLFCOSE_SIGN1_SIGN) && defined(WOLFCOSE_SIGN1_VERIFY) && \
     defined(WOLFCOSE_HAVE_ES256)
+static int test_cose_replace_counter_label(uint8_t* message,
+    size_t messageLen, uint8_t oldLabel, uint8_t newLabel)
+{
+    WOLFCOSE_CBOR_CTX ctx;
+    const uint8_t* value = NULL;
+    size_t valueLen = 0u;
+    size_t count = 0u;
+    uint64_t tag = 0u;
+    int ret;
+
+    ret = wc_CBOR_DecoderInit(&ctx, message, messageLen);
+    if (ret == 0) {
+        ret = wc_CBOR_DecodeTag(&ctx, &tag);
+    }
+    if (ret == 0) {
+        ret = wc_CBOR_DecodeArrayStart(&ctx, &count);
+    }
+    if (ret == 0) {
+        ret = wc_CBOR_SkipItem(&ctx, &value, &valueLen);
+    }
+    if (ret == 0) {
+        ret = wc_CBOR_DecodeMapStart(&ctx, &count);
+    }
+    if ((ret == 0) && (ctx.idx < messageLen) &&
+        (message[ctx.idx] == oldLabel)) {
+        message[ctx.idx] = newLabel;
+    }
+    else {
+        ret = -1;
+    }
+    (void)value;
+    (void)valueLen;
+    (void)count;
+    (void)tag;
+    return ret;
+}
+
 static void test_cose_countersignatures(void)
 {
     static const uint8_t payload[] = "signed release manifest";
@@ -28129,14 +29362,14 @@ static void test_cose_countersignatures(void)
     TEST_ASSERT(ret == 0, "countersignature key setup");
 
     if (ret == 0) {
-        ret = wc_CoseSign1_Sign(&primaryKey, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&primaryKey, WOLFCOSE_ALG_ESP256,
             NULL, 0u, payload, sizeof(payload) - 1u,
             NULL, 0u, NULL, 0u, scratch, sizeof(scratch),
             message, sizeof(message), &messageLen, &rng);
         TEST_ASSERT(ret == 0, "create countersignature target");
     }
 
-    counterSigner.algId = WOLFCOSE_ALG_ES256;
+    counterSigner.algId = WOLFCOSE_ALG_ESP256;
     counterSigner.key = &counterKey1;
     counterSigner.kid = counterKid1;
     counterSigner.kidLen = sizeof(counterKid1) - 1u;
@@ -28162,10 +29395,26 @@ static void test_cose_countersignatures(void)
             counterMessage, counterMessageLen, NULL, 0u,
             counterAad, sizeof(counterAad) - 1u,
             scratch, sizeof(scratch), &hdr);
-        TEST_ASSERT(ret == 0 && hdr.alg == WOLFCOSE_ALG_ES256 &&
+        TEST_ASSERT(ret == 0 && hdr.alg == WOLFCOSE_ALG_ESP256 &&
                     hdr.kidLen == sizeof(counterKid1) - 1u &&
                     memcmp(hdr.kid, counterKid1, hdr.kidLen) == 0,
                     "verify full V2 countersignature headers");
+    }
+    if (ret == 0) {
+        int legacyRet;
+
+        (void)memcpy(tampered, counterMessage, counterMessageLen);
+        legacyRet = test_cose_replace_counter_label(tampered,
+            counterMessageLen, (uint8_t)WOLFCOSE_HDR_COUNTERSIGNATURE_V2,
+            (uint8_t)WOLFCOSE_HDR_COUNTERSIGNATURE_LEGACY);
+        if (legacyRet == 0) {
+            legacyRet = wc_Cose_VerifyCounterSignature(&counterKey1, 0u,
+                tampered, counterMessageLen, NULL, 0u,
+                counterAad, sizeof(counterAad) - 1u,
+                scratch, sizeof(scratch), &hdr);
+        }
+        TEST_ASSERT(legacyRet != 0,
+                    "legacy full countersignature uses legacy context");
     }
     if (ret == 0) {
         int badRet = wc_Cose_VerifyCounterSignature(&counterKey1, 0u,
@@ -28258,7 +29507,7 @@ static void test_cose_countersignatures(void)
             ret = wc_CBOR_EncodeInt(&enc, WOLFCOSE_HDR_ALG);
         }
         if (ret == 0) {
-            ret = wc_CBOR_EncodeInt(&enc, WOLFCOSE_ALG_ES256);
+            ret = wc_CBOR_EncodeInt(&enc, WOLFCOSE_ALG_ESP256);
         }
         if (ret == 0) {
             ret = wc_CBOR_EncodeBstr(&enc, signature, signatureLen);
@@ -28277,7 +29526,7 @@ static void test_cose_countersignatures(void)
         TEST_ASSERT(ret == 0,
                     "create countersignature with externally bound alg");
 
-        counterKey1.alg = WOLFCOSE_ALG_ES256;
+        counterKey1.alg = WOLFCOSE_ALG_ESP256;
         pinnedRet = wc_Cose_VerifyCounterSignature(&counterKey1, 0u,
             tampered, unprotectedAlgMessageLen, NULL, 0u, NULL, 0u,
             scratch, sizeof(scratch), &hdr);
@@ -28353,7 +29602,7 @@ static void test_cose_countersignatures(void)
         WOLFCOSE_KEY wrongAlgKey = counterKey1;
         int badRet;
 
-        wrongAlgKey.alg = WOLFCOSE_ALG_ES384;
+        wrongAlgKey.alg = WOLFCOSE_ALG_ESP384;
         badRet = wc_Cose_VerifyCounterSignature(&wrongAlgKey, 0u,
             twoCounterMessage, twoCounterMessageLen, NULL, 0u,
             counterAad, sizeof(counterAad) - 1u,
@@ -28444,7 +29693,7 @@ static void test_cose_countersignatures(void)
                     "reject verify scratch overlap without input mutation");
     }
 
-    counterSigner0.algId = WOLFCOSE_ALG_ES256;
+    counterSigner0.algId = WOLFCOSE_ALG_ESP256;
     counterSigner0.key = &counterKey1;
     if (ret == 0) {
         ret = wc_Cose_AddCounterSignature0(&counterSigner0,
@@ -28461,6 +29710,23 @@ static void test_cose_countersignatures(void)
             counterAad, sizeof(counterAad) - 1u,
             scratch, sizeof(scratch));
         TEST_ASSERT(ret == 0, "verify abbreviated V2 countersignature");
+    }
+    if (ret == 0) {
+        int legacyRet;
+
+        (void)memcpy(tampered, abbreviatedMessage, abbreviatedMessageLen);
+        legacyRet = test_cose_replace_counter_label(tampered,
+            abbreviatedMessageLen,
+            (uint8_t)WOLFCOSE_HDR_COUNTERSIGNATURE0_V2,
+            (uint8_t)WOLFCOSE_HDR_COUNTERSIGNATURE0_LEGACY);
+        if (legacyRet == 0) {
+            legacyRet = wc_Cose_VerifyCounterSignature0(&counterSigner0,
+                tampered, abbreviatedMessageLen, NULL, 0u,
+                counterAad, sizeof(counterAad) - 1u,
+                scratch, sizeof(scratch));
+        }
+        TEST_ASSERT(legacyRet != 0,
+                    "legacy abbreviated countersignature uses legacy context");
     }
     if (ret == 0) {
         int badRet;
@@ -28493,7 +29759,7 @@ static void test_cose_countersignatures(void)
         TEST_ASSERT(badRet != 0,
                     "abbreviated countersignature rejects wrong key");
         wrongSigner.key = &counterKey1;
-        wrongSigner.algId = WOLFCOSE_ALG_ES384;
+        wrongSigner.algId = WOLFCOSE_ALG_ESP384;
         badRet = wc_Cose_VerifyCounterSignature0(&wrongSigner,
             abbreviatedMessage, abbreviatedMessageLen, NULL, 0u,
             counterAad, sizeof(counterAad) - 1u,
@@ -28510,7 +29776,7 @@ static void test_cose_countersignatures(void)
     }
 
     if (ret == 0) {
-        ret = wc_CoseSign1_Sign(&primaryKey, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&primaryKey, WOLFCOSE_ALG_ESP256,
             NULL, 0u, NULL, 0u, detached, sizeof(detached) - 1u,
             NULL, 0u, scratch, sizeof(scratch), detachedMessage,
             sizeof(detachedMessage), &detachedMessageLen, &rng);
@@ -28746,7 +30012,7 @@ static void test_cose_countersign_preflight(void)
         ret = wc_CoseKey_SetExtSigner(&signKey, test_ext_sign_cb, &ctx);
         TEST_ASSERT(ret == 0, "preflight set ext signer");
     }
-    counterSigner0.algId = WOLFCOSE_ALG_ES256;
+    counterSigner0.algId = WOLFCOSE_ALG_ESP256;
     counterSigner0.key = &signKey;
 
     if (ret == 0) {
@@ -28864,7 +30130,7 @@ int test_cose(void)
 
     /* Sign1 basic tests */
 #ifdef WOLFCOSE_HAVE_ES256
-    test_cose_sign1_ecc("ES256", WOLFCOSE_ALG_ES256, WOLFCOSE_CRV_P256, 32);
+    test_cose_sign1_ecc("ESP256", WOLFCOSE_ALG_ESP256, WOLFCOSE_CRV_P256, 32);
     test_cose_sign1_with_aad();
     test_cose_sign1_detached();
 #if defined(WOLFCOSE_EXT_SIGN)
@@ -28877,10 +30143,10 @@ int test_cose(void)
     test_cose_sign1_word32_overflow_guard();
 #endif
 #ifdef WOLFCOSE_HAVE_ES384
-    test_cose_sign1_ecc("ES384", WOLFCOSE_ALG_ES384, WOLFCOSE_CRV_P384, 48);
+    test_cose_sign1_ecc("ES384", WOLFCOSE_ALG_ESP384, WOLFCOSE_CRV_P384, 48);
 #endif
 #ifdef WOLFCOSE_HAVE_ES512
-    test_cose_sign1_ecc("ES512", WOLFCOSE_ALG_ES512, WOLFCOSE_CRV_P521, 66);
+    test_cose_sign1_ecc("ES512", WOLFCOSE_ALG_ESP512, WOLFCOSE_CRV_P521, 66);
 #endif
 #endif
 
@@ -29008,7 +30274,7 @@ int test_cose(void)
 #endif
 
     /* RFC 9052 interop test vectors */
-#ifdef WOLFCOSE_HAVE_ES256
+#if defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
     test_rfc_sign1_ecdsa_01();
 #endif
 #if defined(WOLFCOSE_HAVE_HMAC256)
@@ -29115,10 +30381,10 @@ int test_cose(void)
     /* Phase 1: Algorithm Combination Tests */
     TEST_LOG("\n--- Algorithm Combination Tests ---\n");
 #ifdef WOLFCOSE_HAVE_ES384
-    test_cose_sign1_es384();
+    test_cose_sign1_esp384();
 #endif
 #ifdef WOLFCOSE_HAVE_ES512
-    test_cose_sign1_es512();
+    test_cose_sign1_esp512();
 #endif
 #ifdef WOLFCOSE_HAVE_AESGCM
     test_cose_encrypt0_a192gcm();
@@ -29286,6 +30552,50 @@ int test_cose(void)
     test_cose_decode_unprotected_tstr_label();
 #endif
     test_cose_sigsize_known_algs();
+    test_cose_rfc9864_alg_helpers();
+#if defined(WOLFCOSE_HAVE_EDDSA) && defined(WOLFCOSE_HAVE_ED448) && \
+    defined(WOLFCOSE_SIGN1_SIGN) && defined(WOLFCOSE_SIGN1_VERIFY)
+    test_cose_rfc9864_sign1_eddsa_curve_pin();
+#endif
+#if defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_HAVE_EDDSA) && \
+    defined(WOLFCOSE_SIGN1_SIGN)
+    test_cose_rfc9864_sign1_kty_pin();
+#endif
+#if defined(WOLFCOSE_SIGN) && defined(WOLFCOSE_HAVE_EDDSA) && \
+    defined(WOLFCOSE_HAVE_ED448)
+    test_cose_rfc9864_sign_multi_eddsa_curve_pin();
+#endif
+#if defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_SIGN1_SIGN) && \
+    defined(WOLFCOSE_SIGN1_VERIFY)
+    test_cose_rfc9864_deprecated_ids();
+#endif
+#if defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_SIGN) && \
+    !defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
+    test_cose_rfc9864_sign_deprecated_rejected();
+#endif
+#if defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_SIGN1_VERIFY)
+    test_cose_rfc9864_esp256_kat();
+#endif
+#if defined(WOLFCOSE_HAVE_EDDSA) && defined(WOLFCOSE_SIGN1_VERIFY)
+    test_cose_rfc9864_ed25519_kat();
+#endif
+#if defined(WOLFCOSE_HAVE_DEPRECATED_ALGS) && defined(WOLFCOSE_HAVE_EDDSA) && \
+    defined(WOLFCOSE_SIGN1_SIGN) && defined(WOLFCOSE_SIGN1_VERIFY) && \
+    defined(WOLFCOSE_SIGN)
+    test_cose_rfc9864_deprecated_eddsa();
+#endif
+#if defined(WOLFCOSE_HAVE_DEPRECATED_ALGS) && defined(WOLFCOSE_HAVE_ES384) && \
+    defined(WOLFCOSE_SIGN1_SIGN) && defined(WOLFCOSE_SIGN1_VERIFY)
+    test_cose_rfc9864_deprecated_es384_es512();
+#endif
+#if defined(WOLFCOSE_HAVE_DEPRECATED_ALGS) && defined(WOLFCOSE_HAVE_ES256) && \
+    defined(WOLFCOSE_SIGN)
+    test_cose_rfc9864_deprecated_sign_es256();
+#endif
+#if defined(WOLFCOSE_HAVE_DEPRECATED_ALGS) && defined(WOLFCOSE_HAVE_ED448) && \
+    defined(WOLFCOSE_SIGN1_SIGN) && defined(WOLFCOSE_SIGN1_VERIFY)
+    test_cose_rfc9864_deprecated_ed448();
+#endif
     test_cose_decode_tstr_alg_values();
     test_cose_key_decode_tstr_alg_rejected();
 #if defined(WOLFCOSE_SIGN) && defined(WOLFCOSE_HAVE_ED448)

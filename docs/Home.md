@@ -6,7 +6,7 @@ Welcome to the wolfCOSE wiki. This is the complete documentation for wolfCOSE, a
 
 wolfCOSE is a C library implementing:
 - **CBOR** (RFC 8949): Concise Binary Object Representation
-- **COSE** (RFC 9052/9053): CBOR Object Signing and Encryption
+- **COSE** (RFC 9052/9053): CBOR Object Signing and Encryption, with the RFC 9864 fully-specified signature algorithms
 
 It uses [wolfSSL](https://www.wolfssl.com/) as the cryptographic backend and is designed for constrained IoT devices, FIPS-bounded deployments, and anywhere you need authenticated CBOR payloads in minimal RAM.
 
@@ -62,6 +62,7 @@ wolfCOSE implements all six COSE message types from RFC 9052:
 - [RFC 8949 (CBOR)](https://www.rfc-editor.org/rfc/rfc8949)
 - [RFC 9052 (COSE Structures)](https://www.rfc-editor.org/rfc/rfc9052)
 - [RFC 9053 (COSE Algorithms)](https://www.rfc-editor.org/rfc/rfc9053)
+- [RFC 9864 (Fully-Specified Algorithms)](https://www.rfc-editor.org/rfc/rfc9864)
 
 ## License
 

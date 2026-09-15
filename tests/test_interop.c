@@ -97,7 +97,7 @@ static const uint8_t sign1_vec1_keyD[] = {
 static const uint8_t sign1_vec1_payload[] = "This is the content.";
 
 #if defined(WOLFCOSE_COUNTERSIGN_VERIFY) && \
-    defined(WOLFCOSE_HAVE_ES256)
+    defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
 /* RFC 9338 Appendix A.1.1 COSE_Sign countersignature example. */
 static const uint8_t countersign_rfc9338_sign_key_x[] = {
     0xba, 0xc5, 0xb1, 0x1c, 0xad, 0x8f, 0x99, 0xf9,
@@ -139,7 +139,7 @@ static const uint8_t countersign_rfc9338_sign_message[] = {
 #endif
 
 #if defined(WOLFCOSE_COUNTERSIGN_VERIFY) && \
-    defined(WOLFCOSE_HAVE_ES512)
+    defined(WOLFCOSE_HAVE_ES512) && defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
 /* RFC 9338 Appendix A.2.1 COSE_Sign1 countersignature example. */
 static const uint8_t countersign_rfc9338_key_x[] = {
     0x00, 0x72, 0x99, 0x2c, 0xb3, 0xac, 0x08, 0xec,
@@ -203,7 +203,7 @@ static const uint8_t countersign_rfc9338_message[] = {
 #endif
 
 #if defined(WOLFCOSE_COUNTERSIGN_VERIFY) && \
-    defined(WOLFCOSE_HAVE_EDDSA)
+    defined(WOLFCOSE_HAVE_EDDSA) && defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
 static const uint8_t countersign_legacy_key[] = {
     0xd7, 0x5a, 0x98, 0x01, 0x82, 0xb1, 0x0a, 0xb7,
     0xd5, 0x4b, 0xfe, 0xd3, 0xc9, 0x64, 0x07, 0x3a,
@@ -351,7 +351,7 @@ static void test_interop_sign1_roundtrip(void)
 
     /* Sign the payload */
     if (ret == 0) {
-        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ESP256,
             NULL, 0, /* kid */
             sign1_vec1_payload, sizeof(sign1_vec1_payload) - 1,
             NULL, 0, /* detached */
@@ -372,7 +372,7 @@ static void test_interop_sign1_roundtrip(void)
                     "payload length match");
         TEST_ASSERT(memcmp(decPayload, sign1_vec1_payload, decPayloadLen) == 0,
                     "payload content match");
-        TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_ES256, "algorithm match");
+        TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_ESP256, "algorithm match");
     }
 
     if (eccInited != 0) {
@@ -434,7 +434,7 @@ static void test_interop_sign1_es384_roundtrip(void)
 
     /* Sign with ES384 */
     if (ret == 0) {
-        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ES384,
+        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ESP384,
             NULL, 0,
             payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0,
@@ -450,7 +450,7 @@ static void test_interop_sign1_es384_roundtrip(void)
             scratch, sizeof(scratch),
             &hdr, &decPayload, &decPayloadLen);
         TEST_ASSERT(ret == 0, "verify ES384");
-        TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_ES384, "ES384 algorithm match");
+        TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_ESP384, "ESP384 algorithm match");
     }
 
     if (eccInited != 0) {
@@ -513,7 +513,7 @@ static void test_interop_sign1_es512_roundtrip(void)
 
     /* Sign with ES512 */
     if (ret == 0) {
-        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ES512,
+        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ESP512,
             NULL, 0,
             payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0,
@@ -529,7 +529,7 @@ static void test_interop_sign1_es512_roundtrip(void)
             scratch, sizeof(scratch),
             &hdr, &decPayload, &decPayloadLen);
         TEST_ASSERT(ret == 0, "verify ES512");
-        TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_ES512, "ES512 algorithm match");
+        TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_ESP512, "ESP512 algorithm match");
     }
 
     if (eccInited != 0) {
@@ -590,7 +590,7 @@ static void test_interop_sign1_with_aad_roundtrip(void)
         wc_CoseKey_SetEcc(&signKey, WOLFCOSE_CRV_P256, &eccKey);
 
         /* Sign with AAD */
-        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ESP256,
             NULL, 0,
             payload, sizeof(payload) - 1,
             NULL, 0,
@@ -678,7 +678,7 @@ static void test_interop_sign1_detached_roundtrip(void)
         wc_CoseKey_SetEcc(&signKey, WOLFCOSE_CRV_P256, &eccKey);
 
         /* Sign with detached payload */
-        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ESP256,
             NULL, 0,
             NULL, 0, /* no inline payload */
             payload, sizeof(payload) - 1, /* detached payload */
@@ -1229,7 +1229,7 @@ static void test_interop_sign1_eddsa_roundtrip(void)
 
     /* Sign with EdDSA */
     if (ret == 0) {
-        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_EDDSA,
+        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ED25519,
             NULL, 0,
             payload, sizeof(payload) - 1,
             NULL, 0, NULL, 0,
@@ -1245,7 +1245,7 @@ static void test_interop_sign1_eddsa_roundtrip(void)
             scratch, sizeof(scratch),
             &hdr, &decPayload, &decPayloadLen);
         TEST_ASSERT(ret == 0, "verify EdDSA");
-        TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_EDDSA, "EdDSA algorithm");
+        TEST_ASSERT(hdr.alg == WOLFCOSE_ALG_ED25519, "Ed25519 algorithm");
         TEST_ASSERT(decPayloadLen == sizeof(payload) - 1, "payload length");
     }
 
@@ -1306,7 +1306,7 @@ static void test_interop_sign1_eddsa_with_aad(void)
         wc_CoseKey_SetEd25519(&signKey, &edKey);
 
         /* Sign with AAD */
-        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_EDDSA,
+        ret = wc_CoseSign1_Sign(&signKey, WOLFCOSE_ALG_ED25519,
             NULL, 0,
             payload, sizeof(payload) - 1,
             NULL, 0,
@@ -1336,7 +1336,7 @@ static void test_interop_sign1_eddsa_with_aad(void)
 #endif /* WOLFCOSE_HAVE_EDDSA */
 
 #if defined(WOLFCOSE_COUNTERSIGN_VERIFY) && \
-    defined(WOLFCOSE_HAVE_ES256)
+    defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
 static void test_interop_countersign_rfc9338_sign(void)
 {
     static const uint8_t expectedKid[] = "11";
@@ -1391,7 +1391,7 @@ static void test_interop_countersign_rfc9338_sign(void)
 #endif
 
 #if defined(WOLFCOSE_COUNTERSIGN_VERIFY) && \
-    defined(WOLFCOSE_HAVE_ES512)
+    defined(WOLFCOSE_HAVE_ES512) && defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
 static void test_interop_countersign_rfc9338_sign1(void)
 {
     static const uint8_t expectedKid[] =
@@ -1454,7 +1454,7 @@ static void test_interop_countersign_rfc9338_sign1(void)
 #endif
 
 #if defined(WOLFCOSE_COUNTERSIGN_VERIFY) && \
-    defined(WOLFCOSE_HAVE_EDDSA)
+    defined(WOLFCOSE_HAVE_EDDSA) && defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
 static void test_interop_countersign_legacy(void)
 {
     WOLFCOSE_KEY counterKey;
@@ -1608,12 +1608,12 @@ static void test_interop_sign_multi_signer(void)
         wc_CoseKey_SetEcc(&key2, WOLFCOSE_CRV_P256, &eccKey2);
 
         /* Setup signers array */
-        signers[0].algId = WOLFCOSE_ALG_ES256;
+        signers[0].algId = WOLFCOSE_ALG_ESP256;
         signers[0].key = &key1;
         signers[0].kid = (const uint8_t*)"signer-1";
         signers[0].kidLen = 8;
 
-        signers[1].algId = WOLFCOSE_ALG_ES256;
+        signers[1].algId = WOLFCOSE_ALG_ESP256;
         signers[1].key = &key2;
         signers[1].kid = (const uint8_t*)"signer-2";
         signers[1].kidLen = 8;
@@ -1721,12 +1721,12 @@ static void test_interop_sign_mixed_algorithms(void)
         wc_CoseKey_SetEcc(&eccKey384, WOLFCOSE_CRV_P384, &ecc384);
 
         /* Mixed algorithm signers */
-        signers[0].algId = WOLFCOSE_ALG_ES256;
+        signers[0].algId = WOLFCOSE_ALG_ESP256;
         signers[0].key = &eccKey256;
         signers[0].kid = (const uint8_t*)"p256";
         signers[0].kidLen = 4;
 
-        signers[1].algId = WOLFCOSE_ALG_ES384;
+        signers[1].algId = WOLFCOSE_ALG_ESP384;
         signers[1].key = &eccKey384;
         signers[1].kid = (const uint8_t*)"p384";
         signers[1].kidLen = 4;
@@ -1956,15 +1956,15 @@ int test_interop(void)
     test_interop_sign1_eddsa_with_aad();
 #endif
 #if defined(WOLFCOSE_COUNTERSIGN_VERIFY) && \
-    defined(WOLFCOSE_HAVE_ES256)
+    defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
     test_interop_countersign_rfc9338_sign();
 #endif
 #if defined(WOLFCOSE_COUNTERSIGN_VERIFY) && \
-    defined(WOLFCOSE_HAVE_ES512)
+    defined(WOLFCOSE_HAVE_ES512) && defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
     test_interop_countersign_rfc9338_sign1();
 #endif
 #if defined(WOLFCOSE_COUNTERSIGN_VERIFY) && \
-    defined(WOLFCOSE_HAVE_EDDSA)
+    defined(WOLFCOSE_HAVE_EDDSA) && defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
     test_interop_countersign_legacy();
 #endif
 

@@ -28,7 +28,7 @@ wc_InitRng(&rng);
 wc_CoseKey_Init(&key);
 wc_CoseKey_SetEcc(&key, WOLFCOSE_CRV_P256, &eccPriv);
 
-int ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
+int ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
                             payload, payloadLen,
                             NULL, 0,            /* no detached payload */
                             NULL, 0,            /* no external AAD */
@@ -43,7 +43,7 @@ int ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ES256,
 
 ```c
 WOLFCOSE_SIGNATURE signers[2] = {
-    { .algId = WOLFCOSE_ALG_ES256,
+    { .algId = WOLFCOSE_ALG_ESP256,
       .key   = &vendorKey,
       .kid   = (const uint8_t*)"vendor-2026", .kidLen = 11 },
     { .algId = WOLFCOSE_ALG_ML_DSA_65,        /* hybrid: classical + PQC */
@@ -86,7 +86,7 @@ feature.
 
 ```c
 WOLFCOSE_COUNTERSIGNATURE approval = {
-    .algId = WOLFCOSE_ALG_ES256,
+    .algId = WOLFCOSE_ALG_ESP256,
     .key   = &releaseKey,
     .kid   = (const uint8_t*)"release-2026",
     .kidLen = 12
@@ -126,7 +126,7 @@ The command-line tool can countersign an existing message and verify a
 selected full countersignature:
 
 ```bash
-wolfcose_tool countersign -k release-key.cbor -a ES256 \
+wolfcose_tool countersign -k release-key.cbor -a ESP256 \
     -i signed.cose -o approved.cose
 wolfcose_tool counterverify -k release-public.cbor \
     -i approved.cose --index 0
@@ -247,7 +247,7 @@ For common minimal builds, use a build profile instead of hand-listing macros �
 | `WOLFCOSE_LEAN_MLDSA` | ML-DSA `COSE_Sign1` sign + verify |
 | `WOLFCOSE_LEAN_VERIFY_MLDSA` | ML-DSA `COSE_Sign1` verify-only |
 
-A minimal Sign1-verify-only build (`WOLFCOSE_LEAN_VERIFY`) is about **5.1 KB** of wolfCOSE library code (3.5 KB COSE engine + the built-in CBOR engine), or **26.2 KB** total flash with a minimal wolfCrypt ES256 backend — rising to **6.8 KB** / **34.6 KB** for sign + verify.
+A minimal Sign1-verify-only build (`WOLFCOSE_LEAN_VERIFY`) is about **5.1 KB** of wolfCOSE library code (3.5 KB COSE engine + the built-in CBOR engine), or **26.2 KB** total flash with a minimal wolfCrypt P-256 ECDSA/SHA-256 backend — rising to **6.8 KB** / **34.6 KB** for sign + verify.
 
 ## See also
 

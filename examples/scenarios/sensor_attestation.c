@@ -131,7 +131,7 @@ static int sensor_create_attestation(WOLFCOSE_KEY* deviceKey,
     printf("  Nonce (AAD) size: %zu bytes\n", nonceLen);
 
     /* Sign with nonce as external AAD */
-    ret = wc_CoseSign1_Sign(deviceKey, WOLFCOSE_ALG_ES256,
+    ret = wc_CoseSign1_Sign(deviceKey, WOLFCOSE_ALG_ESP256,
         kid, sizeof(kid) - 1u,
         reading, readingLen,
         NULL, 0,  /* No detached payload */

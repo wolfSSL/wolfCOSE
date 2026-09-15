@@ -20,11 +20,13 @@
 
 /* wolfCOSE compile-time configuration.
  *
- * Default: every algorithm wolfSSL provides is enabled (full build). Strip an
- * individual feature with WOLFCOSE_NO_<X>.
+ * Default: every algorithm wolfSSL provides is enabled (full build), except the
+ * RFC 9053 alg IDs that RFC 9864 deprecates (opt in with
+ * WOLFCOSE_ENABLE_DEPRECATED_ALGS). Strip an individual feature with
+ * WOLFCOSE_NO_<X>.
  *
- * WOLFCOSE_LEAN: lean build. Only the core stays on — COSE_Sign1/Encrypt0/Mac0
- * with ES256, AES-GCM, HMAC-SHA256 — and everything else becomes opt-in via
+ * WOLFCOSE_LEAN: lean build. Only the core stays on (COSE_Sign1/Encrypt0/Mac0
+ * with ESP256, AES-GCM, HMAC-SHA256) and everything else becomes opt-in via
  * WOLFCOSE_ENABLE_<X>.
  *
  * An extension is on when: explicitly enabled (WOLFCOSE_ENABLE_<X>), or it is a
@@ -183,8 +185,13 @@ extern "C" {
 
 /* ----- Signature algorithms ----- */
 
-/* ES256 — core. ECC_USER_CURVES keeps P-256 unless NO_ECC256 selects it
- * out; HAVE_ALL_CURVES is the equivalent all-curves configuration. */
+/* RFC 9864 deprecates the polymorphic ES256/ES384/ES512/EdDSA IDs in favour of
+ * ESP256/ESP384/ESP512/Ed25519/Ed448. The deprecated IDs are opt-in. */
+#if defined(WOLFCOSE_ENABLE_DEPRECATED_ALGS)
+    #define WOLFCOSE_HAVE_DEPRECATED_ALGS
+#endif
+
+/* ESP256 (and deprecated ES256), core when wolfSSL has P-256 and SHA-256. */
 #if !defined(WOLFCOSE_NO_ES256) && defined(HAVE_ECC) && \
     !defined(NO_SHA256) && !defined(NO_ECC256) && \
     (!defined(ECC_MIN_KEY_SZ) || (ECC_MIN_KEY_SZ <= 256))
@@ -826,9 +833,10 @@ extern "C" {
 #if defined(WOLFCOSE_ENABLE_EAT_PSA_SIGN1)
     #if !defined(WOLFCOSE_EAT_PSA) || !defined(WOLFCOSE_SIGN1_VERIFY) || \
         !defined(WOLFCOSE_CBOR_DECODE) || \
+        !defined(WOLFCOSE_HAVE_DEPRECATED_ALGS) || \
         (!defined(WOLFCOSE_HAVE_ES256) && !defined(WOLFCOSE_HAVE_ES384) && \
          !defined(WOLFCOSE_HAVE_ES512))
-        #error "WOLFCOSE_ENABLE_EAT_PSA_SIGN1 requires EAT_PSA and an ECDSA COSE Sign1 verifier"
+        #error "WOLFCOSE_ENABLE_EAT_PSA_SIGN1 requires EAT_PSA, deprecated IDs, and an ECDSA COSE Sign1 verifier"
     #endif
     #define WOLFCOSE_EAT_PSA_SIGN1
 #endif
@@ -844,9 +852,10 @@ extern "C" {
 #if defined(WOLFCOSE_ENABLE_EAT_PSA_SIGN1_ISSUE)
     #if !defined(WOLFCOSE_EAT_PSA_ISSUE) || \
         !defined(WOLFCOSE_SIGN1_SIGN) || \
+        !defined(WOLFCOSE_HAVE_DEPRECATED_ALGS) || \
         (!defined(WOLFCOSE_HAVE_ES256) && !defined(WOLFCOSE_HAVE_ES384) && \
          !defined(WOLFCOSE_HAVE_ES512))
-        #error "EAT_PSA_SIGN1_ISSUE needs EAT_PSA_ISSUE and ECDSA Sign1 signing"
+        #error "EAT_PSA_SIGN1_ISSUE needs EAT_PSA_ISSUE, deprecated IDs, and ECDSA Sign1 signing"
     #endif
     #define WOLFCOSE_EAT_PSA_SIGN1_ISSUE
 #endif
@@ -908,6 +917,7 @@ extern "C" {
 
 #if defined(WOLFCOSE_EAT_PSA_CURRENT) && \
     defined(WOLFCOSE_EAT_PSA_SIGN1) && defined(WOLFCOSE_EAT_PSA_MAC0) && \
+    defined(WOLFCOSE_HAVE_DEPRECATED_ALGS) && \
     defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_HAVE_ES384) && \
     defined(WOLFCOSE_HAVE_ES512) && defined(WOLFCOSE_HAVE_HMAC256) && \
     defined(WOLFCOSE_HAVE_HMAC384) && defined(WOLFCOSE_HAVE_HMAC512)

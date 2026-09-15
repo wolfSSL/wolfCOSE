@@ -34,7 +34,7 @@
 #include <wolfssl/wolfcrypt/settings.h>
 
 #include <wolfcose/wolfcose.h>
-#ifdef WOLFCOSE_HAVE_ES256
+#if defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
     #include <wolfssl/wolfcrypt/ecc.h>
 #endif
 #include <stdio.h>
@@ -115,7 +115,7 @@ static size_t example_hex_decode(const char* hex, uint8_t* out, size_t out_sz)
     return hex_len / 2u;
 }
 
-#ifdef WOLFCOSE_HAVE_ES256
+#if defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
 
 /* sign1-tests/sign-pass-02.json and sign1-tests/sign-fail-01.json. */
 static const uint8_t example_p256_x[] =
@@ -301,7 +301,7 @@ static void test_example_sign(void)
 
 #endif /* WOLFCOSE_SIGN_VERIFY */
 
-#endif /* WOLFCOSE_HAVE_ES256 */
+#endif /* WOLFCOSE_HAVE_ES256 && WOLFCOSE_HAVE_DEPRECATED_ALGS */
 
 #ifdef WOLFCOSE_HAVE_HMAC256
 
@@ -734,7 +734,7 @@ int test_cose_examples(void)
     g_failures = 0;
     printf("\n  COSE WG Examples vectors:\n");
 
-#ifdef WOLFCOSE_HAVE_ES256
+#if defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_HAVE_DEPRECATED_ALGS)
     test_example_sign1();
     #if defined(WOLFCOSE_SIGN_VERIFY)
     test_example_sign();

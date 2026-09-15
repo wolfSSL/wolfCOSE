@@ -74,6 +74,24 @@ LIB_SO    = libwolfcose.so
 # configuration hash at parse time and force a core-object rebuild only when
 # the effective compiler or wolfSSL configuration changes.
 BUILD_CONFIG = .wolfcose-build-config
+# Interop objects are built with the deprecated RFC 9053 IDs enabled (the pinned
+# peers still emit them); its value is part of the rebuild hash below.
+INTEROP_COSE_CFLAGS = -DWOLFCOSE_ENABLE_DEPRECATED_ALGS
+
+# Full PSA/EAT conformance test profile. Production integrations can select a
+# smaller subset by defining only the WOLFCOSE_ENABLE_EAT_PSA_* switches they
+# need; see docs/PSA-EAT.md. RFC 9783 vectors still use the deprecated ES256
+# ID, so this test profile enables it. The variable is overridable for CI.
+EAT_PSA_FULL_FLAGS ?= -DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
+	-DWOLFCOSE_ENABLE_EAT_PSA \
+	-DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
+	-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 -DWOLFCOSE_ENABLE_EAT_PSA_MAC0 \
+	-DWOLFCOSE_ENABLE_EAT_PSA_ISSUE -DWOLFCOSE_ENABLE_EAT_PSA_LEGACY \
+	-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1_ISSUE \
+	-DWOLFCOSE_ENABLE_EAT_PSA_MAC0_ISSUE \
+	-DWOLFCOSE_ENABLE_EAT_PSA_UEID_RESOLVER \
+	-DWOLFCOSE_ENABLE_EAT_PSA_COMPONENT_ITERATOR
+
 BUILD_CONFIG_VALUE := $(shell { \
     printf '%s\n' 'CC=$(CC)'; \
     printf '%s\n' 'CFLAGS=$(CFLAGS)'; \
@@ -84,6 +102,8 @@ BUILD_CONFIG_VALUE := $(shell { \
     printf '%s\n' 'WOLFSSL_PREFIX=$(WOLFSSL_PREFIX)'; \
     printf '%s\n' 'WOLFSSL_CFLAGS=$(WOLFSSL_CFLAGS)'; \
     printf '%s\n' 'WOLFSSL_LIBS=$(WOLFSSL_LIBS)'; \
+    printf '%s\n' 'INTEROP_COSE_CFLAGS=$(INTEROP_COSE_CFLAGS)'; \
+    printf '%s\n' 'EAT_PSA_FULL_FLAGS=$(EAT_PSA_FULL_FLAGS)'; \
 } | cksum)
 BUILD_CONFIG_SAVED := $(shell test -f $(BUILD_CONFIG) && cat $(BUILD_CONFIG))
 ifneq ($(strip $(BUILD_CONFIG_VALUE)),$(strip $(BUILD_CONFIG_SAVED)))
@@ -98,18 +118,6 @@ TEST_SRC  = tests/test_cbor.c tests/test_cose.c tests/test_interop.c \
 TEST_BIN  = tests/test_wolfcose
 EAT_PSA_TEST_BIN = tests/test_wolfcose_eat_psa
 EAT_PSA_LIMITS_TEST_BIN = tests/test_wolfcose_eat_psa_limits
-
-# Full PSA/EAT conformance test profile. Production integrations can select a
-# smaller subset by defining only the WOLFCOSE_ENABLE_EAT_PSA_* switches they
-# need; see docs/PSA-EAT.md. This variable is overridable for CI experiments.
-EAT_PSA_FULL_FLAGS ?= -DWOLFCOSE_ENABLE_EAT_PSA \
-	-DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
-	-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 -DWOLFCOSE_ENABLE_EAT_PSA_MAC0 \
-	-DWOLFCOSE_ENABLE_EAT_PSA_ISSUE -DWOLFCOSE_ENABLE_EAT_PSA_LEGACY \
-	-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1_ISSUE \
-	-DWOLFCOSE_ENABLE_EAT_PSA_MAC0_ISSUE \
-	-DWOLFCOSE_ENABLE_EAT_PSA_UEID_RESOLVER \
-	-DWOLFCOSE_ENABLE_EAT_PSA_COMPONENT_ITERATOR
 
 # Remove every lean-core decode path. Issuer-only matrix builds use this to
 # prove that PSA/EAT claim and envelope creation do not retain CBOR decoding.
@@ -155,7 +163,7 @@ SCEN_IOTFLEET    = examples/scenarios/iot_fleet_config
 SCEN_SENSOR      = examples/scenarios/sensor_attestation
 SCEN_BROADCAST   = examples/scenarios/group_broadcast_mac
 
-.PHONY: all shared test pkg-config-test ecdsa-policy-test rsapss-policy-test countersign-config-test zero-alloc-check zeroize-test ecc-import-policy-test ext-sign-test ext-sign-demo ext-sign-force-failure coverage eat-psa-test eat-psa-float-test eat-psa-min-buffers-test eat-psa-claim-limits-test eat-psa-profile-test eat-psa-config-check eat-psa-ext-sign-test eat-psa-ext-sign-force-failure eat-psa-coverage eat-psa-coverage-force-failure generic-reduced-alg-test tool tool-test cmdline-test demo demos hpke-demo lean-verify psa-eat-lean-verify psa-eat-demo mldsa-demo mldsa-verify lms-demo lms-verify comprehensive scenarios interop-tcose tcose-upstream interop-go-cose interop-python-cwt interop-rust-coset c99-check c99-check-lms c99-hpke-check experimental-check clean FORCE
+.PHONY: all shared test pkg-config-test ecdsa-policy-test rsapss-policy-test countersign-config-test zero-alloc-check zeroize-test deprecated-algs-test ecc-import-policy-test ext-sign-test ext-sign-demo ext-sign-force-failure coverage eat-psa-test eat-psa-float-test eat-psa-min-buffers-test eat-psa-claim-limits-test eat-psa-profile-test eat-psa-config-check eat-psa-ext-sign-test eat-psa-ext-sign-force-failure eat-psa-coverage eat-psa-coverage-force-failure generic-reduced-alg-test tool tool-test cmdline-test demo demos hpke-demo lean-verify psa-eat-lean-verify psa-eat-demo mldsa-demo mldsa-verify lms-demo lms-verify comprehensive scenarios interop-tcose tcose-upstream interop-go-cose interop-python-cwt interop-rust-coset c99-check c99-check-lms c99-hpke-check experimental-check clean FORCE
 
 # --- Core library ---
 all: $(LIB_A)
@@ -461,7 +469,8 @@ eat-psa-claim-limits-test:
 # remains WOLFCOSE_E_UNSUPPORTED before crypto.
 eat-psa-profile-test:
 	$(MAKE) clean
-	$(CC) $(CFLAGS) -DWOLFCOSE_TEST_EAT_PSA_PROFILES \
+	$(CC) $(CFLAGS) -DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
+		-DWOLFCOSE_TEST_EAT_PSA_PROFILES \
 		-DWOLFCOSE_ENABLE_EAT_PSA -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
 		-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 -DWOLFCOSE_ENABLE_EAT_PSA_ISSUE \
 		-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1_ISSUE \
@@ -470,7 +479,8 @@ eat-psa-profile-test:
 		$(LDFLAGS) $(LDLIBS)
 	./$(EAT_PSA_TEST_BIN)
 	$(MAKE) clean
-	$(CC) $(CFLAGS) -DWOLFCOSE_TEST_EAT_PSA_PROFILES \
+	$(CC) $(CFLAGS) -DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
+		-DWOLFCOSE_TEST_EAT_PSA_PROFILES \
 		-DWOLFCOSE_ENABLE_EAT_PSA -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
 		-DWOLFCOSE_ENABLE_EAT_PSA_MAC0 -DWOLFCOSE_ENABLE_EAT_PSA_ISSUE \
 		-DWOLFCOSE_ENABLE_EAT_PSA_MAC0_ISSUE \
@@ -479,7 +489,8 @@ eat-psa-profile-test:
 		$(LDFLAGS) $(LDLIBS)
 	./$(EAT_PSA_TEST_BIN)
 	$(MAKE) clean
-	$(CC) $(CFLAGS) -DWOLFCOSE_TEST_EAT_PSA_PROFILES \
+	$(CC) $(CFLAGS) -DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
+		-DWOLFCOSE_TEST_EAT_PSA_PROFILES \
 		-DWOLFCOSE_ENABLE_EAT_PSA -DWOLFCOSE_ENABLE_EAT_PSA_LEGACY \
 		-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 \
 		-o $(EAT_PSA_TEST_BIN) $(CORE_SRC) $(EAT_PSA_SRC) \
@@ -487,7 +498,8 @@ eat-psa-profile-test:
 		$(LDFLAGS) $(LDLIBS)
 	./$(EAT_PSA_TEST_BIN)
 	$(MAKE) clean
-	$(CC) $(CFLAGS) -DWOLFCOSE_TEST_EAT_PSA_PROFILES \
+	$(CC) $(CFLAGS) -DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
+		-DWOLFCOSE_TEST_EAT_PSA_PROFILES \
 		-DWOLFCOSE_ENABLE_EAT_PSA -DWOLFCOSE_ENABLE_EAT_PSA_LEGACY \
 		-DWOLFCOSE_ENABLE_EAT_PSA_MAC0 \
 		-o $(EAT_PSA_TEST_BIN) $(CORE_SRC) $(EAT_PSA_SRC) \
@@ -532,6 +544,7 @@ eat-psa-config-check:
 	    echo "FAIL: claim-only issuer contains a verifier or envelope creator"; exit 1; \
 	fi
 	$(MAKE) all EXTRA_CFLAGS='-DWOLFCOSE_LEAN $(EAT_PSA_NO_DECODE_FLAGS) \
+		-DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
 		-DWOLFCOSE_ENABLE_EAT_PSA -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
 		-DWOLFCOSE_ENABLE_EAT_PSA_ISSUE \
 		-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1_ISSUE'
@@ -553,18 +566,20 @@ eat-psa-config-check:
 	fi
 	$(MAKE) all
 	$(CC) $(CFLAGS) -Werror -DWOLFCOSE_LEAN_VERIFY \
+		-DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
 		-DWOLFCOSE_ENABLE_EAT_PSA -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
 		-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 -fsyntax-only $(EAT_PSA_SRC)
 	$(CC) $(CFLAGS) -Werror -DWOLFCOSE_LEAN \
 		-DWOLFCOSE_ENABLE_EAT_PSA -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
 		-DWOLFCOSE_ENABLE_EAT_PSA_MAC0 -fsyntax-only $(EAT_PSA_SRC)
 	$(CC) $(CFLAGS) -Werror -DWOLFCOSE_LEAN_VERIFY \
+		-DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
 		-DWOLFCOSE_ENABLE_EAT_PSA -DWOLFCOSE_ENABLE_EAT_PSA_LEGACY \
 		-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 -fsyntax-only $(EAT_PSA_SRC)
 	$(CC) $(CFLAGS) -Werror -DWOLFCOSE_LEAN \
 		-DWOLFCOSE_ENABLE_EAT_PSA -DWOLFCOSE_ENABLE_EAT_PSA_LEGACY \
 		-DWOLFCOSE_ENABLE_EAT_PSA_MAC0 -fsyntax-only $(EAT_PSA_SRC)
-	$(CC) $(CFLAGS) -Werror \
+	$(CC) $(CFLAGS) -Werror -DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
 		-DWOLFCOSE_ENABLE_EAT_PSA -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
 		-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 -DWOLFCOSE_ENABLE_EAT_PSA_ISSUE \
 		-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1_ISSUE \
@@ -575,11 +590,13 @@ eat-psa-config-check:
 		-DWOLFCOSE_ENABLE_EAT_PSA_MAC0_ISSUE \
 		-DWOLFCOSE_NO_HMAC384 -DWOLFCOSE_NO_HMAC512 -fsyntax-only $(EAT_PSA_SRC)
 	$(CC) $(CFLAGS) -Werror -Werror=unused-function -DWOLFCOSE_LEAN \
+		-DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
 		-DWOLFCOSE_NO_ES256 -DWOLFCOSE_ENABLE_ES384 \
 		-DWOLFCOSE_NO_SIGN1_VERIFY -DWOLFCOSE_ENABLE_EAT_PSA \
 		-DWOLFCOSE_ENABLE_EAT_PSA_CURRENT -DWOLFCOSE_ENABLE_EAT_PSA_ISSUE \
 		-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1_ISSUE -fsyntax-only $(EAT_PSA_SRC)
 	$(CC) $(CFLAGS) -Werror -Werror=unused-function -DWOLFCOSE_LEAN \
+		-DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
 		-DWOLFCOSE_NO_ES256 -DWOLFCOSE_ENABLE_ES512 \
 		-DWOLFCOSE_NO_SIGN1_VERIFY -DWOLFCOSE_ENABLE_EAT_PSA \
 		-DWOLFCOSE_ENABLE_EAT_PSA_CURRENT -DWOLFCOSE_ENABLE_EAT_PSA_ISSUE \
@@ -595,27 +612,45 @@ eat-psa-config-check:
 		-DWOLFCOSE_ENABLE_EAT_PSA_CURRENT -DWOLFCOSE_ENABLE_EAT_PSA_ISSUE \
 		-DWOLFCOSE_ENABLE_EAT_PSA_MAC0_ISSUE -fsyntax-only $(EAT_PSA_SRC)
 	$(CC) $(CFLAGS) -Werror -DWOLFSSL_USER_SETTINGS \
+		-DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
 		-I./tests/config/eat_psa_curves \
 		-DWOLFCOSE_ENABLE_EAT_PSA -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
 		-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 -DWOLFCOSE_ENABLE_EAT_PSA_MAC0 \
 		-fsyntax-only tests/test_eat_psa_curve_gates.c
 	$(CC) $(CFLAGS) -Werror -DWOLFSSL_USER_SETTINGS \
 		-I./tests/config/eat_psa_min_key -DECC_MIN_KEY_SZ=256 \
+		-DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
 		-DWOLFCOSE_ENABLE_EAT_PSA -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
 		-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 -DWOLFCOSE_ENABLE_EAT_PSA_MAC0 \
 		-fsyntax-only tests/test_eat_psa_min_key_gates.c
+	@if $(CC) $(CFLAGS) \
+		-DWOLFCOSE_ENABLE_EAT_PSA -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
+		-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 -fsyntax-only \
+		$(EAT_PSA_SRC) >/dev/null 2>&1; then \
+	    echo "FAIL: PSA/EAT Sign1 accepted without deprecated ES* IDs"; exit 1; \
+	fi
+	@if $(CC) $(CFLAGS) \
+		-DWOLFCOSE_ENABLE_EAT_PSA -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
+		-DWOLFCOSE_ENABLE_EAT_PSA_ISSUE \
+		-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1_ISSUE -fsyntax-only \
+		$(EAT_PSA_SRC) >/dev/null 2>&1; then \
+	    echo "FAIL: PSA/EAT Sign1 issuer accepted without deprecated ES* IDs"; exit 1; \
+	fi
 	$(CC) $(CFLAGS) -Werror -DWOLFSSL_USER_SETTINGS \
 		-I./tests/config/eat_psa_min_key -DECC_MIN_KEY_SZ=257 \
+		-DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
 		-DWOLFCOSE_ENABLE_EAT_PSA -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
 		-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 -DWOLFCOSE_ENABLE_EAT_PSA_MAC0 \
 		-fsyntax-only tests/test_eat_psa_min_key_gates.c
 	$(CC) $(CFLAGS) -Werror -DWOLFSSL_USER_SETTINGS \
 		-I./tests/config/eat_psa_min_key -DECC_MIN_KEY_SZ=384 \
+		-DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
 		-DWOLFCOSE_ENABLE_EAT_PSA -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
 		-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 -DWOLFCOSE_ENABLE_EAT_PSA_MAC0 \
 		-fsyntax-only tests/test_eat_psa_min_key_gates.c
 	$(CC) $(CFLAGS) -Werror -DWOLFSSL_USER_SETTINGS \
 		-I./tests/config/eat_psa_min_key -DECC_MIN_KEY_SZ=521 \
+		-DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
 		-DWOLFCOSE_ENABLE_EAT_PSA -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
 		-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 -DWOLFCOSE_ENABLE_EAT_PSA_MAC0 \
 		-fsyntax-only tests/test_eat_psa_min_key_gates.c
@@ -636,6 +671,7 @@ eat-psa-config-check:
 	fi
 	@if $(CC) $(CFLAGS) -DWOLFSSL_USER_SETTINGS \
 		-I./tests/config/eat_psa_min_key -DECC_MIN_KEY_SZ=522 \
+		-DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
 		-DWOLFCOSE_ENABLE_EAT_PSA -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
 		-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 -fsyntax-only \
 		tests/test_eat_psa_derived_gate.c >/dev/null 2>&1; then \
@@ -653,10 +689,11 @@ eat-psa-config-check:
 	fi
 	$(CC) $(CFLAGS) -Werror -DWOLFSSL_USER_SETTINGS \
 		-I./tests/config/eat_psa_no_sha256 \
+		-DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
 		-DWOLFCOSE_ENABLE_EAT_PSA -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
 		-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 -DWOLFCOSE_ENABLE_EAT_PSA_MAC0 \
 		-fsyntax-only tests/test_eat_psa_hash_gates.c
-	@if $(CC) $(CFLAGS) -Werror \
+	@if $(CC) $(CFLAGS) -Werror -DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
 		-DWOLFCOSE_ENABLE_EAT_PSA -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
 		-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 -DWOLFCOSE_ENABLE_EAT_PSA_MAC0 \
 		-DWOLFCOSE_NO_ES384 -DWOLFCOSE_NO_ES512 \
@@ -666,6 +703,7 @@ eat-psa-config-check:
 		    echo "FAIL: partial receiver accepted forced #tfm capability"; exit 1; \
 	fi
 	$(CC) $(CFLAGS) -Werror -DHAVE_ALL_CURVES -DNO_ECC256 \
+		-DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
 		-DWOLFCOSE_ENABLE_EAT_PSA -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
 		-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 -DWOLFCOSE_ENABLE_EAT_PSA_MAC0 \
 		-DWOLFCOSE_TEST_NO_ECC256_ALL_CURVES -fsyntax-only \
@@ -695,7 +733,8 @@ eat-psa-config-check:
 		$(EAT_PSA_SRC) >/dev/null 2>&1; then \
 	    echo "FAIL: PSA/EAT accepted a profile without an operation"; exit 1; \
 	fi
-	@if $(CC) $(CFLAGS) -DWOLFCOSE_ENABLE_EAT_PSA \
+	@if $(CC) $(CFLAGS) -DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
+		-DWOLFCOSE_ENABLE_EAT_PSA \
 		-DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
 		-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1_ISSUE -fsyntax-only \
 		$(EAT_PSA_SRC) >/dev/null 2>&1; then \
@@ -707,7 +746,8 @@ eat-psa-config-check:
 		$(EAT_PSA_SRC) >/dev/null 2>&1; then \
 	    echo "FAIL: Mac0 issuer accepted without common issuance"; exit 1; \
 	fi
-	@if $(CC) $(CFLAGS) -DWOLFCOSE_ENABLE_EAT_PSA \
+	@if $(CC) $(CFLAGS) -DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
+		-DWOLFCOSE_ENABLE_EAT_PSA \
 		-DWOLFCOSE_ENABLE_EAT_PSA_CURRENT -DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 \
 		-DWOLFCOSE_NO_ES256 -DWOLFCOSE_NO_ES384 -DWOLFCOSE_NO_ES512 \
 		-fsyntax-only $(EAT_PSA_SRC) >/dev/null 2>&1; then \
@@ -726,7 +766,8 @@ eat-psa-config-check:
 		$(EAT_PSA_SRC) >/dev/null 2>&1; then \
 	    echo "FAIL: component iterator flag accepted without PSA/EAT"; exit 1; \
 	fi
-	@if $(CC) $(CFLAGS) -DWOLFCOSE_ENABLE_EAT_PSA \
+	@if $(CC) $(CFLAGS) -DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
+		-DWOLFCOSE_ENABLE_EAT_PSA \
 		-DWOLFCOSE_ENABLE_EAT_PSA_CURRENT -DWOLFCOSE_ENABLE_EAT_PSA_ISSUE \
 		-DWOLFCOSE_ENABLE_EAT_PSA_SIGN1_ISSUE -DWOLFCOSE_NO_SIGN1_SIGN \
 		-fsyntax-only $(EAT_PSA_SRC) >/dev/null 2>&1; then \
@@ -738,7 +779,8 @@ eat-psa-config-check:
 		-fsyntax-only $(EAT_PSA_SRC) >/dev/null 2>&1; then \
 	    echo "FAIL: Mac0 issuer accepted without a creation path"; exit 1; \
 	fi
-	@if $(CC) $(CFLAGS) -DWOLFCOSE_ENABLE_EAT_PSA \
+	@if $(CC) $(CFLAGS) -DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
+		-DWOLFCOSE_ENABLE_EAT_PSA \
 		-DWOLFCOSE_ENABLE_EAT_PSA_LEGACY -DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 \
 		-DWOLFCOSE_ENABLE_EAT_PSA_ISSUE -fsyntax-only $(EAT_PSA_SRC) \
 		>/dev/null 2>&1; then \
@@ -783,6 +825,12 @@ ext-sign-test:
 
 eat-psa-ext-sign-test:
 	$(CC) $(CFLAGS) $(EAT_PSA_FULL_FLAGS) -DWOLFCOSE_ENABLE_EXT_SIGN \
+	    -o $(TEST_BIN) $(SRC) $(TEST_SRC) $(LDFLAGS) $(LDLIBS)
+	./$(TEST_BIN)
+
+# --- Deprecated RFC 9053 alg IDs (ES256/ES384/ES512/EdDSA), opt-in ---
+deprecated-algs-test:
+	$(CC) $(CFLAGS) -DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
 	    -o $(TEST_BIN) $(SRC) $(TEST_SRC) $(LDFLAGS) $(LDLIBS)
 	./$(TEST_BIN)
 
@@ -855,9 +903,9 @@ tool: $(LIB_A)
 
 # --- Round-trip proof: keygen -> sign -> verify in one command ---
 tool-test: tool
-	./$(TOOL_BIN) keygen -a ES256 -o /tmp/wolfcose_test.key
+	./$(TOOL_BIN) keygen -a ESP256 -o /tmp/wolfcose_test.key
 	echo "hello wolfCOSE" > /tmp/wolfcose_test.dat
-	./$(TOOL_BIN) sign -k /tmp/wolfcose_test.key -a ES256 \
+	./$(TOOL_BIN) sign -k /tmp/wolfcose_test.key -a ESP256 \
 	    -i /tmp/wolfcose_test.dat -o /tmp/wolfcose_test.cose
 	./$(TOOL_BIN) verify -k /tmp/wolfcose_test.key \
 	    -i /tmp/wolfcose_test.cose
@@ -910,7 +958,8 @@ lean-verify:
 # A standardized #tfm receiver must retain both envelopes and all required
 # algorithms. Issuance and optional PSA/EAT helpers remain compiled out.
 psa-eat-lean-verify:
-	$(CC) $(CFLAGS) -DWOLFCOSE_LEAN_VERIFY -DWOLFCOSE_ENABLE_EAT_PSA \
+	$(CC) $(CFLAGS) -DWOLFCOSE_LEAN_VERIFY \
+		-DWOLFCOSE_ENABLE_DEPRECATED_ALGS -DWOLFCOSE_ENABLE_EAT_PSA \
 		-DWOLFCOSE_ENABLE_EAT_PSA_CURRENT -DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 \
 		-DWOLFCOSE_ENABLE_EAT_PSA_MAC0 -DWOLFCOSE_ENABLE_ES384 \
 		-DWOLFCOSE_ENABLE_ES512 -DWOLFCOSE_ENABLE_HMAC384 \
@@ -1006,15 +1055,31 @@ TCOSE_CRYPTO_INC ?=
 TCOSE_CRYPTO_LIB ?= -lcrypto
 INTEROP_DIR       = tests/interop/t_cose
 INTEROP_BIN       = $(INTEROP_DIR)/interop_tcose
-INTEROP_CFLAGS    = $(CFLAGS) -std=c99 -I$(TCOSE_DIR)/inc -I$(QCBOR_DIR)/inc
+# The pinned peers still emit the RFC 9053 ES*/EdDSA IDs that RFC 9864
+# deprecates, so wire interop links a wolfCOSE with those IDs enabled.
+# INTEROP_COSE_CFLAGS is defined near BUILD_CONFIG_VALUE so its value is part
+# of the rebuild hash.
+INTEROP_LIB_DIR   = tests/interop
+INTEROP_LIB_A     = $(INTEROP_LIB_DIR)/libwolfcose_interop.a
+INTEROP_LIB_OBJ   = $(patsubst src/%.c,$(INTEROP_LIB_DIR)/%.o,$(SRC))
+INTEROP_CFLAGS    = $(CFLAGS) $(INTEROP_COSE_CFLAGS) -std=c99 -I$(TCOSE_DIR)/inc -I$(QCBOR_DIR)/inc
 
-interop-tcose:
+$(INTEROP_LIB_DIR)/wolfcose_eat_psa.o: include/wolfcose/eat_psa.h
+
+$(INTEROP_LIB_DIR)/%.o: src/%.c src/wolfcose_internal.h \
+    include/wolfcose/wolfcose.h $(BUILD_CONFIG_CHANGED) $(BUILD_CONFIG)
+	$(CC) $(CFLAGS) $(EAT_PSA_FULL_FLAGS) $(INTEROP_COSE_CFLAGS) -c $< -o $@
+
+$(INTEROP_LIB_A): $(INTEROP_LIB_OBJ)
+	rm -f $(INTEROP_LIB_A)
+	$(AR) rcs $(INTEROP_LIB_A) $(INTEROP_LIB_OBJ)
+
+interop-tcose: $(INTEROP_LIB_A)
 	$(CC) $(INTEROP_CFLAGS) $(EAT_PSA_FULL_FLAGS) -DT_COSE_USE_OPENSSL_CRYPTO -c $(INTEROP_DIR)/interop_tcose.c -o $(INTEROP_DIR)/interop_tcose.o
 	$(CC) -std=c99 -Wall -Wextra -I$(TCOSE_DIR)/inc -I$(QCBOR_DIR)/inc $(TCOSE_CRYPTO_INC) \
 	      -c $(INTEROP_DIR)/interop_key_ossl.c -o $(INTEROP_DIR)/interop_key.o
-	$(CC) $(CFLAGS) $(EAT_PSA_FULL_FLAGS) -o $(INTEROP_BIN) $(CORE_SRC) $(EAT_PSA_SRC) \
-	      $(INTEROP_DIR)/interop_tcose.o $(INTEROP_DIR)/interop_key.o \
-	      $(TCOSE_DIR)/libt_cose.a $(QCBOR_DIR)/libqcbor.a \
+	$(CC) -o $(INTEROP_BIN) $(INTEROP_DIR)/interop_tcose.o $(INTEROP_DIR)/interop_key.o \
+	      $(INTEROP_LIB_A) $(TCOSE_DIR)/libt_cose.a $(QCBOR_DIR)/libqcbor.a \
 	      $(TCOSE_CRYPTO_LIB) $(LDFLAGS) $(LDLIBS) -lm
 	./$(INTEROP_BIN)
 
@@ -1035,9 +1100,9 @@ GO_COSE_ORACLE   = $(GO_COSE_DIR)/go_cose_oracle
 GO_COSE_C_SRC    = $(GO_COSE_DIR)/interop_go_cose.c
 GO_COSE_CASES   ?= es256 es384 es512 ps256 ps384 ps512 ed25519 es256-aad es256-untagged
 
-interop-go-cose: $(LIB_A)
-	$(CC) $(CFLAGS) -std=c99 -o $(GO_COSE_BIN) \
-	      $(GO_COSE_DIR)/interop_go_cose.c $(LIB_A) $(LDFLAGS) $(LDLIBS)
+interop-go-cose: $(INTEROP_LIB_A)
+	$(CC) $(CFLAGS) $(INTEROP_COSE_CFLAGS) -std=c99 -o $(GO_COSE_BIN) \
+	      $(GO_COSE_DIR)/interop_go_cose.c $(INTEROP_LIB_A) $(LDFLAGS) $(LDLIBS)
 	$(GO) -C $(GO_COSE_DIR) build -o go_cose_oracle main.go
 	@for test_case in $(GO_COSE_CASES); do \
 	    bash -o pipefail -c '$(GO_COSE_BIN) sign "$$1" | $(GO_COSE_ORACLE) verify "$$1"' \
@@ -1062,9 +1127,9 @@ PYTHON_CWT_C_SRC         = $(PYTHON_CWT_DIR)/interop_python_cwt.c
 PYTHON_CWT_CASES        ?= encrypt-direct encrypt-ecdh-es mac-direct encrypt-a128kw
 PYTHON_CWT_TO_WOLFCOSE_CASES ?=
 
-interop-python-cwt: $(LIB_A)
-	$(CC) $(CFLAGS) -std=c99 -o $(PYTHON_CWT_BIN) \
-	      $(PYTHON_CWT_C_SRC) $(LIB_A) $(LDFLAGS) $(LDLIBS)
+interop-python-cwt: $(INTEROP_LIB_A)
+	$(CC) $(CFLAGS) $(INTEROP_COSE_CFLAGS) -std=c99 -o $(PYTHON_CWT_BIN) \
+	      $(PYTHON_CWT_C_SRC) $(INTEROP_LIB_A) $(LDFLAGS) $(LDLIBS)
 	@for test_case in $(PYTHON_CWT_CASES); do \
 	    bash -o pipefail -c '$(PYTHON_CWT_BIN) sign "$$1" | $(PYTHON_CWT_ORACLE) verify "$$1"' \
 	        bash "$$test_case" || exit $$?; \
@@ -1089,9 +1154,9 @@ RUST_COSET_C_BIN        = $(RUST_COSET_DIR)/interop_rust_coset
 RUST_COSET_C_SRC        = $(RUST_COSET_DIR)/interop_rust_coset.c
 RUST_COSET_CASES       ?= es256 ed25519 es256-aad es256-untagged es256-detached
 
-interop-rust-coset: $(LIB_A)
-	$(CC) $(CFLAGS) -std=c99 -o $(RUST_COSET_C_BIN) \
-	      $(RUST_COSET_C_SRC) $(LIB_A) $(LDFLAGS) $(LDLIBS)
+interop-rust-coset: $(INTEROP_LIB_A)
+	$(CC) $(CFLAGS) $(INTEROP_COSE_CFLAGS) -std=c99 -o $(RUST_COSET_C_BIN) \
+	      $(RUST_COSET_C_SRC) $(INTEROP_LIB_A) $(LDFLAGS) $(LDLIBS)
 	$(CARGO) build --manifest-path $(RUST_COSET_DIR)/Cargo.toml --locked
 	@for test_case in $(RUST_COSET_CASES); do \
 	    bash -o pipefail -c '$(RUST_COSET_C_BIN) sign "$$1" | $(RUST_COSET_BIN) verify "$$1"' \
@@ -1119,10 +1184,14 @@ C99_SRC   = $(SRC) $(TEST_SRC) $(TOOL_SRC) $(DEMO_SRC) \
             $(SCEN_SENSOR).c $(SCEN_BROADCAST).c $(EXTSIGN_DEMO).c \
             $(GO_COSE_C_SRC) $(PYTHON_CWT_C_SRC) $(RUST_COSET_C_SRC)
 # Default features plus the opt-in paths (WOLFCOSE_FLOAT, delegated signing,
-# and delegated signing without EdDSA), so the gate judges every
+# delegated signing without EdDSA, and the deprecated RFC 9053 alg IDs alone
+# and combined with delegated signing), so the gate judges every
 # conditionally-compiled translation unit, not just the default subset.
 C99_CONFIGS = "" "-DWOLFCOSE_FLOAT" "-DWOLFCOSE_ENABLE_EXT_SIGN" \
-    "-DWOLFCOSE_ENABLE_EXT_SIGN -DWOLFCOSE_NO_EDDSA -DWOLFCOSE_NO_ED448"
+    "-DWOLFCOSE_ENABLE_EXT_SIGN -DWOLFCOSE_NO_EDDSA -DWOLFCOSE_NO_ED448" \
+    "-DWOLFCOSE_ENABLE_DEPRECATED_ALGS" \
+    "-DWOLFCOSE_ENABLE_DEPRECATED_ALGS -DWOLFCOSE_ENABLE_EXT_SIGN" \
+    "-DWOLFCOSE_ENABLE_DEPRECATED_ALGS -DWOLFCOSE_NO_EDDSA"
 HPKE_C99_CONFIG = -DWOLFCOSE_EXPERIMENTAL -DWOLFCOSE_BUILD_TOOL \
     -DWOLFCOSE_ENABLE_HPKE_0_ENCRYPT \
     -DWOLFCOSE_ENABLE_HPKE_0_DECRYPT \
@@ -1270,6 +1339,7 @@ clean:
 	    $(COMP_SIGN) $(COMP_ENCRYPT) $(COMP_MAC) $(COMP_ERRORS) \
 	    $(SCEN_FIRMWARE) $(SCEN_MULTIPARTY) $(SCEN_IOTFLEET) $(SCEN_SENSOR) $(SCEN_BROADCAST) \
 	    $(INTEROP_DIR)/*.o $(INTEROP_DIR)/*.su $(INTEROP_BIN) \
+	    $(INTEROP_LIB_OBJ) $(INTEROP_LIB_DIR)/*.su $(INTEROP_LIB_A) \
 	    $(GO_COSE_BIN) $(GO_COSE_ORACLE) \
 	    $(PYTHON_CWT_BIN) \
 	    $(RUST_COSET_C_BIN) $(RUST_COSET_BIN) \

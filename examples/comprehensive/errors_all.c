@@ -110,7 +110,7 @@ static int test_sign1_tamper(int tamperPos)
     }
     if (ret == 0) {
         /* Create valid signature */
-        ret = wc_CoseSign1_Sign(&cosKey, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&cosKey, WOLFCOSE_ALG_ESP256,
             NULL, 0,
             payload, sizeof(payload) - 1u,
             NULL, 0, NULL, 0,
@@ -320,7 +320,7 @@ static int test_sign1_truncated(void)
     }
     if (ret == 0) {
         /* Create valid message */
-        ret = wc_CoseSign1_Sign(&cosKey, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&cosKey, WOLFCOSE_ALG_ESP256,
             NULL, 0,
             payload, sizeof(payload) - 1u,
             NULL, 0, NULL, 0,
@@ -487,7 +487,7 @@ static int test_sign1_aad_mismatch(void)
     }
     if (ret == 0) {
         /* Sign with AAD */
-        ret = wc_CoseSign1_Sign(&cosKey, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&cosKey, WOLFCOSE_ALG_ESP256,
             NULL, 0,
             payload, sizeof(payload) - 1u,
             NULL, 0,
@@ -661,7 +661,7 @@ static int test_sign1_detached_missing(void)
     }
     if (ret == 0) {
         /* Sign with detached payload */
-        ret = wc_CoseSign1_Sign(&cosKey, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&cosKey, WOLFCOSE_ALG_ESP256,
             NULL, 0,
             NULL, 0,  /* no inline payload */
             payload, sizeof(payload) - 1u,  /* detached */
@@ -717,7 +717,7 @@ static int test_sign1_with_symmetric_key(void)
         ret = wc_CoseKey_SetSymmetric(&cosKey, keyData, sizeof(keyData));
     }
     if (ret == 0) {
-        ret = wc_CoseSign1_Sign(&cosKey, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&cosKey, WOLFCOSE_ALG_ESP256,
             NULL, 0,
             payload, sizeof(payload) - 1u,
             NULL, 0, NULL, 0,
@@ -830,7 +830,7 @@ static int test_sign1_empty_payload(void)
     }
     if (ret == 0) {
         /* Sign empty payload (edge case, should work) */
-        ret = wc_CoseSign1_Sign(&cosKey, WOLFCOSE_ALG_ES256,
+        ret = wc_CoseSign1_Sign(&cosKey, WOLFCOSE_ALG_ESP256,
             NULL, 0,
             (const uint8_t*)"", 0,  /* empty payload */
             NULL, 0, NULL, 0,

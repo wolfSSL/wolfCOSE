@@ -621,7 +621,7 @@ Create a COSE_Sign1 message (single signer).
 | Name | Description |
 |------|-------------|
 | `key` | Signing key with private material, or an external signing callback when enabled |
-| `alg` | Algorithm: `WOLFCOSE_ALG_ES256`, `WOLFCOSE_ALG_ES384`, `WOLFCOSE_ALG_ES512`, `WOLFCOSE_ALG_EDDSA`, etc. |
+| `alg` | Algorithm: `WOLFCOSE_ALG_ESP256`, `WOLFCOSE_ALG_ESP384`, `WOLFCOSE_ALG_ESP512`, `WOLFCOSE_ALG_ED25519`, `WOLFCOSE_ALG_ED448`, etc. The RFC 9053 `WOLFCOSE_ALG_ES256`/`ES384`/`ES512`/`EDDSA` IDs need `WOLFCOSE_ENABLE_DEPRECATED_ALGS`. |
 | `kid`, `kidLen` | Optional key identifier |
 | `payload`, `payloadLen` | Payload to include in message (or NULL for detached) |
 | `detachedPayload`, `detachedPayloadLen` | Payload to sign but not include |
@@ -684,7 +684,9 @@ signer callback. The data itself is not required because only `kidLen`,
 `payloadLen`, and `detachedLen` affect the framing.
 
 `key` may be `NULL` when the algorithm fixes the signature length. It is
-required for RSA-PSS and for EdDSA when both Ed25519 and Ed448 are enabled.
+required for RSA-PSS, for HSS-LMS, and for the deprecated `WOLFCOSE_ALG_EDDSA`
+when both Ed25519 and Ed448 are enabled. `WOLFCOSE_ALG_ED25519` and
+`WOLFCOSE_ALG_ED448` each pin a length, so they never need a key.
 
 **Returns:** `WOLFCOSE_SUCCESS` or error code
 

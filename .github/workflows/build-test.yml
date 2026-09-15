@@ -161,6 +161,15 @@ jobs:
         make ext-sign-test CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -I./include -isystem $WOLFSSL_DIR/include" \
                            LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
 
+    - name: Run deprecated RFC 9053 alg IDs test
+      run: |
+        export WOLFSSL_DIR=$HOME/wolfssl-install
+        export LD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        export DYLD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        make deprecated-algs-test CFLAGS="-std=c99 -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -I./include -isystem $WOLFSSL_DIR/include" \
+                                  LDFLAGS="-L$WOLFSSL_DIR/lib -lwolfssl"
+
+
     - name: Run delegated signing forced-failure test
       run: |
         export WOLFSSL_DIR=$HOME/wolfssl-install

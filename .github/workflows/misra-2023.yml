@@ -112,6 +112,7 @@ jobs:
             -DWOLFCOSE_ENABLE_EAT_PSA_LEGACY \
             -DWOLFCOSE_ENABLE_EAT_PSA_UEID_RESOLVER \
             -DWOLFCOSE_ENABLE_EAT_PSA_COMPONENT_ITERATOR \
+            -DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
             -I./include -isystem $WOLFSSL_DIR/include"
         for f in src/*.c; do
           gcc $MISRA_FLAGS -c "$f" -o /dev/null 2>&1 | tee -a compiler-warnings.txt || true
@@ -231,6 +232,7 @@ jobs:
             -DWOLFCOSE_SIGN1 -DWOLFCOSE_SIGN1_SIGN -DWOLFCOSE_SIGN1_VERIFY \
             -DWOLFCOSE_ENCRYPT0 -DWOLFCOSE_ENCRYPT0_ENCRYPT -DWOLFCOSE_ENCRYPT0_DECRYPT \
             -DWOLFCOSE_MAC0 -DWOLFCOSE_MAC0_CREATE -DWOLFCOSE_MAC0_VERIFY \
+            -DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
             -DWOLFCOSE_ENABLE_EAT_PSA -DWOLFCOSE_ENABLE_EAT_PSA_CURRENT \
             -DWOLFCOSE_ENABLE_EAT_PSA_SIGN1 -DWOLFCOSE_ENABLE_EAT_PSA_MAC0 \
             -DWOLFCOSE_ENABLE_EAT_PSA_ISSUE -DWOLFCOSE_ENABLE_EAT_PSA_LEGACY \
@@ -247,6 +249,7 @@ jobs:
             -DWOLFCOSE_KEY_ENCODE -DWOLFCOSE_KEY_DECODE \
             -DWOLFCOSE_FLOAT \
             -DWOLFCOSE_ENABLE_EXT_SIGN \
+            -DWOLFCOSE_ENABLE_DEPRECATED_ALGS \
             > clang-tidy-report.txt 2>&1 || true
 
     - name: clang-tidy summary

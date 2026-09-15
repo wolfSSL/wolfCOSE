@@ -268,23 +268,12 @@ int wc_CoseSign_Sign(const WOLFCOSE_SIGNATURE* signers, size_t signerCount,
         }
 #endif
 #ifdef WOLFCOSE_HAVE_ECDSA
-        else if ((signers[i].algId == WOLFCOSE_ALG_ES256) ||
-                 (signers[i].algId == WOLFCOSE_ALG_ES384) ||
-                 (signers[i].algId == WOLFCOSE_ALG_ES512)) {
-            int32_t expectedCrv;
-            if (signers[i].algId == WOLFCOSE_ALG_ES256) {
-                expectedCrv = WOLFCOSE_CRV_P256;
-            }
-            else if (signers[i].algId == WOLFCOSE_ALG_ES384) {
-                expectedCrv = WOLFCOSE_CRV_P384;
-            }
-            else {
-                expectedCrv = WOLFCOSE_CRV_P521;
-            }
+        else if (wolfCose_AlgIsEcdsa(signers[i].algId) != 0) {
             if (signerKey->kty != WOLFCOSE_KTY_EC2) {
                 ret = WOLFCOSE_E_COSE_KEY_TYPE;
             }
-            else if (signerKey->crv != expectedCrv) {
+            else if (wolfCose_AlgCheckCrv(signers[i].algId,
+                        signerKey->crv) != WOLFCOSE_SUCCESS) {
                 ret = WOLFCOSE_E_COSE_BAD_ALG;
             }
             else if (wolfCose_EccKeyCheckCurve(signerKey->crv,
@@ -297,9 +286,13 @@ int wc_CoseSign_Sign(const WOLFCOSE_SIGNATURE* signers, size_t signerCount,
         }
 #endif
 #if defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)
-        else if ((signers[i].algId == WOLFCOSE_ALG_EDDSA) &&
-                 (signerKey->kty != WOLFCOSE_KTY_OKP)) {
-            ret = WOLFCOSE_E_COSE_KEY_TYPE;
+        else if (wolfCose_AlgIsEddsa(signers[i].algId) != 0) {
+            if (signerKey->kty != WOLFCOSE_KTY_OKP) {
+                ret = WOLFCOSE_E_COSE_KEY_TYPE;
+            }
+            else {
+                ret = wolfCose_AlgCheckCrv(signers[i].algId, signerKey->crv);
+            }
         }
 #endif
 #ifdef WOLFCOSE_HAVE_RSAPSS
@@ -534,7 +527,7 @@ int wc_CoseSign_Sign(const WOLFCOSE_SIGNATURE* signers, size_t signerCount,
 #if defined(WOLFCOSE_EXT_SIGN)
             (signerKey->signCb == NULL) &&
 #endif
-            (signer->algId != WOLFCOSE_ALG_EDDSA) &&
+            (wolfCose_AlgIsEddsa(signer->algId) == 0) &&
             (signer->algId != WOLFCOSE_ALG_ML_DSA_44) &&
             (signer->algId != WOLFCOSE_ALG_ML_DSA_65) &&
             (signer->algId != WOLFCOSE_ALG_ML_DSA_87) &&
@@ -586,9 +579,7 @@ int wc_CoseSign_Sign(const WOLFCOSE_SIGNATURE* signers, size_t signerCount,
 #endif
 #ifdef WOLFCOSE_HAVE_ECDSA
         if ((ret == WOLFCOSE_SUCCESS) &&
-            ((signer->algId == WOLFCOSE_ALG_ES256) ||
-             (signer->algId == WOLFCOSE_ALG_ES384) ||
-             (signer->algId == WOLFCOSE_ALG_ES512))) {
+            (wolfCose_AlgIsEcdsa(signer->algId) != 0)) {
             size_t coordSz = 0;
             ret = wolfCose_CrvKeySize(signerKey->crv, &coordSz);
             if (ret == WOLFCOSE_SUCCESS) {
@@ -603,7 +594,7 @@ int wc_CoseSign_Sign(const WOLFCOSE_SIGNATURE* signers, size_t signerCount,
 #endif
 #if defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)
         if ((ret == WOLFCOSE_SUCCESS) &&
-            (signer->algId == WOLFCOSE_ALG_EDDSA)) {
+            (wolfCose_AlgIsEddsa(signer->algId) != 0)) {
             word32 edSigSz = (word32)sizeof(sigBuf);
 #ifdef WOLFCOSE_HAVE_EDDSA
             if (signerKey->crv == WOLFCOSE_CRV_ED25519) {
@@ -1059,7 +1050,7 @@ int wc_CoseSign_Verify(const WOLFCOSE_KEY* verifyKey,
      * HSS-LMS verify against the raw Sig_structure so the hash type
      * lookup is skipped (also avoids WOLFCOSE_E_COSE_BAD_ALG since
      * these algorithms have no external hash). */
-    if ((ret == WOLFCOSE_SUCCESS) && (alg != WOLFCOSE_ALG_EDDSA) &&
+    if ((ret == WOLFCOSE_SUCCESS) && (wolfCose_AlgIsEddsa(alg) == 0) &&
         (alg != WOLFCOSE_ALG_ML_DSA_44) &&
         (alg != WOLFCOSE_ALG_ML_DSA_65) &&
         (alg != WOLFCOSE_ALG_ML_DSA_87) &&
@@ -1069,7 +1060,7 @@ int wc_CoseSign_Verify(const WOLFCOSE_KEY* verifyKey,
 
     /* Hash the Sig_structure for algorithms that pre-hash. EdDSA,
      * ML-DSA and HSS-LMS verify the structure directly. */
-    if ((ret == WOLFCOSE_SUCCESS) && (alg != WOLFCOSE_ALG_EDDSA) &&
+    if ((ret == WOLFCOSE_SUCCESS) && (wolfCose_AlgIsEddsa(alg) == 0) &&
         (alg != WOLFCOSE_ALG_ML_DSA_44) &&
         (alg != WOLFCOSE_ALG_ML_DSA_65) &&
         (alg != WOLFCOSE_ALG_ML_DSA_87) &&
@@ -1091,28 +1082,16 @@ int wc_CoseSign_Verify(const WOLFCOSE_KEY* verifyKey,
     /* Verify signature. Dispatch by alg (consistent with Sign1_Verify) and
      * cross-validate the verify-key type against the algorithm. */
 #ifdef WOLFCOSE_HAVE_ECDSA
-    if ((ret == WOLFCOSE_SUCCESS) &&
-        ((alg == WOLFCOSE_ALG_ES256) || (alg == WOLFCOSE_ALG_ES384) ||
-         (alg == WOLFCOSE_ALG_ES512))) {
+    if ((ret == WOLFCOSE_SUCCESS) && (wolfCose_AlgIsEcdsa(alg) != 0)) {
         ecc_key* eccKey = NULL;
         int verified = 0;
         size_t coordSz = 0;
-        int32_t expectedCrv;
         if ((verifyKey->kty != WOLFCOSE_KTY_EC2) ||
             (verifyKey->attachedType != WOLFCOSE_ATT_ECC)) {
             ret = WOLFCOSE_E_COSE_KEY_TYPE;
         }
-        if (alg == WOLFCOSE_ALG_ES256) {
-            expectedCrv = WOLFCOSE_CRV_P256;
-        }
-        else if (alg == WOLFCOSE_ALG_ES384) {
-            expectedCrv = WOLFCOSE_CRV_P384;
-        }
-        else {
-            expectedCrv = WOLFCOSE_CRV_P521;
-        }
-        if ((ret == WOLFCOSE_SUCCESS) && (verifyKey->crv != expectedCrv)) {
-            ret = WOLFCOSE_E_COSE_BAD_ALG;
+        if (ret == WOLFCOSE_SUCCESS) {
+            ret = wolfCose_AlgCheckCrv(alg, verifyKey->crv);
         }
         if (ret == WOLFCOSE_SUCCESS) {
             eccKey = verifyKey->key.ecc;
@@ -1134,10 +1113,13 @@ int wc_CoseSign_Verify(const WOLFCOSE_KEY* verifyKey,
     else
 #endif
 #if defined(WOLFCOSE_HAVE_EDDSA) || defined(WOLFCOSE_HAVE_ED448)
-    if ((ret == WOLFCOSE_SUCCESS) && (alg == WOLFCOSE_ALG_EDDSA)) {
+    if ((ret == WOLFCOSE_SUCCESS) && (wolfCose_AlgIsEddsa(alg) != 0)) {
         int verified = 0;
         if (verifyKey->kty != WOLFCOSE_KTY_OKP) {
             ret = WOLFCOSE_E_COSE_KEY_TYPE;
+        }
+        if (ret == WOLFCOSE_SUCCESS) {
+            ret = wolfCose_AlgCheckCrv(alg, verifyKey->crv);
         }
 #ifdef WOLFCOSE_HAVE_EDDSA
         if ((ret == WOLFCOSE_SUCCESS) &&

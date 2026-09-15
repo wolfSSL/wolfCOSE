@@ -39,19 +39,19 @@
 /* P-256 public key (X and Y, 32 bytes each). The matching private key lives
  * off-device and is never present in a lean verify build. */
 static const uint8_t PUB_X[32] = {
-    0x2c,0x3c,0x9f,0xd7,0xfc,0x15,0x48,0x7b,0x37,0x18,0x0e,0x37,0x95,0x56,0xb4,0xfd,
-    0xbb,0x11,0x3c,0x78,0xe0,0xa5,0x3a,0x0b,0x25,0x71,0xf5,0xff,0xb0,0xdf,0x93,0x28};
+    7,46,52,83,101,83,150,186,25,53,18,206,127,177,205,220,45,101,26,221,16,156,
+    28,95,25,176,216,47,196,158,197,239};
 static const uint8_t PUB_Y[32] = {
-    0x10,0xc3,0x85,0xc2,0xb6,0x8f,0x79,0xd7,0xe9,0x5e,0x43,0x62,0xf5,0xf4,0x06,0x21,
-    0xdc,0x2c,0xf6,0x55,0x87,0xeb,0x94,0x61,0x13,0xe5,0xe2,0x8c,0xeb,0x2e,0xd2,0xce};
+    136,120,156,232,172,90,142,203,146,225,21,226,197,205,215,56,46,213,218,74,224,185,
+    96,77,100,142,235,118,138,87,130,46};
 
-/* A COSE_Sign1 (ES256) over the payload below, signed off-device. */
+/* A COSE_Sign1 (ESP256) over the payload below, signed off-device. */
 static const uint8_t COSE_SIGN1[] = {
-    210,132,67,161,1,38,160,88,31,119,111,108,102,67,79,83,69,32,115,105,122,101,
-    32,98,101,110,99,104,109,97,114,107,32,112,97,121,108,111,97,100,88,64,59,0,
-    231,221,224,83,68,247,200,191,96,153,241,21,82,224,140,57,84,22,93,156,13,27,
-    158,52,92,1,3,133,149,6,107,5,177,236,51,215,88,17,151,62,250,187,32,253,203,
-    136,234,87,178,237,194,236,125,41,120,249,26,131,6,201,71,139};
+    210,132,67,161,1,40,160,88,31,119,111,108,102,67,79,83,69,32,115,105,122,101,
+    32,98,101,110,99,104,109,97,114,107,32,112,97,121,108,111,97,100,88,64,201,105,
+    152,70,230,206,246,14,94,132,181,86,158,232,224,236,190,163,136,180,211,146,73,94,
+    129,79,132,234,145,88,96,128,225,174,150,178,60,0,15,105,119,226,69,59,241,46,
+    27,78,198,17,132,23,66,110,230,137,133,202,168,126,125,81,163,203};
 
 static const char EXPECTED_PAYLOAD[] = "wolfCOSE size benchmark payload";
 
@@ -93,7 +93,7 @@ int main(void)
         if ((payloadLen == (sizeof(EXPECTED_PAYLOAD) - 1)) &&
             (payload != NULL) &&
             (memcmp(payload, EXPECTED_PAYLOAD, payloadLen) == 0)) {
-            (void)printf("lean verify-only: COSE_Sign1 ES256 verified, "
+            (void)printf("lean verify-only: COSE_Sign1 ESP256 verified, "
                          "payload = \"%.*s\"\n", (int)payloadLen, payload);
             rc = 0;
         }
