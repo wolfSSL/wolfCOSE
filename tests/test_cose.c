@@ -20326,6 +20326,33 @@ static void test_cose_protected_hdr_content_type(void)
                 "DecodeUnprotectedHdr rejects negative content-type");
 }
 
+static void test_cose_hdr_label_tracking(void)
+{
+    static const int64_t labels[] = {
+        1, 16, -1, -16, 17, -17, INT64_MIN, INT64_MAX
+    };
+    WOLFCOSE_HDR_STATE state;
+    size_t i;
+    int ret;
+
+    TEST_LOG("  [Header: tracked label boundaries]\n");
+    wolfCose_HdrStateInit(&state);
+    for (i = 0u; i < sizeof(labels) / sizeof(labels[0]); i++) {
+        ret = wolfCose_HdrStateCheckAndAdd(&state, labels[i]);
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS,
+                    "add tracked or extra integer label");
+        TEST_ASSERT(wolfCose_HdrStateContains(&state, labels[i]) != 0,
+                    "find tracked or extra integer label");
+        TEST_ASSERT(wolfCose_HdrStateCheckAndAdd(&state, labels[i]) ==
+                    WOLFCOSE_E_CBOR_MALFORMED,
+                    "reject duplicate tracked or extra integer label");
+    }
+    TEST_ASSERT(state.labelBits == 0x80018001u,
+                "first and last positive and negative tracking bits");
+    TEST_ASSERT(state.extraIntegerCount == 4u,
+                "out-of-range labels use the extra-label array");
+}
+
 static void test_cose_protected_hdr_tstr_label(void)
 {
     int ret;
@@ -20347,6 +20374,13 @@ static void test_cose_protected_hdr_tstr_label(void)
     uint8_t nonPreferred[] = {
         0xA2u, 0x01u, 0x26u, 0x78u, 0x01u, 'x', 0x00u
     };
+    uint8_t invalidAi[] = {0x7Fu, 0x00u};
+    uint8_t oversizedLen[] = {
+        0x7Bu, 0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu,
+        0xFFu, 0xFFu, 0xFFu, 0x00u
+    };
+    WOLFCOSE_HDR_STATE invalidState;
+    WOLFCOSE_CBOR_LABEL invalidLabel;
 #endif
 
     TEST_LOG("  [Protected Header: tstr-labeled entry]\n");
@@ -20403,6 +20437,28 @@ static void test_cose_protected_hdr_tstr_label(void)
         TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED,
                     "reject duplicate tstr label at CBOR length boundary");
     }
+
+    invalidLabel.val = 0;
+    invalidLabel.text = &invalidAi[1];
+    invalidLabel.textLen = SIZE_MAX;
+    invalidLabel.isText = 1u;
+    wolfCose_HdrStateInit(&invalidState);
+    ret = wolfCose_HdrStateAddLabel(&invalidState, &invalidLabel, invalidAi);
+    TEST_ASSERT(ret == WOLFCOSE_SUCCESS,
+                "store invalid encoded text label for comparison test");
+    TEST_ASSERT(wolfCose_HdrStateContainsLabel(&invalidState,
+                &invalidLabel) == 0,
+                "invalid text-label additional info cannot match");
+
+    invalidLabel.text = &oversizedLen[9];
+    wolfCose_HdrStateInit(&invalidState);
+    ret = wolfCose_HdrStateAddLabel(&invalidState, &invalidLabel,
+                                    oversizedLen);
+    TEST_ASSERT(ret == WOLFCOSE_SUCCESS,
+                "store oversized encoded text label for comparison test");
+    TEST_ASSERT(wolfCose_HdrStateContainsLabel(&invalidState,
+                &invalidLabel) == 0,
+                "unrepresentable text-label length cannot match");
 #else
     TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED,
                 "DecodeProtectedHdr rejects disabled tstr labels");
@@ -29161,6 +29217,7 @@ int test_cose(void)
     test_cose_encrypt_multi_per_recipient();
 #endif
     test_cose_protected_hdr_content_type();
+    test_cose_hdr_label_tracking();
     test_cose_protected_hdr_tstr_label();
     test_cose_protected_hdr_dup_label();
     test_cose_protected_hdr_dup_large_label();

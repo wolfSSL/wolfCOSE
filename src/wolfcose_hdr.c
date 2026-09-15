@@ -61,25 +61,21 @@ int wolfCose_InInt32Range(int64_t val)
  * the small known range fall back to the slower extra-label array. */
 static uint32_t wolfCose_LabelBit(int64_t label)
 {
-    uint32_t bit;
-    uint32_t shift = 32u;
+    uint32_t bit = 0u;
+    uint32_t shift;
 
     if ((label >= 1) && (label <= 16)) {
         shift = (uint32_t)label;
-        shift--;
+        bit = ((uint32_t)1u) << (shift - 1u);
     }
     else if ((label <= -1) && (label >= -16)) {
-        shift = (uint32_t)(-label);
-        shift += 15u;
+        int64_t magnitude = -label;
+
+        shift = (uint32_t)magnitude;
+        bit = ((uint32_t)1u) << (shift + 15u);
     }
     else {
         /* No tracked bit. */
-    }
-    if (shift < 32u) {
-        bit = ((uint32_t)1u) << shift;
-    }
-    else {
-        bit = 0u;
     }
     return bit;
 }
@@ -166,10 +162,11 @@ static int wolfCose_TextLabelEquals(const uint8_t* encoded,
     const WOLFCOSE_CBOR_LABEL* label)
 {
     uint8_t ai;
-    uint64_t textLen = UINT64_MAX;
+    uint64_t textLen = 0u;
     size_t headLen = 0u;
     size_t i;
     int equal = 0;
+    int valid = 1;
 
     ai = (uint8_t)(encoded[0] & 0x1Fu);
     if (ai < 24u) {
@@ -198,13 +195,18 @@ static int wolfCose_TextLabelEquals(const uint8_t* encoded,
         }
     }
     else {
-        /* The stored label was already decoded. */
+        /* additional-info above 27 has no representable text length. */
+        valid = 0;
+    }
+
+    if ((valid != 0) && (textLen > (uint64_t)(SIZE_MAX - headLen))) {
+        valid = 0;
     }
 
     /* The core library takes no variable-time compares even on public map
      * labels (.github/semgrep-rules.yml); wc_CBOR_LabelIsText scans the whole
      * label. */
-    if ((textLen == (uint64_t)label->textLen) &&
+    if ((valid != 0) && (textLen == (uint64_t)label->textLen) &&
         (wc_CBOR_LabelIsText(label, &encoded[headLen],
                              label->textLen) != 0)) {
         equal = 1;
