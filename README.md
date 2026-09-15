@@ -1,41 +1,59 @@
 # wolfCOSE
 
-wolfCOSE is a lightweight C library implementing [CBOR (RFC 8949)](https://www.rfc-editor.org/rfc/rfc8949), [COSE (RFC 9052/9053)](https://www.rfc-editor.org/rfc/rfc9052), [COSE countersignatures (RFC 9338)](https://www.rfc-editor.org/rfc/rfc9338), post-quantum [ML-DSA for COSE (RFC 9964)](https://www.rfc-editor.org/rfc/rfc9964), [HSS/LMS for COSE (RFC 8778)](https://www.rfc-editor.org/rfc/rfc8778), and the [PSA Attestation Token profile of EAT (RFC 9783)](https://www.rfc-editor.org/rfc/rfc9783) using [wolfSSL](https://www.wolfssl.com/) as the crypto backend.
+wolfCOSE is a lightweight and fast C library implementing core CBOR and COSE standards, backed by [wolfSSL](https://github.com/wolfSSL/wolfssl) for cryptography.
+
+## Supported Standards & RFCs
+
+* **Core Specifications:**
+  * [RFC 8949](https://www.rfc-editor.org/rfc/rfc8949) - Concise Binary Object Representation (CBOR)
+  * [RFC 9052](https://www.rfc-editor.org/rfc/rfc9052) - CBOR Object Signing and Encryption (COSE)
+  * [RFC 9053](https://www.rfc-editor.org/rfc/rfc9053) - COSE algorithms
+  * [RFC 9338](https://www.rfc-editor.org/rfc/rfc9338) - COSE Countersignatures
+* **Post-Quantum Cryptography:**
+  * [RFC 9964](https://www.rfc-editor.org/rfc/rfc9964) - ML-DSA for COSE
+  * [RFC 8778](https://www.rfc-editor.org/rfc/rfc8778) - HSS/LMS for COSE
+* **Attestation:**
+  * [RFC 9783](https://www.rfc-editor.org/rfc/rfc9783) - PSA Attestation Token Profile of EAT
 
 ## Main Features
 
-- **Complete RFC 9052 message set**: all six COSE message types, including multi-signer 
-  `COSE_Sign` and multi-recipient `COSE_Encrypt` / `COSE_Mac`
-- **[RFC 9338 countersignature support](https://www.rfc-editor.org/rfc/rfc9338)**:
-  standards-conformant full and abbreviated V2 countersignatures for all six
-  tagged COSE message types, with multiple countersigners and in-place
-  operation
-- **Post-quantum signing**: ML-DSA (FIPS 204) at all three security levels, with RFC 9964 `COSE_Key` (AKP key type, seed-based private keys)
-- **Stateful hash-based signing**: HSS/LMS (RFC 8778, NIST SP 800-208) with `COSE_Key` type 5 — the CNSA 2.0 algorithm for firmware and software signing, verify-only friendly for constrained devices
-- **41 algorithms** across signing, encryption, MAC, and key distribution
-- **PSA attestation**: optional EAT / PSA Token consumption and current-profile
-  issuance, with Sign1, Mac0, legacy-token compatibility, and delegated PSA/HSM
-  signing
-- **Zero dynamic allocation**: heap-allocation-free and non-recursive. Every operation runs on caller-provided buffers 
-   within a bounded, target-customizable stack ceiling (nothing on the heap, zero `.data`/`.bss`)
-- **Tiny footprint**: ES256 `COSE_Sign1` wolfCOSE (COSE + CBOR engine) **~5.1 KB** verify-only and **~6.8 KB** sign + verify.
-   Total flash including wolfCrypt is **~26.2 KB** verify-only (`WOLFCOSE_LEAN_VERIFY`) and **~34.6 KB** sign + verify
-- **Fast**: (ES256 `COSE_Sign1`, x86_64, wolfCrypt `sp_256` asm): **66,538** sign/s, **26,437** verify/s
-- **Post-quantum at the same cost**: ML-DSA-44 `COSE_Sign1` total flash including wolfCrypt is **~20.8 KB** verify-only
-  (`WOLFCOSE_LEAN_VERIFY_MLDSA`) and **~35.8 KB** sign + verify, within about 1 KB of classical ES256. The wolfCOSE portion
-  alone is **4.6 KB** and **~6.6 KB** respectively. See [Footprint](https://github.com/wolfSSL/wolfCOSE/wiki/Footprint)
-- **Path to FIPS 140-3**: via wolfCrypt **FIPS Certificate #4718** (sole crypto dependency)
-- **STM32Cube ready**: available as a drop-in STM32Cube pack (`I-CUBE-wolfCOSE`) for STM32CubeMX and STM32CubeIDE, so STM32 devices get COSE and CBOR out of the box (see [STM32Cube](https://github.com/wolfSSL/wolfCOSE/wiki/STM32Cube))
+* **Complete COSE Suite (RFC 9052):** Full support for all six message types, including `COSE_Sign1`, `COSE_Encrypt0`, and `COSE_Mac0`.
+* **V2 Countersignatures (RFC 9338):** Full and abbreviated in-place countersignatures across all six tagged COSE message types.
+* **Post-Quantum Cryptography:**
+  * ML-DSA (FIPS 204 / RFC 9964) at all security levels.
+  * HSS/LMS stateful hash-based signing (RFC 8778 / CNSA 2.0).
+* **PSA Attestation:** EAT / PSA Token issuance and verification with delegated HSM signing support.
+* **41 Cryptographic Algorithms:** Broad algorithm coverage across signing, encryption, MAC, and key distribution.
+* **Embedded-First Design:** Zero dynamic memory allocation (no heap, zero `.data`/`.bss`). Operates on caller-supplied buffers with bounded stack usage.
+* **FIPS 140-3 Path:** Uses wolfCrypt (FIPS Certificate #4718) as its sole cryptographic dependency.
+* **STM32 Integrated:** Drop-in STM32Cube pack (`I-CUBE-wolfCOSE`) available for STM32CubeMX / IDE ([Details](https://github.com/wolfSSL/wolfCOSE/wiki/STM32Cube)).
 
 ## Supported Algorithms
 
-**Signing:** `ES256, ES384, ES512, EdDSA (Ed25519/Ed448), PS256/384/512, ML-DSA-44/65/87, HSS-LMS`
+* **Digital Signatures:**
+  * **Classical:** `ES256`, `ES384`, `ES512`, `EdDSA` (`Ed25519` / `Ed448`), `PS256`, `PS384`, `PS512`
+  * **Post-Quantum:** `ML-DSA-44`, `ML-DSA-65`, `ML-DSA-87`
+  * **Stateful Hash-Based:** `HSS-LMS`
+* **Encryption (AEAD):**
+  * `AES-GCM` (128 / 192 / 256)
+  * `AES-CCM` (variants)
+  * `ChaCha20-Poly1305`
+* **Message Authentication (MAC):**
+  * `HMAC-SHA256`, `HMAC-SHA384`, `HMAC-SHA512`
+  * `AES-MAC`
+* **Key Distribution:**
+  * `Direct`
+  * `AES Key Wrap`
+  * `ECDH-ES + HKDF`
 
-**Encryption:** `AES-GCM (128/192/256), ChaCha20-Poly1305, AES-CCM variants`
+## Performance & Footprint
 
-**MAC:** `HMAC-SHA256/384/512, AES-MAC`
+| Metric | wolfCOSE Engine | Total Flash (with wolfCrypt) | Throughput (Intel i9, x86_64) |
+| :--- | :--- | :--- | :--- |
+| **ES256 (`COSE_Sign1`)** | **~5.1 KB** (Verify) / **~6.8 KB** (Sign+Verify) | **~26.2 KB** (Verify) / **~34.6 KB** (Sign+Verify) | COSE: **66,538** sign/s, **26,437** verify/s |
+| **ML-DSA-44 (PQC)** | **~4.6 KB** (Verify) / **~6.6 KB** (Sign+Verify) | **~20.8 KB** (Verify) / **~35.8 KB** (Sign+Verify) | wolfCrypt: **18,642** sign/s, **51,645** verify/s |
 
-**Key Distribution:** `Direct, AES Key Wrap, ECDH-ES+HKDF`
+*ES256 throughput is measured end-to-end for `COSE_Sign1` with wolfCrypt `sp_256` assembly. The published ML-DSA-44 rates are labeled wolfCrypt throughput with AVX2, but the benchmark harness is not available to confirm whether they include COSE processing. Treat their end-to-end scope as unverified, not interchangeable with the ES256 rates. ML-DSA has a similar wolfCOSE engine footprint. See [wolfCOSE vs. The Field](https://www.wolfssl.com/wolfcose-vs-the-field-the-smallest-and-fastest-cose-library-now-with-post-quantum-ml-dsa-at-the-same-cost/) and the full [Footprint Breakdown](https://github.com/wolfSSL/wolfCOSE/wiki/Footprint).*
 
 ## COSE Message Types (RFC 9052)
 
@@ -56,7 +74,7 @@ table. Use `wc_Cose_AddCounterSignature()` or
 `wc_Cose_AddCounterSignature0()` to add one, then verify it independently with
 the corresponding `wc_Cose_VerifyCounterSignature*()` API.
 
-## Prerequisites (wolfSSL)
+## Dependencies (wolfSSL)
 
 wolfCOSE requires [wolfSSL](https://www.wolfssl.com/) as its crypto backend.
 **Minimum supported version: v5.8.0-stable**. Some optional algorithms require
@@ -183,7 +201,7 @@ Runs on every push and PR:
 - **MISRA C 2012**: cppcheck `--addon=misra` checking all wolfCOSE code paths
 - **MISRA C 2023**: strict GCC warnings and clang-tidy (`bugprone-*`, `cert-*`, `clang-analyzer-*`, `misc-*`)
 - **Coverity Scan**: nightly defect analysis
-- **Advanced Internal Static Analysis:** Fenrir wolfssl advanced static analysis tools
+- **Internal Static Analysis:** Fenrir wolfssl advanced static analysis tools
 - **Code Coverage**: 100% line coverage enforced for every wolfCOSE source file
 
 ```bash
@@ -199,12 +217,6 @@ make coverage-force-failure    # Include crypto failure path testing
   <img alt="CI Status"
        src="https://img.shields.io/github/actions/workflow/status/wolfSSL/wolfCOSE/build-test.yml?label=CI&logo=github"/>
 </a>
-<a href="https://github.com/wolfssl/skoll">                                                                                                              <img alt="Skoll Review" src="https://img.shields.io/badge/skoll-passed-blue"/>                                                                     
-</a>                                                                                                                                                 
-<a href="https://github.com/wolfssl/fenrir">                                                                                                         
-  <img alt="Fenrir Review" src="https://img.shields.io/badge/fenrir-passed-blueviolet"/>
-</a>
-
 
 ## Documentation
 
@@ -224,7 +236,7 @@ Full documentation is available in the [Wiki](https://github.com/wolfSSL/wolfCOS
 
 ## Release Notes
 
-The current release is **1.0.0**, the first stable release: the complete RFC 9052 COSE message set (all six message types, single- and multi-actor), 40 algorithms, and standardized post-quantum ML-DSA (RFC 9964), all with zero dynamic allocation. See [ChangeLog.md](ChangeLog.md) for the full release notes.
+The current stable release is **1.0.0**, the first stable release: the complete RFC 9052 COSE message set (all six message types, single- and multi-actor) and standardized post-quantum ML-DSA (RFC 9964), all with zero dynamic allocation. The current source supports 41 algorithms after the later HSS/LMS addition; [ChangeLog.md](ChangeLog.md) records the release's original 40.
 
 wolfCOSE 1.0.0 has been developed according to wolfSSL's development and QA process (see https://www.wolfssl.com/about/wolfssl-software-development-process-quality-assurance) and successfully passed the quality criteria.
 
