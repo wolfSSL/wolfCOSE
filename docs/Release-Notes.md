@@ -1,5 +1,94 @@
 # Release Notes
 
+## wolfCOSE 2.0.0 (September 2026)
+
+Release 2.0.0 builds on the first stable wolfCOSE release with a delegated
+(external) signing seam, expanded COSE_Key and CBOR helper APIs, exact
+encoded-size queries, a broad parsing and key-handling hardening pass, and
+initial experimental support for several additional COSE specifications. It
+remains a zero-allocation C implementation of CBOR (RFC 8949) and COSE
+(RFC 9052/9053) on top of wolfCrypt.
+
+This is a major release because `WOLFCOSE_KEY` gained fields since 1.0.0 (see
+Compatibility below). Applications must be recompiled against the 2.0.0
+headers; no source changes are needed for code that attaches keys through the
+`wc_CoseKey_Set*()` APIs and initializes with `wc_CoseKey_Init()`.
+
+### Vulnerabilities
+
+- No CVEs were assigned for this release.
+
+### New Feature Additions
+
+- Delegated (external) signing seam: `WOLFCOSE_ENABLE_EXT_SIGN` adds a signing
+  callback (`signCb` / `signCtx` on `WOLFCOSE_KEY`) so COSE_Sign1 and COSE_Sign
+  signatures can be produced by an external signer (HSM, secure element, remote
+  KMS) instead of a local wolfCrypt key.
+  ([#59](https://github.com/wolfSSL/wolfCOSE/pull/59))
+- `wc_CoseSign1_Sign_ex()` and `wc_CoseSign1_SignSize_ex()` add an untagged
+  COSE_Sign1 output option and an exact encoded-size query.
+  ([#65](https://github.com/wolfSSL/wolfCOSE/pull/65))
+- Expanded COSE_Key API: `wc_CoseKey_Encode_ex()` with a
+  `WOLFCOSE_KEY_PUBLIC_ONLY` flag, exact `wc_CoseKey_EncodeSize()` /
+  `wc_CoseKey_EncodeSize_ex()` queries, `wc_CoseKey_EncodeEccRaw()` for raw
+  affine coordinates, and `wc_CoseKey_PeekInfo()` to read key metadata before
+  decoding. ([#66](https://github.com/wolfSSL/wolfCOSE/pull/66))
+- New CBOR helpers: `wc_CBOR_EncoderInit` / `wc_CBOR_DecoderInit`,
+  `wc_CBOR_DecodeLabel` for int-or-text map labels, and `wc_CBOR_SkipItem` to
+  capture a skipped item's raw bytes.
+  ([#66](https://github.com/wolfSSL/wolfCOSE/pull/66))
+- Experimental-feature acknowledgment gate: draft, pre-RFC features are held
+  behind `WOLFCOSE_EXPERIMENTAL` plus a per-feature `WOLFCOSE_ENABLE_<X>`;
+  selecting a draft feature without the acknowledgment is a hard compile error.
+  ([#68](https://github.com/wolfSSL/wolfCOSE/pull/68))
+
+#### Experimental additions (opt-in, off by default)
+
+New, opt-in implementations gated behind their own `WOLFCOSE_ENABLE_<X>` build
+flags while they mature; see [[Macros]].
+
+- RFC 8778 HSS/LMS signature and COSE_Key support.
+  ([#72](https://github.com/wolfSSL/wolfCOSE/pull/72))
+- RFC 9338 countersignature support.
+  ([#74](https://github.com/wolfSSL/wolfCOSE/pull/74))
+- RFC 9783 PSA/EAT support. ([#75](https://github.com/wolfSSL/wolfCOSE/pull/75))
+- COSE-HPKE support. This tracks an IETF Internet-Draft that is not yet a
+  finalized RFC, so it additionally requires the `WOLFCOSE_EXPERIMENTAL`
+  acknowledgment and its wire format and API may still change.
+  ([#70](https://github.com/wolfSSL/wolfCOSE/pull/70))
+
+### Fixes
+
+- Hardened COSE_Key decoding so an attached key is only ever imported as its
+  actual type; a decode whose key type does not match the attached key object
+  is now rejected before any import runs. Thanks to Omoikane Labs for reporting.
+  ([#64](https://github.com/wolfSSL/wolfCOSE/pull/64))
+- Broad hardening pass across COSE parsing, key handling, and cryptographic
+  operations. ([#67](https://github.com/wolfSSL/wolfCOSE/pull/67))
+
+### Improvements/Optimizations
+
+- Split the monolithic `wolfcose.c` into per-area source modules.
+  ([#73](https://github.com/wolfSSL/wolfCOSE/pull/73))
+- Build discovery now uses `pkg-config` for system-installed wolfSSL.
+  ([#69](https://github.com/wolfSSL/wolfCOSE/pull/69))
+- Expanded COSE interoperability coverage against external implementations.
+  ([#71](https://github.com/wolfSSL/wolfCOSE/pull/71))
+- STM32Cube pack support: I-CUBE-wolfCOSE pack files, an on-device test, and
+  documentation. ([#61](https://github.com/wolfSSL/wolfCOSE/pull/61))
+- Stabilized the nightly cppcheck static-analysis job on `test_cose.c`.
+  ([#62](https://github.com/wolfSSL/wolfCOSE/pull/62))
+
+### Compatibility / Migration
+
+- ABI: `WOLFCOSE_KEY` gained tail fields since 1.0.0 (the delegated-signing
+  callback and context, and internal key-type tracking), so
+  `sizeof(WOLFCOSE_KEY)` differs from 1.0.0. Recompile applications against the
+  2.0.0 headers. Code that attaches keys through `wc_CoseKey_Set*()` and
+  initializes with `wc_CoseKey_Init()` needs no source changes.
+- `LIBWOLFCOSE_VERSION_STRING` is now `"2.0.0"`
+  (`LIBWOLFCOSE_VERSION_HEX 0x02000000`).
+
 ## wolfCOSE 1.0.0 (June 25, 2026)
 
 Release 1.0.0 is the first stable release of wolfCOSE, a complete,
