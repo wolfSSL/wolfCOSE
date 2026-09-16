@@ -52,7 +52,7 @@ trap 'rm -rf "$TMP_DIR"' EXIT HUP INT TERM
 
 TAR_FILE=$OUTPUT_ABS/$PREFIX.tar.gz
 ZIP_FILE=$OUTPUT_ABS/$PREFIX.zip
-SUM_FILE=$OUTPUT_ABS/SHA256SUMS
+SUM_FILE=$OUTPUT_ABS/$PREFIX.sha256
 MANIFEST=$OUTPUT_ABS/release-manifest.json
 SUMMARY=$OUTPUT_ABS/release-test-summary.md
 
@@ -105,6 +105,7 @@ cat > "$SUMMARY" <<EOF
 - Source date epoch: \`$COMMIT_TIME\`
 - Tarball SHA-256: \`$TAR_SHA\`
 - Zip SHA-256: \`$ZIP_SHA\`
+- Checksum file: \`$(basename "$SUM_FILE")\`
 EOF
 
 mkdir "$TMP_DIR/from-tar" "$TMP_DIR/from-zip"
