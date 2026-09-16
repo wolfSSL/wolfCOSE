@@ -46,17 +46,16 @@ The lean profiles (see [[Macros]] → Build Profiles). *Glue* is the wolfCOSE en
 
 Post-quantum sign + verify lands within ~1 KB of classical ES256, and verify-only is actually *smaller* (20.8 vs 26.2 KB): wolfCOSE adds just 4.6 KB on top of wolfCrypt for ML-DSA verify, less than its ES256 glue, because ML-DSA skips the DER signature conversion ECDSA needs.
 
-## Speed (x86_64, wolfCrypt assembly)
+## Speed (Intel i9-11950H, x86_64)
 
-End-to-end `COSE_Sign1` throughput with wolfCrypt's assembly-optimized build (sp_256 AVX2).
+End-to-end `COSE_Sign1` throughput using optimized wolfCrypt assembly.
 
 | Operation | Ops/s |
 |-----------|-------|
 | ES256 verify | 26,437 |
 | ES256 sign | 66,538 |
-| ML-DSA-44 verify | 51,645 |
-| ML-DSA-44 sign | 18,642 |
-| ML-DSA-87 verify | 20,849 |
+| ML-DSA-44 verify | 53,686 |
+| ML-DSA-44 sign | 21,986 |
 
 ## On a real MCU: STM32H563 (Cortex-M33 @ 250 MHz)
 
@@ -75,7 +74,7 @@ The verify path allocates nothing, using only caller-provided buffers, so the en
 
 ## Method and versions
 
-Desktop: x86_64 Intel i9-11950H, GCC 14.2, June 2026. On-device: NUCLEO-H563ZI (STM32H563ZI, Cortex-M33 @ 250 MHz), arm-none-eabi-gcc 13.2, DWT cycle counter. Operation: ES256 `COSE_Sign1`. wolfCOSE 8c6209e, wolfSSL master 4c0c093.
+Desktop: x86_64 Intel i9-11950H, GCC 14.2. ES256 was measured in June 2026 using wolfCOSE 8c6209e and wolfSSL 4c0c093. ML-DSA-44 was measured in September 2026 using wolfCOSE 82f42a4 and wolfSSL 070d311. On-device: NUCLEO-H563ZI (STM32H563ZI, Cortex-M33 @ 250 MHz), arm-none-eabi-gcc 13.2, DWT cycle counter.
 
 ## See Also
 
