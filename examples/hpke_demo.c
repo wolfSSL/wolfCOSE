@@ -217,9 +217,10 @@ static int demo_hpke_key_encryption(void)
     }
     if (ret == 0) {
         (void)memcpy(tampered, cose, coseLen);
+        /* The final byte belongs to the second recipient's wrapped CEK. */
         tampered[coseLen - 1u] ^= 0x01u;
         plaintextLen = sizeof(plaintext);
-        if ((wc_CoseEncrypt_Decrypt(&recipients[0], 0u, tampered, coseLen,
+        if ((wc_CoseEncrypt_Decrypt(&recipients[1], 1u, tampered, coseLen,
                  NULL, 0u, aad, sizeof(aad) - 1u, scratch, sizeof(scratch),
                  &hdr, plaintext, sizeof(plaintext), &plaintextLen) == 0) ||
             (plaintextLen != 0u)) {
