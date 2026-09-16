@@ -1,53 +1,52 @@
 # wolfCOSE
 
-wolfCOSE is a lightweight C library built on [wolfSSL](https://www.wolfssl.com/) as the crypto backend, implementing:
+wolfCOSE is a lightweight and fast C library implementing core CBOR and COSE standards, backed by [wolfSSL](https://github.com/wolfSSL/wolfssl) for cryptography.
 
-- [CBOR (RFC 8949)](https://www.rfc-editor.org/rfc/rfc8949)
-- [COSE (RFC 9052/9053)](https://www.rfc-editor.org/rfc/rfc9052)
-- [Fully-specified signature algorithms (RFC 9864)](https://www.rfc-editor.org/rfc/rfc9864)
-- [COSE countersignatures (RFC 9338)](https://www.rfc-editor.org/rfc/rfc9338)
-- Post-quantum [ML-DSA for COSE (RFC 9964)](https://www.rfc-editor.org/rfc/rfc9964)
-- Post-quantum [HSS/LMS for COSE (RFC 8778)](https://www.rfc-editor.org/rfc/rfc8778)
-- The [PSA Attestation Token profile of EAT (RFC 9783)](https://www.rfc-editor.org/rfc/rfc9783)
+## Supported Standards & RFCs
+
+* **Core Specifications:**
+  * [RFC 8949](https://www.rfc-editor.org/rfc/rfc8949) - Concise Binary Object Representation (CBOR)
+  * [RFC 9052](https://www.rfc-editor.org/rfc/rfc9052) - CBOR Object Signing and Encryption (COSE)
+  * [RFC 9053](https://www.rfc-editor.org/rfc/rfc9053) - COSE algorithms
+  * [RFC 9864](https://www.rfc-editor.org/rfc/rfc9864) - Fully-Specified Algorithms for JOSE and COSE
+  * [RFC 9338](https://www.rfc-editor.org/rfc/rfc9338) - COSE Countersignatures
+* **Post-Quantum Cryptography:**
+  * [RFC 9964](https://www.rfc-editor.org/rfc/rfc9964) - ML-DSA for COSE
+  * [RFC 8778](https://www.rfc-editor.org/rfc/rfc8778) - HSS/LMS for COSE
+* **Attestation:**
+  * [RFC 9783](https://www.rfc-editor.org/rfc/rfc9783) - PSA Attestation Token Profile of EAT
 
 ## Main Features
 
-- **Complete COSE Suite (RFC 9052):** Full support for all six message types, including `COSE_Sign1`, `COSE_Encrypt0`, and `COSE_Mac0`.
-- **V2 Countersignatures (RFC 9338):** Full and abbreviated in-place countersignatures across all six tagged COSE message types.
-- **Post-Quantum Cryptography:**
-  - ML-DSA (FIPS 204 / RFC 9964) at all security levels.
-  - HSS/LMS stateful hash-based signing (RFC 8778 / CNSA 2.0).
-- **Fast Post-Quantum Performance:** End-to-end ML-DSA-44 `COSE_Sign1` reaches 21,986 sign/s and 53,686 verify/s on an Intel i9-11950H with AVX2. See the [performance and footprint details](https://github.com/wolfSSL/wolfCOSE/wiki/Footprint) and [wolfCOSE vs. The Field](https://www.wolfssl.com/wolfcose-vs-the-field-the-smallest-and-fastest-cose-library-now-with-post-quantum-ml-dsa-at-the-same-cost/).
-- **PSA Attestation:** EAT / PSA Token issuance and verification with delegated HSM signing support.
-- **41 Cryptographic Algorithms:** Broad algorithm coverage across signing, encryption, MAC, and key distribution.
-- **Embedded-First Design:** Zero dynamic memory allocation (no heap, zero `.data`/`.bss`). Operates on caller-supplied buffers with bounded stack usage.
-- **FIPS 140-3 Path:** Uses wolfCrypt (FIPS Certificate #4718) as its sole cryptographic dependency.
-- **STM32 Integrated:** Drop-in STM32Cube pack (`I-CUBE-wolfCOSE`) available for STM32CubeMX / IDE ([Details](https://github.com/wolfSSL/wolfCOSE/wiki/STM32Cube)).
+* **Complete COSE Suite (RFC 9052):** Full support for all six message types, including `COSE_Sign1`, `COSE_Encrypt0`, and `COSE_Mac0`.
+* **V2 Countersignatures (RFC 9338):** Full and abbreviated in-place countersignatures across all six tagged COSE message types.
+* **Post-Quantum Cryptography:**
+  * ML-DSA (FIPS 204 / RFC 9964) at all security levels.
+  * HSS/LMS stateful hash-based signing (RFC 8778 / CNSA 2.0).
+* **Fast Performance:** On an Intel i9-11950H, end-to-end `COSE_Sign1` reaches 66,538 sign/s and 26,437 verify/s with ES256, and 21,986 sign/s and 53,686 verify/s with ML-DSA-44. See the [performance and footprint details](https://github.com/wolfSSL/wolfCOSE/wiki/Footprint) and [wolfCOSE vs. The Field](https://www.wolfssl.com/wolfcose-vs-the-field-the-smallest-and-fastest-cose-library-now-with-post-quantum-ml-dsa-at-the-same-cost/).
+* **PSA Attestation:** EAT / PSA Token issuance and verification with delegated HSM signing support.
+* **41 Cryptographic Algorithms:** Broad algorithm coverage across signing, encryption, MAC, and key distribution.
+* **Embedded-First Design:** Zero dynamic memory allocation (no heap, zero `.data`/`.bss`). Operates on caller-supplied buffers with bounded stack usage.
+* **FIPS 140-3 Path:** Uses wolfCrypt (FIPS Certificate #4718) as its sole cryptographic dependency.
+* **STM32 Integrated:** Drop-in STM32Cube pack (`I-CUBE-wolfCOSE`) available for STM32CubeMX / IDE ([Details](https://github.com/wolfSSL/wolfCOSE/wiki/STM32Cube)).
 
 ## Supported Algorithms
 
-**Signing:** `ESP256, ESP384, ESP512, Ed25519, Ed448, PS256/384/512, ML-DSA-44/65/87, HSS-LMS`
-
-The polymorphic RFC 9053 IDs `ES256, ES384, ES512, EdDSA` are deprecated by RFC 9864 and are accepted only when built with `WOLFCOSE_ENABLE_DEPRECATED_ALGS` (see [Macros](https://github.com/wolfSSL/wolfCOSE/wiki/Macros)).
-
-**Migrating from the RFC 9053 IDs:** a default build now rejects the deprecated
-IDs with `WOLFCOSE_E_COSE_BAD_ALG`, so messages and keys that use them stop
-verifying. Move to the fully-specified replacement, or rebuild with
-`WOLFCOSE_ENABLE_DEPRECATED_ALGS` to keep accepting the old IDs.
-
-| Deprecated (RFC 9053) | Replacement (RFC 9864) |
-| --- | --- |
-| `ES256` (-7) | `ESP256` (-9) |
-| `ES384` (-35) | `ESP384` (-51) |
-| `ES512` (-36) | `ESP512` (-52) |
-| `EdDSA` (-8), Ed25519 key | `Ed25519` (-19) |
-| `EdDSA` (-8), Ed448 key | `Ed448` (-53) |
-
-**Encryption:** `AES-GCM (128/192/256), ChaCha20-Poly1305, AES-CCM variants`
-
-**MAC:** `HMAC-SHA256/384/512, AES-MAC`
-
-**Key Distribution:** `Direct, AES Key Wrap, ECDH-ES+HKDF`
+* **Digital Signatures:**
+  * **Classical:** `ESP256`, `ESP384`, `ESP512`, `Ed25519`, `Ed448`, `PS256`, `PS384`, `PS512`
+  * **Post-Quantum:** `ML-DSA-44`, `ML-DSA-65`, `ML-DSA-87`
+  * **Stateful Hash-Based:** `HSS-LMS`
+* **Encryption (AEAD):**
+  * `AES-GCM` (128 / 192 / 256)
+  * `AES-CCM` (variants)
+  * `ChaCha20-Poly1305`
+* **Message Authentication (MAC):**
+  * `HMAC-SHA256`, `HMAC-SHA384`, `HMAC-SHA512`
+  * `AES-MAC`
+* **Key Distribution:**
+  * `Direct`
+  * `AES Key Wrap`
+  * `ECDH-ES + HKDF`
 
 ## COSE Message Types (RFC 9052)
 
@@ -68,7 +67,7 @@ table. Use `wc_Cose_AddCounterSignature()` or
 `wc_Cose_AddCounterSignature0()` to add one, then verify it independently with
 the corresponding `wc_Cose_VerifyCounterSignature*()` API.
 
-## Prerequisites (wolfSSL)
+## Dependencies (wolfSSL)
 
 wolfCOSE requires [wolfSSL](https://www.wolfssl.com/) as its crypto backend.
 **Minimum supported version: v5.8.0-stable**. Some optional algorithms require
@@ -195,7 +194,7 @@ Runs on every push and PR:
 - **MISRA C 2012**: cppcheck `--addon=misra` checking all wolfCOSE code paths
 - **MISRA C 2023**: strict GCC warnings and clang-tidy (`bugprone-*`, `cert-*`, `clang-analyzer-*`, `misc-*`)
 - **Coverity Scan**: nightly defect analysis
-- **Advanced Internal Static Analysis:** Fenrir wolfssl advanced static analysis tools
+- **Internal Static Analysis:** Fenrir wolfssl advanced static analysis tools
 - **Code Coverage**: 100% line coverage enforced for every wolfCOSE source file
 
 ```bash
@@ -211,12 +210,6 @@ make coverage-force-failure    # Include crypto failure path testing
   <img alt="CI Status"
        src="https://img.shields.io/github/actions/workflow/status/wolfSSL/wolfCOSE/build-test.yml?label=CI&logo=github"/>
 </a>
-<a href="https://github.com/wolfssl/skoll">                                                                                                              <img alt="Skoll Review" src="https://img.shields.io/badge/skoll-passed-blue"/>                                                                     
-</a>                                                                                                                                                 
-<a href="https://github.com/wolfssl/fenrir">                                                                                                         
-  <img alt="Fenrir Review" src="https://img.shields.io/badge/fenrir-passed-blueviolet"/>
-</a>
-
 
 ## Documentation
 

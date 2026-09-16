@@ -1,8 +1,8 @@
 # Footprint and Performance
 
-wolfCOSE's own size and speed for one identical operation (ES256 `COSE_Sign1`, and post-quantum ML-DSA), every part built from source with dead-code elimination so only the code actually reached by the operation is counted.
+This page reports build-profile footprint and end-to-end `COSE_Sign1` throughput for ES256 and ML-DSA-44.
 
-**Method.** One fixed key and payload. Built `-ffunction-sections -fdata-sections` and linked `-Wl,--gc-sections`, so unreached functions are dropped; this is the real flash cost, not the whole-archive size. Sizes are code + rodata. Two numbers are reported: **glue** is the wolfCOSE COSE + CBOR engine alone (independent of the crypto backend); **total** is glue plus the minimal wolfCrypt build pulled in. Desktop: x86_64 Intel i9-11950H, GCC 14.2. On-device: NUCLEO-H563ZI (STM32H563ZI, Cortex-M33 @ 250 MHz). June 2026.
+**Size method.** One fixed key and payload. Built `-ffunction-sections -fdata-sections` and linked `-Wl,--gc-sections`, so unreached functions are dropped; this is the real flash cost, not the whole-archive size. Sizes are code + rodata. Two numbers are reported: **glue** is the wolfCOSE COSE + CBOR engine alone (independent of the crypto backend); **total** is glue plus the minimal wolfCrypt build pulled in. Desktop: x86_64 Intel i9-11950H, GCC 14.2. On-device: NUCLEO-H563ZI (STM32H563ZI, Cortex-M33 @ 250 MHz). June 2026.
 
 ## Library size (glue)
 
@@ -48,14 +48,14 @@ Post-quantum sign + verify lands within ~1 KB of classical ES256, and verify-onl
 
 ## Speed (Intel i9-11950H, x86_64)
 
-End-to-end `COSE_Sign1` throughput using optimized wolfCrypt assembly.
+ES256 and ML-DSA-44 rates are measured end-to-end for `COSE_Sign1` on an Intel i9-11950H using optimized wolfCrypt assembly. See the [published measurements](https://www.wolfssl.com/wolfcose-vs-the-field-the-smallest-and-fastest-cose-library-now-with-post-quantum-ml-dsa-at-the-same-cost/) for more background.
 
-| Operation | Ops/s |
-|-----------|-------|
-| ES256 verify | 26,437 |
-| ES256 sign | 66,538 |
-| ML-DSA-44 verify | 53,686 |
-| ML-DSA-44 sign | 21,986 |
+| Operation | Scope | Ops/s |
+|-----------|-------|-------|
+| ES256 verify | End-to-end `COSE_Sign1` | 26,437 |
+| ES256 sign | End-to-end `COSE_Sign1` | 66,538 |
+| ML-DSA-44 verify | End-to-end `COSE_Sign1` | 53,686 |
+| ML-DSA-44 sign | End-to-end `COSE_Sign1` | 21,986 |
 
 ## On a real MCU: STM32H563 (Cortex-M33 @ 250 MHz)
 
