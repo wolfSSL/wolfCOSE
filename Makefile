@@ -1045,7 +1045,13 @@ valgrind-check: demo release-scenarios
 	$(VALGRIND) --leak-check=full --show-leak-kinds=all \
 		--errors-for-leak-kinds=all --error-exitcode=1 ./$(LMS_DEMO)
 	$(VALGRIND) --leak-check=full --show-leak-kinds=all \
+		--errors-for-leak-kinds=all --error-exitcode=1 ./$(LMSV_DEMO)
+	$(VALGRIND) --leak-check=full --show-leak-kinds=all \
+		--errors-for-leak-kinds=all --error-exitcode=1 ./$(MLDSA_DEMO)
+	$(VALGRIND) --leak-check=full --show-leak-kinds=all \
 		--errors-for-leak-kinds=all --error-exitcode=1 ./$(EAT_DEMO)
+	$(VALGRIND) --leak-check=full --show-leak-kinds=all \
+		--errors-for-leak-kinds=all --error-exitcode=1 ./$(TEST_BIN)
 
 release-validate:
 	@test -n "$(VERSION)" || { echo "VERSION=X.Y.Z is required"; exit 2; }

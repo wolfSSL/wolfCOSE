@@ -95,9 +95,17 @@ jobs:
 
       - name: Build full wolfSSL backend
         if: steps.cache-wolfssl.outputs.cache-hit != 'true'
+        env:
+          WOLFSSL_COMMIT: ${{ steps.wolfssl.outputs.commit }}
         run: |
-          git clone --depth 1 https://github.com/wolfSSL/wolfssl.git \
-            "$HOME/wolfssl-release-src"
+          git init "$HOME/wolfssl-release-src"
+          git -C "$HOME/wolfssl-release-src" remote add origin \
+            https://github.com/wolfSSL/wolfssl.git
+          git -C "$HOME/wolfssl-release-src" fetch --depth 1 origin \
+            "$WOLFSSL_COMMIT"
+          git -C "$HOME/wolfssl-release-src" checkout --detach FETCH_HEAD
+          test "$(git -C "$HOME/wolfssl-release-src" rev-parse HEAD)" = \
+            "$WOLFSSL_COMMIT"
           cd "$HOME/wolfssl-release-src"
           ./autogen.sh
           ./configure --enable-ecc --enable-ed25519 --enable-ed448 \

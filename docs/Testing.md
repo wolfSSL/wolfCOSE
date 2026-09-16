@@ -26,9 +26,11 @@ make release-scenarios
 make release-coverage
 make cxx-check
 make valgrind-check
-make release-validate VERSION=2.0.0 RELEASE_REF=HEAD
-make release-artifacts VERSION=2.0.0 RELEASE_REF=HEAD
+make release-validate VERSION=X.Y.Z RELEASE_REF=HEAD
+make release-artifacts VERSION=X.Y.Z RELEASE_REF=HEAD
 ```
+
+Replace `X.Y.Z` with the version in `include/wolfcose/version.h`.
 
 `release-scenarios` combines HPKE one-recipient and multi-recipient delivery,
 stateful HSS/LMS signing, lean LMS verification, ML-DSA signing, RFC 9783

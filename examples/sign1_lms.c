@@ -50,6 +50,7 @@ static uint8_t gScratch[8192];
 static uint8_t gMsg[4096];
 static uint8_t gMsg2[4096];
 static uint8_t gPrivStore[HSS_MAX_PRIVATE_KEY_LEN];
+static uint8_t gPrivBefore[HSS_MAX_PRIVATE_KEY_LEN];
 static unsigned int gWriteCount;
 
 static int lms_write_cb(const byte* priv, word32 privSz, void* context)
@@ -158,12 +159,14 @@ int main(void)
     }
 
     writesBefore = gWriteCount;
+    (void)memcpy(gPrivBefore, gPrivStore, sizeof(gPrivBefore));
     if (rc == 0) {
         ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_HSS_LMS, NULL, 0,
             (const uint8_t*)PAYLOAD2, sizeof(PAYLOAD2) - 1u, NULL, 0,
             NULL, 0, gScratch, sizeof(gScratch), gMsg2, sizeof(gMsg2),
             &msgLen2, &rng);
         if ((ret != WOLFCOSE_SUCCESS) || (gWriteCount <= writesBefore) ||
+            (memcmp(gPrivBefore, gPrivStore, sizeof(gPrivBefore)) == 0) ||
             ((msgLen == msgLen2) && (memcmp(gMsg, gMsg2, msgLen) == 0))) {
             (void)printf("HSS-LMS state did not advance safely\n");
             rc = 1;

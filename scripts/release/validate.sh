@@ -66,6 +66,7 @@ VERSION_HEADER=$TMP_DIR/include/wolfcose/version.h
 CHANGELOG=$TMP_DIR/ChangeLog.md
 RELEASE_NOTES=$TMP_DIR/docs/Release-Notes.md
 README=$TMP_DIR/README.md
+CURRENT_CHANGELOG=$TMP_DIR/current-release-changelog.md
 
 for file in "$VERSION_HEADER" "$CHANGELOG" "$RELEASE_NOTES" "$README"; do
     if [ ! -f "$file" ]; then
@@ -73,6 +74,11 @@ for file in "$VERSION_HEADER" "$CHANGELOG" "$RELEASE_NOTES" "$README"; do
         exit 1
     fi
 done
+
+awk '
+    NR > 1 && /^# wolfCOSE Release / { exit }
+    { print }
+' "$CHANGELOG" > "$CURRENT_CHANGELOG"
 
 HEADER_VERSION=$(awk '/LIBWOLFCOSE_VERSION_STRING/ {gsub(/\"/, "", $3); print $3; exit}' "$VERSION_HEADER")
 HEADER_HEX=$(awk '/LIBWOLFCOSE_VERSION_HEX/ {print $3; exit}' "$VERSION_HEADER")
@@ -110,7 +116,8 @@ printf '%s\n' "$NOTES_HEAD" | grep -Eq \
 
 section_line()
 {
-    awk -v heading="$1" '$0 == heading {print NR; exit}' "$CHANGELOG"
+    awk -v heading="$1" '$0 == heading {print NR; exit}' \
+        "$CURRENT_CHANGELOG"
 }
 
 VULN_LINE=$(section_line '## Vulnerabilities')
@@ -131,12 +138,13 @@ grep -Fq "current release is **$VERSION**" "$README" || {
 }
 
 if [ "$VERSION" = "2.0.0" ]; then
-    grep -Fq 'No CVEs were assigned for this release.' "$CHANGELOG" || {
+    grep -Fq 'No CVEs were assigned for this release.' \
+        "$CURRENT_CHANGELOG" || {
         echo "2.0.0 ChangeLog must record that no CVEs were assigned" >&2
         exit 1
     }
     for rfc in 'RFC 9864' 'RFC 9783' 'RFC 9338' 'RFC 8778'; do
-        grep -Fq "$rfc" "$CHANGELOG" || {
+        grep -Fq "$rfc" "$CURRENT_CHANGELOG" || {
             echo "2.0.0 ChangeLog is missing $rfc" >&2
             exit 1
         }

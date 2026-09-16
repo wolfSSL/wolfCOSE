@@ -2,6 +2,9 @@
 
 set -eu
 
+TZ=UTC
+export TZ
+
 usage()
 {
     echo "usage: $0 --version X.Y.Z [--ref REF] [--output DIR]" >&2
