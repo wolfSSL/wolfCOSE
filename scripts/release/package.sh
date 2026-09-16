@@ -2,6 +2,8 @@
 
 set -eu
 
+umask 022
+
 TZ=UTC
 export TZ
 

@@ -31,7 +31,8 @@ done
 
 [ -n "$VERSION" ] || usage
 
-if ! printf '%s\n' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+if ! printf '%s\n' "$VERSION" | grep -Eq \
+    '^(0|[1-9][0-9]{0,2})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})$'; then
     echo "invalid release version: $VERSION" >&2
     exit 1
 fi
@@ -87,7 +88,15 @@ MAJOR=${VERSION%%.*}
 VERSION_REMAINDER=${VERSION#*.}
 MINOR=${VERSION_REMAINDER%%.*}
 PATCH=${VERSION_REMAINDER#*.}
+
+if [ "$MAJOR" -gt 255 ] || [ "$MINOR" -gt 4095 ] || \
+   [ "$PATCH" -gt 4095 ]; then
+    echo "release version exceeds packed version fields: $VERSION" >&2
+    exit 1
+fi
+
 EXPECTED_HEX=$(printf '0x%08X' "$(( (MAJOR << 24) | (MINOR << 12) | PATCH ))")
+VERSION_RE="${MAJOR}\\.${MINOR}\\.${PATCH}"
 
 if [ "$HEADER_VERSION" != "$VERSION" ]; then
     echo "version header says $HEADER_VERSION, expected $VERSION" >&2
@@ -103,13 +112,13 @@ CHANGELOG_HEAD=$(sed -n '1p' "$CHANGELOG")
 NOTES_HEAD=$(sed -n '3p' "$RELEASE_NOTES")
 
 printf '%s\n' "$CHANGELOG_HEAD" | grep -Eq \
-    "^# wolfCOSE Release $VERSION \([A-Z][a-z]+ [0-9]{1,2}, [0-9]{4}\)$" || {
+    "^# wolfCOSE Release $VERSION_RE \([A-Z][a-z]+ [0-9]{1,2}, [0-9]{4}\)$" || {
     echo "invalid top ChangeLog heading: $CHANGELOG_HEAD" >&2
     exit 1
 }
 
 printf '%s\n' "$NOTES_HEAD" | grep -Eq \
-    "^## wolfCOSE $VERSION \([A-Z][a-z]+ [0-9]{1,2}, [0-9]{4}\)$" || {
+    "^## wolfCOSE $VERSION_RE \([A-Z][a-z]+ [0-9]{1,2}, [0-9]{4}\)$" || {
     echo "invalid top release-notes heading: $NOTES_HEAD" >&2
     exit 1
 }
