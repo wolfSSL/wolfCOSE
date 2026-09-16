@@ -16,7 +16,8 @@ with the pull request head, builds reproducible source archives, and
 smoke-tests both archives. A manual post-merge run qualifies the exact commit
 used to build the release artifacts. Like wolfProvider's label-selected jobs,
 the workflow starts only when the label is added; remove and re-add the label
-to qualify a newer commit on the same pull request.
+to qualify a newer commit on the same pull request. Apply the label only after
+the candidate version and release notes are committed.
 
 The release-only local targets are:
 
