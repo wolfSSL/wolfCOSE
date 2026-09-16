@@ -23,6 +23,27 @@ wolfCOSE supports 46 algorithms across signing, encryption, MAC, and key distrib
 | ML-DSA-87 | -50 | `WOLFSSL_HAVE_MLDSA` | Post-quantum (FIPS 204) |
 | HSS-LMS | -46 | `WOLFSSL_HAVE_LMS` | Post-quantum stateful hash-based (RFC 8778, SP 800-208); COSE_Key kty 5; signature size follows the key's parameter set; signing state is caller-managed, verify-only builds pair with `WOLFSSL_LMS_VERIFY_ONLY` |
 
+### Migrating from RFC 9053 Signature IDs
+
+RFC 9864 deprecates the polymorphic RFC 9053 signature IDs. Default wolfCOSE
+builds accept the fully specified replacements and reject the deprecated IDs
+with `WOLFCOSE_E_COSE_BAD_ALG`.
+
+| Deprecated RFC 9053 ID | RFC 9864 replacement |
+|------------------------|----------------------|
+| ES256 (-7) | ESP256 (-9) |
+| ES384 (-35) | ESP384 (-51) |
+| ES512 (-36) | ESP512 (-52) |
+| EdDSA (-8) with an Ed25519 key | Ed25519 (-19) |
+| EdDSA (-8) with an Ed448 key | Ed448 (-53) |
+
+Use the replacement ID when creating new messages. The protected `alg` value
+is part of the signed `Sig_structure`, so an existing message must be signed
+again rather than relabeled. Define `WOLFCOSE_ENABLE_DEPRECATED_ALGS` when
+compatibility with peers that still emit the RFC 9053 IDs is required. See
+[Deprecated Algorithm IDs](Macros.md#deprecated-algorithm-ids-rfc-9864) for
+configuration details.
+
 ### ML-DSA Signature Sizes
 
 | Algorithm | Signature Size | Public Key Size |
