@@ -7,6 +7,34 @@ validated on every push and PR to ensure coverage does not regress.
 
 ## Running Tests
 
+### Release Qualification
+
+Release candidates add the `ci:release` label to run the read-only Release
+Qualification workflow. The workflow validates version metadata, exercises
+the optional feature profiles, audits every required CI workflow associated
+with the pull request head, builds reproducible source archives, and
+smoke-tests both archives. A manual post-merge run qualifies the exact commit
+used to build the release artifacts.
+
+The release-only local targets are:
+
+```bash
+make release-scenarios
+make release-coverage
+make cxx-check
+make valgrind-check
+make release-validate VERSION=2.0.0 RELEASE_REF=HEAD
+make release-artifacts VERSION=2.0.0 RELEASE_REF=HEAD
+```
+
+`release-scenarios` combines HPKE one-recipient and multi-recipient delivery,
+stateful HSS/LMS signing, lean LMS verification, ML-DSA signing, RFC 9783
+device onboarding, and delegated PSA/EAT signing. The HPKE scenario rejects
+modified authentication data, modified ciphertext, and a mismatched recipient.
+The LMS scenario signs two messages, proves the persisted state advances, and
+rejects a modified signature. The PSA/EAT scenario rejects a wrong challenge,
+a modified token, and an unapproved software measurement.
+
 ### Basic Unit Tests
 
 ```bash

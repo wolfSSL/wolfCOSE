@@ -235,6 +235,7 @@ int main(void)
     DEMO_RESOLVER_CTX resolver;
     uint8_t challenge[32];
     uint8_t wrongChallenge[32];
+    uint8_t badMeasurement[WC_SHA256_DIGEST_SIZE];
     uint8_t bootSeed[32];
     uint8_t measurement[WC_SHA256_DIGEST_SIZE];
     uint8_t publicX[32];
@@ -242,6 +243,7 @@ int main(void)
     uint8_t claimsBuf[768];
     uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
     uint8_t tokenBuf[1024];
+    uint8_t tamperedToken[1024];
     word32 publicXLen = (word32)sizeof(publicX);
     word32 publicYLen = (word32)sizeof(publicY);
     size_t tokenLen = 0u;
@@ -334,9 +336,37 @@ int main(void)
         }
     }
     if (ret == WOLFCOSE_SUCCESS) {
+        (void)XMEMCPY(tamperedToken, tokenBuf, tokenLen);
+        tamperedToken[tokenLen - 1u] ^= 0x01u;
+        ret = wc_CoseEatPsaToken_VerifyByUeid(resolve_iak, &resolver,
+            tamperedToken, tokenLen, challenge, sizeof(challenge), scratch,
+            sizeof(scratch), &verified);
+        if (ret != WOLFCOSE_SUCCESS) {
+            (void)printf("verifier: rejected a modified token\n");
+            ret = WOLFCOSE_SUCCESS;
+        }
+        else {
+            ret = WOLFCOSE_E_EAT_PSA_CLAIM;
+        }
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
         ret = wc_CoseEatPsaToken_VerifyByUeid(resolve_iak, &resolver,
             tokenBuf, tokenLen, challenge, sizeof(challenge), scratch,
             sizeof(scratch), &verified);
+    }
+    if (ret == WOLFCOSE_SUCCESS) {
+        (void)XMEMCPY(badMeasurement, kApprovedMeasurement,
+            sizeof(badMeasurement));
+        badMeasurement[0] ^= 0x01u;
+        ret = appraise_token(&verified, badMeasurement,
+            sizeof(badMeasurement));
+        if (ret == WOLFCOSE_E_EAT_PSA_CLAIM) {
+            (void)printf("verifier: rejected an unapproved measurement\n");
+            ret = WOLFCOSE_SUCCESS;
+        }
+        else if (ret == WOLFCOSE_SUCCESS) {
+            ret = WOLFCOSE_E_EAT_PSA_CLAIM;
+        }
     }
     if (ret == WOLFCOSE_SUCCESS) {
         ret = appraise_token(&verified, kApprovedMeasurement,
