@@ -8,7 +8,7 @@ on:
         required: true
         type: string
   pull_request:
-    types: [labeled, synchronize, reopened]
+    types: [labeled]
 
 concurrency:
   group: release-qualification-${{ github.event.pull_request.number || github.ref }}
@@ -25,7 +25,7 @@ jobs:
     name: Release metadata
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      contains(github.event.pull_request.labels.*.name, 'ci:release')
+      github.event.label.name == 'ci:release'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.release.outputs.version }}
@@ -295,7 +295,7 @@ jobs:
     if: >-
       always() &&
       (github.event_name == 'workflow_dispatch' ||
-       contains(github.event.pull_request.labels.*.name, 'ci:release'))
+       github.event.label.name == 'ci:release')
     needs: [metadata, qualify, required-ci]
     runs-on: ubuntu-latest
     steps:
