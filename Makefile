@@ -166,7 +166,7 @@ SCEN_IOTFLEET    = examples/scenarios/iot_fleet_config
 SCEN_SENSOR      = examples/scenarios/sensor_attestation
 SCEN_BROADCAST   = examples/scenarios/group_broadcast_mac
 
-.PHONY: all shared test pkg-config-test ecdsa-policy-test rsapss-policy-test countersign-config-test zero-alloc-check zeroize-test deprecated-algs-test ecc-import-policy-test ext-sign-test ext-sign-demo ext-sign-force-failure coverage eat-psa-test eat-psa-float-test eat-psa-min-buffers-test eat-psa-claim-limits-test eat-psa-profile-test eat-psa-config-check eat-psa-ext-sign-test eat-psa-ext-sign-force-failure eat-psa-coverage eat-psa-coverage-force-failure generic-reduced-alg-test tool tool-test cmdline-test demo demos hpke-demo lean-verify psa-eat-lean-verify psa-eat-demo mldsa-demo mldsa-verify lms-demo lms-verify comprehensive scenarios release-scenarios release-coverage cxx-check valgrind-check release-validate release-artifacts interop-tcose tcose-upstream interop-go-cose interop-python-cwt interop-rust-coset c99-check c99-check-lms c99-hpke-check experimental-check clean FORCE
+.PHONY: all shared test pkg-config-test ecdsa-policy-test rsapss-policy-test countersign-config-test zero-alloc-check zeroize-test deprecated-algs-test ecc-import-policy-test ext-sign-test ext-sign-demo ext-sign-force-failure coverage eat-psa-test eat-psa-float-test eat-psa-min-buffers-test eat-psa-claim-limits-test eat-psa-profile-test eat-psa-config-check eat-psa-ext-sign-test eat-psa-ext-sign-force-failure eat-psa-coverage eat-psa-coverage-force-failure hpke-coverage-force-failure generic-reduced-alg-test tool tool-test cmdline-test demo demos hpke-demo lean-verify psa-eat-lean-verify psa-eat-demo mldsa-demo mldsa-verify lms-demo lms-verify comprehensive scenarios release-scenarios release-coverage cxx-check valgrind-check release-validate release-artifacts interop-tcose tcose-upstream interop-go-cose interop-python-cwt interop-rust-coset c99-check c99-check-lms c99-hpke-check experimental-check clean FORCE
 
 # --- Core library ---
 all: $(LIB_A)
@@ -878,6 +878,20 @@ eat-psa-coverage-force-failure: clean
 	rm -f $(LIB_A)
 	$(AR) rcs $(LIB_A) $(OBJ)
 	$(CC) $(CFLAGS) $(EAT_PSA_FULL_FLAGS) -DWOLFCOSE_FORCE_FAILURE --coverage -fprofile-arcs -ftest-coverage -o $(TEST_BIN) $(TEST_SRC) $(FORCE_FAIL_SRC) $(LIB_A) $(LDFLAGS) $(LDLIBS)
+	./$(TEST_BIN)
+	gcov src/*.c
+
+# HPKE coverage uses the same -Os and forced-failure build as the runs above so the tracefiles merge cleanly.
+HPKE_COVERAGE_FLAGS = -DWOLFCOSE_EXPERIMENTAL \
+    -DWOLFCOSE_ENABLE_HPKE_0_ENCRYPT -DWOLFCOSE_ENABLE_HPKE_0_DECRYPT \
+    -DWOLFCOSE_ENABLE_HPKE_0_KE_ENCRYPT -DWOLFCOSE_ENABLE_HPKE_0_KE_DECRYPT
+hpke-coverage-force-failure: clean
+	@set -e; for f in $(SRC); do \
+	    $(CC) $(CFLAGS) $(HPKE_COVERAGE_FLAGS) -DWOLFCOSE_FORCE_FAILURE --coverage -fprofile-arcs -ftest-coverage -c $$f -o $${f%.c}.o; \
+	done
+	rm -f $(LIB_A)
+	$(AR) rcs $(LIB_A) $(OBJ)
+	$(CC) $(CFLAGS) $(HPKE_COVERAGE_FLAGS) -DWOLFCOSE_FORCE_FAILURE --coverage -fprofile-arcs -ftest-coverage -o $(TEST_BIN) $(TEST_SRC) $(FORCE_FAIL_SRC) $(LIB_A) $(LDFLAGS) $(LDLIBS)
 	./$(TEST_BIN)
 	gcov src/*.c
 

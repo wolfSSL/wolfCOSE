@@ -11212,6 +11212,8 @@ static void test_cose_hpke_encrypt0(void)
     WOLFCOSE_KEY nonP256Key;
 #endif
     WOLFCOSE_HDR hdr;
+    WOLFCOSE_CBOR_CTX ekCtx;
+    WOLFCOSE_HDR_STATE ekState;
     ecc_key recipientEcc;
     ecc_key wrongEcc;
 #if defined(HAVE_ECC_KOBLITZ)
@@ -11473,6 +11475,50 @@ static void test_cose_hpke_encrypt0(void)
                         "hpke encrypt0 empty detached decrypt");
         }
     }
+
+    /* Decoding an unprotected ek label with no hpkeHdr sink hits the skip. */
+    if (recipientKeyInited != 0) {
+        ekCtx.buf = out;
+        ekCtx.cbuf = out;
+        ekCtx.bufSz = sizeof(out);
+        ekCtx.idx = 0u;
+        ret = wc_CBOR_EncodeMapStart(&ekCtx, 1u);
+        if (ret == WOLFCOSE_SUCCESS) {
+            ret = wc_CBOR_EncodeInt(&ekCtx, WOLFCOSE_HDR_HPKE_EK);
+        }
+        if (ret == WOLFCOSE_SUCCESS) {
+            ret = wc_CBOR_EncodeBstr(&ekCtx, kid, sizeof(kid) - 1u);
+        }
+        TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke ek header encode");
+        if (ret == WOLFCOSE_SUCCESS) {
+            ekCtx.cbuf = out;
+            ekCtx.bufSz = ekCtx.idx;
+            ekCtx.idx = 0u;
+            (void)XMEMSET(&hdr, 0, sizeof(hdr));
+            wolfCose_HdrStateInit(&ekState);
+            ret = wolfCose_DecodeUnprotectedHdr(&ekCtx, &hdr, &ekState);
+            TEST_ASSERT(ret == WOLFCOSE_SUCCESS, "hpke ek header skipped");
+        }
+    }
+
+#ifdef WOLFCOSE_FORCE_FAILURE
+    /* A forced serialize failure after the ephemeral key init exercises the
+     * seal-init and detached error-cleanup paths. */
+    if (recipientKeyInited != 0) {
+        recipientKey.hasPrivate = 0u;
+        detachedLen = sizeof(detached);
+        wolfForceFailure_Set(WOLF_FAIL_HPKE_SERIALIZE);
+        ret = wc_CoseHpkeEncrypt0_Encrypt(&recipientKey, kid,
+            sizeof(kid) - 1u, payload, sizeof(payload) - 1u,
+            detached, sizeof(detached), &detachedLen,
+            aad, sizeof(aad) - 1u,
+            scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+        TEST_ASSERT(ret != WOLFCOSE_SUCCESS,
+                    "hpke encrypt0 serialize forced failure");
+        TEST_ASSERT(detachedLen == 0u,
+                    "hpke encrypt0 detached length cleared on failure");
+    }
+#endif /* WOLFCOSE_FORCE_FAILURE */
 
     if (wrongKeyInited != 0) {
         wc_CoseKey_Free(&wrongKey);

@@ -28,11 +28,7 @@ capture default
 make eat-psa-coverage-force-failure
 capture eat-psa
 
-HPKE_FLAGS='-DWOLFCOSE_EXPERIMENTAL -DWOLFCOSE_ENABLE_HPKE_0_ENCRYPT -DWOLFCOSE_ENABLE_HPKE_0_DECRYPT -DWOLFCOSE_ENABLE_HPKE_0_KE_ENCRYPT -DWOLFCOSE_ENABLE_HPKE_0_KE_DECRYPT'
-make clean
-make test EXTRA_CFLAGS="$HPKE_FLAGS" \
-    CFLAGS="-std=c99 -O0 -g --coverage -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -I./include ${WOLFSSL_CFLAGS:-}" \
-    LDFLAGS="--coverage ${WOLFSSL_LDFLAGS:-}"
+make hpke-coverage-force-failure
 capture hpke
 
 lcov --add-tracefile "$TMP_DIR/default.filtered.info" \
