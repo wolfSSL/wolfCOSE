@@ -44,12 +44,15 @@ static int demo_hpke_encrypt0(void)
 {
     static const uint8_t kid[] = "recipient-a";
     static const uint8_t payload[] = "HPKE-0 integrated encryption";
+    static const uint8_t aad[] = "fleet-policy-v1";
+    static const uint8_t wrongAad[] = "fleet-policy-v2";
     WC_RNG rng;
     ecc_key recipient;
     WOLFCOSE_KEY recipientKey;
     WOLFCOSE_HDR hdr;
     uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
     uint8_t cose[512];
+    uint8_t tampered[512];
     uint8_t plaintext[sizeof(payload)];
     size_t coseLen = 0u;
     size_t plaintextLen = 0u;
@@ -78,20 +81,40 @@ static int demo_hpke_encrypt0(void)
     if (ret == 0) {
         ret = wc_CoseHpkeEncrypt0_Encrypt(&recipientKey, kid,
             sizeof(kid) - 1u, payload, sizeof(payload) - 1u,
-            NULL, 0u, NULL, NULL, 0u, scratch, sizeof(scratch), cose,
+            NULL, 0u, NULL, aad, sizeof(aad) - 1u, scratch, sizeof(scratch), cose,
             sizeof(cose), &coseLen, &rng);
     }
     if (ret == 0) {
         recipientKey.hasPrivate = 1u;
         ret = wc_CoseHpkeEncrypt0_Decrypt(&recipientKey, cose, coseLen,
-            NULL, 0u, NULL, 0u, scratch, sizeof(scratch), &hdr, plaintext,
-            sizeof(plaintext), &plaintextLen);
+            NULL, 0u, aad, sizeof(aad) - 1u, scratch, sizeof(scratch), &hdr,
+            plaintext, sizeof(plaintext), &plaintextLen);
     }
     if ((ret == 0) &&
         ((hdr.alg != WOLFCOSE_ALG_HPKE_0) ||
          (plaintextLen != (sizeof(payload) - 1u)) ||
          (memcmp(plaintext, payload, plaintextLen) != 0))) {
         ret = -1;
+    }
+    if (ret == 0) {
+        (void)memcpy(tampered, cose, coseLen);
+        tampered[coseLen - 1u] ^= 0x01u;
+        plaintextLen = sizeof(plaintext);
+        if ((wc_CoseHpkeEncrypt0_Decrypt(&recipientKey, tampered, coseLen,
+                 NULL, 0u, aad, sizeof(aad) - 1u, scratch, sizeof(scratch),
+                 &hdr, plaintext, sizeof(plaintext), &plaintextLen) == 0) ||
+            (plaintextLen != 0u)) {
+            ret = -1;
+        }
+    }
+    if (ret == 0) {
+        plaintextLen = sizeof(plaintext);
+        if ((wc_CoseHpkeEncrypt0_Decrypt(&recipientKey, cose, coseLen,
+                 NULL, 0u, wrongAad, sizeof(wrongAad) - 1u, scratch,
+                 sizeof(scratch), &hdr, plaintext, sizeof(plaintext),
+                 &plaintextLen) == 0) || (plaintextLen != 0u)) {
+            ret = -1;
+        }
     }
 
     if (eccInit != 0) {
@@ -112,6 +135,7 @@ static int demo_hpke_key_encryption(void)
         "recipient-a", "recipient-b"
     };
     static const uint8_t payload[] = "HPKE-0-KE multi-recipient encryption";
+    static const uint8_t aad[] = "fleet-config-v1";
     WC_RNG rng;
     ecc_key recipientEcc[HPKE_DEMO_RECIPIENTS];
     WOLFCOSE_KEY recipientKey[HPKE_DEMO_RECIPIENTS];
@@ -120,6 +144,7 @@ static int demo_hpke_key_encryption(void)
     uint8_t iv[12];
     uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
     uint8_t cose[1024];
+    uint8_t tampered[1024];
     uint8_t plaintext[sizeof(payload)];
     size_t coseLen = 0u;
     size_t plaintextLen = 0u;
@@ -161,7 +186,7 @@ static int demo_hpke_key_encryption(void)
     if (ret == 0) {
         ret = wc_CoseEncrypt_Encrypt(recipients, HPKE_DEMO_RECIPIENTS,
             WOLFCOSE_ALG_A128GCM, iv, sizeof(iv), payload,
-            sizeof(payload) - 1u, NULL, 0u, NULL, 0u, scratch,
+            sizeof(payload) - 1u, NULL, 0u, aad, sizeof(aad) - 1u, scratch,
             sizeof(scratch), cose, sizeof(cose), &coseLen, &rng);
     }
     if (ret == 0) {
@@ -172,12 +197,33 @@ static int demo_hpke_key_encryption(void)
     for (i = 0u; (ret == 0) && (i < HPKE_DEMO_RECIPIENTS); i++) {
         plaintextLen = 0u;
         ret = wc_CoseEncrypt_Decrypt(&recipients[i], i, cose, coseLen,
-            NULL, 0u, NULL, 0u, scratch, sizeof(scratch), &hdr, plaintext,
-            sizeof(plaintext), &plaintextLen);
+            NULL, 0u, aad, sizeof(aad) - 1u, scratch, sizeof(scratch), &hdr,
+            plaintext, sizeof(plaintext), &plaintextLen);
         if ((ret == 0) &&
             ((hdr.alg != WOLFCOSE_ALG_A128GCM) ||
              (plaintextLen != (sizeof(payload) - 1u)) ||
              (memcmp(plaintext, payload, plaintextLen) != 0))) {
+            ret = -1;
+        }
+    }
+    if (ret == 0) {
+        plaintextLen = sizeof(plaintext);
+        if ((wc_CoseEncrypt_Decrypt(&recipients[0], 1u, cose, coseLen,
+                 NULL, 0u, aad, sizeof(aad) - 1u, scratch, sizeof(scratch),
+                 &hdr, plaintext, sizeof(plaintext), &plaintextLen) == 0) ||
+            (plaintextLen != 0u)) {
+            ret = -1;
+        }
+    }
+    if (ret == 0) {
+        (void)memcpy(tampered, cose, coseLen);
+        /* The final byte belongs to the second recipient's wrapped CEK. */
+        tampered[coseLen - 1u] ^= 0x01u;
+        plaintextLen = sizeof(plaintext);
+        if ((wc_CoseEncrypt_Decrypt(&recipients[1], 1u, tampered, coseLen,
+                 NULL, 0u, aad, sizeof(aad) - 1u, scratch, sizeof(scratch),
+                 &hdr, plaintext, sizeof(plaintext), &plaintextLen) == 0) ||
+            (plaintextLen != 0u)) {
             ret = -1;
         }
     }

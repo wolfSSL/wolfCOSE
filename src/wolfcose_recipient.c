@@ -1169,9 +1169,11 @@ int wolfCose_Hpke0SealInit(WOLFCOSE_HPKE_0_SEAL_CTX* sealCtx,
         }
     }
     if (ret == WOLFCOSE_SUCCESS) {
-        hpkeRet = wc_HpkeSerializePublicKey(&sealCtx->hpke,
-                                             &sealCtx->ephemeralKey,
-                                             enc, &encLen);
+        hpkeRet = -1;  /* Initialize to failure for injection testing */
+        INJECT_FAILURE(WOLF_FAIL_HPKE_SERIALIZE, hpkeRet,
+            hpkeRet = wc_HpkeSerializePublicKey(&sealCtx->hpke,
+                                                 &sealCtx->ephemeralKey,
+                                                 enc, &encLen));
         if ((hpkeRet != 0) || (encLen != WOLFCOSE_HPKE_0_ENC_SZ)) {
             ret = WOLFCOSE_E_CRYPTO;
         }

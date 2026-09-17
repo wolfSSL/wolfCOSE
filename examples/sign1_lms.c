@@ -36,6 +36,7 @@
 #include <wolfssl/wolfcrypt/random.h>
 
 static const char PAYLOAD[] = "wolfCOSE HSS-LMS payload";
+static const char PAYLOAD2[] = "wolfCOSE HSS-LMS second firmware payload";
 
 /* This example persists the compact LMS private key. WOLFSSL_WC_LMS_SERIALIZE_STATE
  * instead hands the callback the full serialized working state, which is larger
@@ -47,7 +48,10 @@ static const char PAYLOAD[] = "wolfCOSE HSS-LMS payload";
 /* LMS signatures run ~1.5KB for L1/H10/W8; keep buffers off the stack. */
 static uint8_t gScratch[8192];
 static uint8_t gMsg[4096];
+static uint8_t gMsg2[4096];
 static uint8_t gPrivStore[HSS_MAX_PRIVATE_KEY_LEN];
+static uint8_t gPrivBefore[HSS_MAX_PRIVATE_KEY_LEN];
+static unsigned int gWriteCount;
 
 static int lms_write_cb(const byte* priv, word32 privSz, void* context)
 {
@@ -56,6 +60,7 @@ static int lms_write_cb(const byte* priv, word32 privSz, void* context)
     if ((priv != NULL) && (context != NULL) &&
         (privSz <= (word32)sizeof(gPrivStore))) {
         (void)memcpy(context, priv, (size_t)privSz);
+        gWriteCount++;
         ret = (int)WC_LMS_RC_SAVED_TO_NV_MEMORY;
     }
     return ret;
@@ -82,6 +87,8 @@ int main(void)
     const uint8_t* payload = NULL;
     size_t         payloadLen = 0;
     size_t         msgLen = 0;
+    size_t         msgLen2 = 0;
+    unsigned int   writesBefore;
     int            ret;
     int            rc = 1;
 
@@ -149,6 +156,43 @@ int main(void)
     }
     else {
         (void)printf("HSS-LMS verify failed (%d)\n", ret);
+    }
+
+    writesBefore = gWriteCount;
+    (void)memcpy(gPrivBefore, gPrivStore, sizeof(gPrivBefore));
+    if (rc == 0) {
+        ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_HSS_LMS, NULL, 0,
+            (const uint8_t*)PAYLOAD2, sizeof(PAYLOAD2) - 1u, NULL, 0,
+            NULL, 0, gScratch, sizeof(gScratch), gMsg2, sizeof(gMsg2),
+            &msgLen2, &rng);
+        if ((ret != WOLFCOSE_SUCCESS) || (gWriteCount <= writesBefore) ||
+            (memcmp(gPrivBefore, gPrivStore, sizeof(gPrivBefore)) == 0) ||
+            ((msgLen == msgLen2) && (memcmp(gMsg, gMsg2, msgLen) == 0))) {
+            (void)printf("HSS-LMS state did not advance safely\n");
+            rc = 1;
+        }
+    }
+    if (rc == 0) {
+        ret = wc_CoseSign1_Verify(&key, gMsg2, msgLen2, NULL, 0, NULL, 0,
+            gScratch, sizeof(gScratch), &hdr, &payload, &payloadLen);
+        if ((ret != WOLFCOSE_SUCCESS) ||
+            (payloadLen != (sizeof(PAYLOAD2) - 1u)) || (payload == NULL) ||
+            (memcmp(payload, PAYLOAD2, payloadLen) != 0)) {
+            (void)printf("HSS-LMS second signature failed verification\n");
+            rc = 1;
+        }
+    }
+    if (rc == 0) {
+        gMsg2[msgLen2 - 1u] ^= 0x01u;
+        ret = wc_CoseSign1_Verify(&key, gMsg2, msgLen2, NULL, 0, NULL, 0,
+            gScratch, sizeof(gScratch), &hdr, &payload, &payloadLen);
+        if (ret == WOLFCOSE_SUCCESS) {
+            (void)printf("HSS-LMS accepted a modified signature\n");
+            rc = 1;
+        }
+        else {
+            (void)printf("HSS-LMS state advance and tamper checks: OK\n");
+        }
     }
 
     wc_CoseKey_Free(&key);

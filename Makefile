@@ -16,7 +16,9 @@
 #   clean         - Remove all build artifacts
 
 CC       ?= gcc
+CXX      ?= g++
 AR       ?= ar
+VALGRIND ?= valgrind
 PKG_CONFIG ?= pkg-config
 WOLFSSL_PACKAGE ?= wolfssl
 WOLFSSL_PREFIX ?= /usr/local
@@ -149,6 +151,7 @@ EXTSIGN_DEMO = examples/ext_sign_demo
 MLDSAV_DEMO = examples/sign1_verify_mldsa
 LMS_DEMO  = examples/sign1_lms
 LMSV_DEMO = examples/sign1_verify_lms
+CXX_SMOKE = tests/cpp_header_smoke
 
 # Comprehensive tests (CI)
 COMP_SIGN     = examples/comprehensive/sign_all
@@ -163,7 +166,7 @@ SCEN_IOTFLEET    = examples/scenarios/iot_fleet_config
 SCEN_SENSOR      = examples/scenarios/sensor_attestation
 SCEN_BROADCAST   = examples/scenarios/group_broadcast_mac
 
-.PHONY: all shared test pkg-config-test ecdsa-policy-test rsapss-policy-test countersign-config-test zero-alloc-check zeroize-test deprecated-algs-test ecc-import-policy-test ext-sign-test ext-sign-demo ext-sign-force-failure coverage eat-psa-test eat-psa-float-test eat-psa-min-buffers-test eat-psa-claim-limits-test eat-psa-profile-test eat-psa-config-check eat-psa-ext-sign-test eat-psa-ext-sign-force-failure eat-psa-coverage eat-psa-coverage-force-failure generic-reduced-alg-test tool tool-test cmdline-test demo demos hpke-demo lean-verify psa-eat-lean-verify psa-eat-demo mldsa-demo mldsa-verify lms-demo lms-verify comprehensive scenarios interop-tcose tcose-upstream interop-go-cose interop-python-cwt interop-rust-coset c99-check c99-check-lms c99-hpke-check experimental-check clean FORCE
+.PHONY: all shared test pkg-config-test ecdsa-policy-test rsapss-policy-test countersign-config-test zero-alloc-check zeroize-test deprecated-algs-test ecc-import-policy-test ext-sign-test ext-sign-demo ext-sign-force-failure coverage eat-psa-test eat-psa-float-test eat-psa-min-buffers-test eat-psa-claim-limits-test eat-psa-profile-test eat-psa-config-check eat-psa-ext-sign-test eat-psa-ext-sign-force-failure eat-psa-coverage eat-psa-coverage-force-failure hpke-coverage-force-failure generic-reduced-alg-test tool tool-test cmdline-test demo demos hpke-demo lean-verify psa-eat-lean-verify psa-eat-demo mldsa-demo mldsa-verify lms-demo lms-verify comprehensive scenarios release-scenarios release-coverage cxx-check valgrind-check release-validate release-artifacts interop-tcose tcose-upstream interop-go-cose interop-python-cwt interop-rust-coset c99-check c99-check-lms c99-hpke-check experimental-check clean FORCE
 
 # --- Core library ---
 all: $(LIB_A)
@@ -878,6 +881,20 @@ eat-psa-coverage-force-failure: clean
 	./$(TEST_BIN)
 	gcov src/*.c
 
+# HPKE coverage uses the same -Os and forced-failure build as the runs above so the tracefiles merge cleanly.
+HPKE_COVERAGE_FLAGS = -DWOLFCOSE_EXPERIMENTAL \
+    -DWOLFCOSE_ENABLE_HPKE_0_ENCRYPT -DWOLFCOSE_ENABLE_HPKE_0_DECRYPT \
+    -DWOLFCOSE_ENABLE_HPKE_0_KE_ENCRYPT -DWOLFCOSE_ENABLE_HPKE_0_KE_DECRYPT
+hpke-coverage-force-failure: clean
+	@set -e; for f in $(SRC); do \
+	    $(CC) $(CFLAGS) $(HPKE_COVERAGE_FLAGS) -DWOLFCOSE_FORCE_FAILURE --coverage -fprofile-arcs -ftest-coverage -c $$f -o $${f%.c}.o; \
+	done
+	rm -f $(LIB_A)
+	$(AR) rcs $(LIB_A) $(OBJ)
+	$(CC) $(CFLAGS) $(HPKE_COVERAGE_FLAGS) -DWOLFCOSE_FORCE_FAILURE --coverage -fprofile-arcs -ftest-coverage -o $(TEST_BIN) $(TEST_SRC) $(FORCE_FAIL_SRC) $(LIB_A) $(LDFLAGS) $(LDLIBS)
+	./$(TEST_BIN)
+	gcov src/*.c
+
 # --- Forced-failure coverage of the delegated seam ---
 # WOLF_FAIL_EXT_SIGN lives behind both WOLFCOSE_FORCE_FAILURE and
 # WOLFCOSE_ENABLE_EXT_SIGN, so it is unreachable unless both are set.
@@ -1014,6 +1031,52 @@ lms-verify:
 		$(LMSV_DEMO).c $(SRC) $(LDFLAGS) $(LDLIBS)
 	@echo "=== Running lean HSS/LMS verify-only example ==="
 	./$(LMSV_DEMO)
+
+# --- Release qualification ---
+# These feature scenarios require wolfSSL built with HPKE, LMS, and the
+# algorithms used by the full PSA/EAT profile.
+release-scenarios: hpke-demo lms-demo lms-verify mldsa-demo psa-eat-demo
+	$(MAKE) eat-psa-ext-sign-test
+	@echo "PASS: release feature scenarios"
+
+release-coverage:
+	./scripts/release/coverage.sh
+
+cxx-check:
+	$(MAKE) clean
+	$(MAKE) all CC="$(CXX) -x c++" \
+		CFLAGS="-std=c++17 -Os -Wall -Wextra -Wpedantic -Wshadow -Wconversion -DHAVE_ANONYMOUS_INLINE_AGGREGATES=1 -I./include $(WOLFSSL_CFLAGS)"
+	$(CXX) -std=c++17 -Wall -Wextra -Wpedantic -I./include \
+		$(WOLFSSL_CFLAGS) -o $(CXX_SMOKE) tests/cpp_header_smoke.cpp \
+		$(LIB_A) $(LDFLAGS) $(LDLIBS)
+	./$(CXX_SMOKE)
+
+valgrind-check: demo release-scenarios
+	$(VALGRIND) --leak-check=full --show-leak-kinds=all \
+		--errors-for-leak-kinds=all --error-exitcode=1 ./$(DEMO_BIN)
+	$(VALGRIND) --leak-check=full --show-leak-kinds=all \
+		--errors-for-leak-kinds=all --error-exitcode=1 ./$(HPKE_DEMO)
+	$(VALGRIND) --leak-check=full --show-leak-kinds=all \
+		--errors-for-leak-kinds=all --error-exitcode=1 ./$(LMS_DEMO)
+	$(VALGRIND) --leak-check=full --show-leak-kinds=all \
+		--errors-for-leak-kinds=all --error-exitcode=1 ./$(LMSV_DEMO)
+	$(VALGRIND) --leak-check=full --show-leak-kinds=all \
+		--errors-for-leak-kinds=all --error-exitcode=1 ./$(MLDSA_DEMO)
+	$(VALGRIND) --leak-check=full --show-leak-kinds=all \
+		--errors-for-leak-kinds=all --error-exitcode=1 ./$(EAT_DEMO)
+	$(VALGRIND) --leak-check=full --show-leak-kinds=all \
+		--errors-for-leak-kinds=all --error-exitcode=1 ./$(TEST_BIN)
+
+release-validate:
+	@test -n "$(VERSION)" || { echo "VERSION=X.Y.Z is required"; exit 2; }
+	./scripts/release/validate.sh --version "$(VERSION)" \
+		--ref "$(or $(RELEASE_REF),HEAD)"
+
+release-artifacts:
+	@test -n "$(VERSION)" || { echo "VERSION=X.Y.Z is required"; exit 2; }
+	./scripts/release/package.sh --version "$(VERSION)" \
+		--ref "$(or $(RELEASE_REF),HEAD)" \
+		--output "$(or $(RELEASE_OUTPUT),dist)"
 
 # --- Comprehensive algorithm tests (CI) ---
 comprehensive: $(LIB_A)
@@ -1335,7 +1398,7 @@ clean:
 	rm -f $(OBJ) $(TEST_BIN) $(TOOL_BIN) $(DEMO_BIN) $(ENC_DEMO) $(HPKE_DEMO) $(MAC_DEMO) \
 	    $(EAT_PSA_TEST_BIN) $(EAT_PSA_LIMITS_TEST_BIN) \
 	    $(EXTSIGN_DEMO) $(SIGN1_DEMO) $(LEANV_DEMO) $(EAT_LEANV_DEMO) \
-	    $(EAT_DEMO) $(MLDSA_DEMO) $(MLDSAV_DEMO) $(LMS_DEMO) $(LMSV_DEMO) \
+	    $(EAT_DEMO) $(MLDSA_DEMO) $(MLDSAV_DEMO) $(LMS_DEMO) $(LMSV_DEMO) $(CXX_SMOKE) \
 	    $(COMP_SIGN) $(COMP_ENCRYPT) $(COMP_MAC) $(COMP_ERRORS) \
 	    $(SCEN_FIRMWARE) $(SCEN_MULTIPARTY) $(SCEN_IOTFLEET) $(SCEN_SENSOR) $(SCEN_BROADCAST) \
 	    $(INTEROP_DIR)/*.o $(INTEROP_DIR)/*.su $(INTEROP_BIN) \
@@ -1344,7 +1407,8 @@ clean:
 	    $(PYTHON_CWT_BIN) \
 	    $(RUST_COSET_C_BIN) $(RUST_COSET_BIN) \
 	    $(LIB_A) $(LIB_SO) $(BUILD_CONFIG) $(BUILD_CONFIG).tmp src/*.su tests/*.su examples/*.su examples/comprehensive/*.su examples/scenarios/*.su \
-	    src/*.gcno src/*.gcda tests/*.gcno tests/*.gcda *.gcov experimental-check.err
+	    src/*.gcno src/*.gcda tests/*.gcno tests/*.gcda *.gcov experimental-check.err \
+	    release-coverage.info
 	rm -rf tests/*.dSYM tools/*.dSYM examples/*.dSYM \
 	    examples/comprehensive/*.dSYM examples/scenarios/*.dSYM \
 	    $(RUST_COSET_DIR)/target

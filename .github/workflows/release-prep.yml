@@ -1,0 +1,350 @@
+name: Release Qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version without the v prefix
+        required: true
+        type: string
+  pull_request:
+    types: [labeled]
+
+concurrency:
+  group: release-qualification-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+  checks: read
+  pull-requests: read
+
+jobs:
+  metadata:
+    name: Release metadata
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.label.name == 'ci:release'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      commit: ${{ steps.release.outputs.commit }}
+      ci_sha: ${{ steps.release.outputs.ci_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+      - name: Resolve release version and commit
+        id: release
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -eu
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION=$INPUT_VERSION
+          else
+            VERSION=$(awk '/LIBWOLFCOSE_VERSION_STRING/ {
+              gsub(/"/, "", $3); print $3; exit
+            }' include/wolfcose/version.h)
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "ci_sha=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ci_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate release metadata
+        run: |
+          ./scripts/release/validate.sh \
+            --version "${{ steps.release.outputs.version }}" \
+            --ref "${{ steps.release.outputs.commit }}"
+
+  qualify:
+    name: Release-specific qualification
+    needs: metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake g++ lcov libtool \
+            unzip valgrind zip
+
+      - name: Resolve wolfSSL master commit
+        id: wolfssl
+        run: |
+          echo "commit=$(git ls-remote https://github.com/wolfSSL/wolfssl.git HEAD | cut -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache full wolfSSL backend
+        id: cache-wolfssl
+        uses: actions/cache@v4
+        with:
+          path: ~/wolfssl-release
+          key: wolfssl-release-full-v1-${{ steps.wolfssl.outputs.commit }}
+
+      - name: Build full wolfSSL backend
+        if: steps.cache-wolfssl.outputs.cache-hit != 'true'
+        env:
+          WOLFSSL_COMMIT: ${{ steps.wolfssl.outputs.commit }}
+        run: |
+          git init "$HOME/wolfssl-release-src"
+          git -C "$HOME/wolfssl-release-src" remote add origin \
+            https://github.com/wolfSSL/wolfssl.git
+          git -C "$HOME/wolfssl-release-src" fetch --depth 1 origin \
+            "$WOLFSSL_COMMIT"
+          git -C "$HOME/wolfssl-release-src" checkout --detach FETCH_HEAD
+          test "$(git -C "$HOME/wolfssl-release-src" rev-parse HEAD)" = \
+            "$WOLFSSL_COMMIT"
+          cd "$HOME/wolfssl-release-src"
+          ./autogen.sh
+          ./configure --enable-ecc --enable-ed25519 --enable-ed448 \
+            --enable-curve25519 --enable-curve448 \
+            --enable-ecccustcurves=all \
+            --enable-aesgcm --enable-aesccm --enable-aescbc \
+            --enable-sha384 --enable-sha512 --enable-keygen \
+            --enable-hkdf --enable-aeskeywrap \
+            --enable-chacha --enable-poly1305 --enable-rsapss \
+            --enable-mldsa --enable-lms --enable-hpke \
+            --prefix="$HOME/wolfssl-release"
+          make -j"$(nproc)"
+          make install
+
+      - name: Run baseline release commands
+        env:
+          WOLFSSL_CFLAGS: -isystem /home/runner/wolfssl-release/include
+          WOLFSSL_LIBS: -L/home/runner/wolfssl-release/lib -lwolfssl
+          LD_LIBRARY_PATH: /home/runner/wolfssl-release/lib
+        run: |
+          make clean
+          make
+          make test
+          make comprehensive
+          make scenarios
+          make tool-test
+          make cmdline-test EXPECT_PQC=true
+          make demos
+
+      - name: Run advanced feature scenarios
+        env:
+          WOLFSSL_CFLAGS: -isystem /home/runner/wolfssl-release/include
+          WOLFSSL_LIBS: -L/home/runner/wolfssl-release/lib -lwolfssl
+          LD_LIBRARY_PATH: /home/runner/wolfssl-release/lib
+        run: make release-scenarios
+
+      - name: Compile as C++
+        env:
+          WOLFSSL_CFLAGS: -isystem /home/runner/wolfssl-release/include
+          WOLFSSL_LIBS: -L/home/runner/wolfssl-release/lib -lwolfssl
+          LD_LIBRARY_PATH: /home/runner/wolfssl-release/lib
+        run: make cxx-check
+
+      - name: Run release scenarios under Valgrind
+        env:
+          WOLFSSL_CFLAGS: -isystem /home/runner/wolfssl-release/include
+          WOLFSSL_LIBS: -L/home/runner/wolfssl-release/lib -lwolfssl
+          LD_LIBRARY_PATH: /home/runner/wolfssl-release/lib
+        run: make valgrind-check
+
+      - name: Merge release coverage profiles
+        env:
+          WOLFSSL_CFLAGS: -isystem /home/runner/wolfssl-release/include
+          WOLFSSL_LIBS: -L/home/runner/wolfssl-release/lib -lwolfssl
+          WOLFSSL_LDFLAGS: -L/home/runner/wolfssl-release/lib -lwolfssl
+          LD_LIBRARY_PATH: /home/runner/wolfssl-release/lib
+        run: make release-coverage
+
+      - name: Build and smoke-test source archives
+        env:
+          WOLFSSL_CFLAGS: -isystem /home/runner/wolfssl-release/include
+          WOLFSSL_LIBS: -L/home/runner/wolfssl-release/lib -lwolfssl
+          LD_LIBRARY_PATH: /home/runner/wolfssl-release/lib
+        run: |
+          make release-artifacts \
+            VERSION="${{ needs.metadata.outputs.version }}" \
+            RELEASE_REF="${{ needs.metadata.outputs.commit }}"
+
+      - name: Verify reproducible source archives
+        env:
+          VERSION: ${{ needs.metadata.outputs.version }}
+          RELEASE_REF: ${{ needs.metadata.outputs.commit }}
+        run: |
+          normal=$(mktemp -d)
+          restricted=$(mktemp -d)
+          (
+            umask 022
+            TZ=UTC RELEASE_SMOKE_TEST=0 make release-artifacts \
+              VERSION="$VERSION" RELEASE_REF="$RELEASE_REF" \
+              RELEASE_OUTPUT="$normal"
+          )
+          (
+            umask 077
+            TZ=Pacific/Honolulu RELEASE_SMOKE_TEST=0 make release-artifacts \
+              VERSION="$VERSION" RELEASE_REF="$RELEASE_REF" \
+              RELEASE_OUTPUT="$restricted"
+          )
+          cmp "$normal/wolfcose-$VERSION.tar.gz" \
+              "$restricted/wolfcose-$VERSION.tar.gz"
+          cmp "$normal/wolfcose-$VERSION.zip" \
+              "$restricted/wolfcose-$VERSION.zip"
+          cmp "$normal/wolfcose-$VERSION.sha256" \
+              "$restricted/wolfcose-$VERSION.sha256"
+
+      - name: Record backend in release manifest
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("dist/release-manifest.json")
+          data = json.loads(path.read_text())
+          data["wolfssl"] = {
+              "ref": "master",
+              "commit": "${{ steps.wolfssl.outputs.commit }}",
+          }
+          data["workflow_run"] = (
+              "${{ github.server_url }}/${{ github.repository }}/actions/runs/"
+              "${{ github.run_id }}"
+          )
+          path.write_text(json.dumps(data, indent=2) + "\n")
+          PY
+
+      - name: Upload verified release candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: wolfcose-${{ needs.metadata.outputs.version }}-${{ needs.metadata.outputs.commit }}
+          path: |
+            dist/
+            release-coverage.info
+          retention-days: 90
+
+  required-ci:
+    name: Required CI for candidate SHA
+    needs: metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 125
+    steps:
+      - name: Wait for required workflows
+        uses: actions/github-script@v7
+        env:
+          CANDIDATE_SHA: ${{ needs.metadata.outputs.ci_sha }}
+        with:
+          script: |
+            const required = [
+              'build-test.yml',
+              'c99-compliance.yml',
+              'cmdline-test.yml',
+              'codeql.yml',
+              'codespell.yml',
+              'comprehensive-tests.yml',
+              'cose-hpke.yml',
+              'coverage.yml',
+              'empty-brace-scan.yml',
+              'examples.yml',
+              'house-style.yml',
+              'interop.yml',
+              'lean-build.yml',
+              'minimal-build.yml',
+              'misra-2012.yml',
+              'misra-2023.yml',
+              'multi-compiler.yml',
+              'sanitizer.yml',
+              'scenarios.yml',
+              'semgrep.yml',
+              'stack-bounds.yml',
+              'static-analysis.yml',
+              'wolfssl-versions.yml',
+            ];
+            const wanted = new Set(required);
+            const candidate = process.env.CANDIDATE_SHA;
+            const expectedEvent = context.eventName === 'pull_request'
+              ? 'pull_request'
+              : 'push';
+            const deadline = Date.now() + (120 * 60 * 1000);
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const basename = (path) => (path || '').split('/').pop();
+
+            async function newestRuns() {
+              const runs = await github.paginate(
+                github.rest.actions.listWorkflowRunsForRepo,
+                {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  head_sha: candidate,
+                  event: expectedEvent,
+                  per_page: 100,
+                }
+              );
+              const newest = new Map();
+              for (const run of runs) {
+                const file = basename(run.path);
+                if (!wanted.has(file)) continue;
+                const old = newest.get(file);
+                if (old === undefined || run.run_number > old.run_number) {
+                  newest.set(file, run);
+                }
+              }
+              return newest;
+            }
+
+            let newest = new Map();
+            while (Date.now() < deadline) {
+              newest = await newestRuns();
+              const pending = [...newest.values()].filter(
+                (run) => run.status !== 'completed'
+              );
+              core.info(
+                `Found ${newest.size}/${required.length} workflows; ` +
+                `${pending.length} still running`
+              );
+              if (newest.size === required.length && pending.length === 0) break;
+              await sleep(60 * 1000);
+            }
+
+            let summary = `## Required CI associated with ${candidate}\n\n`;
+            const failures = [];
+            for (const file of required) {
+              const run = newest.get(file);
+              if (run === undefined) {
+                summary += `- ${file}: missing\n`;
+                failures.push(`${file}: missing`);
+                continue;
+              }
+              summary += `- [${file}](${run.html_url}): ${run.conclusion || run.status}\n`;
+              if (run.status !== 'completed' || run.conclusion !== 'success') {
+                failures.push(`${file}: ${run.conclusion || run.status}`);
+              }
+            }
+            await core.summary.addRaw(summary).write();
+            if (failures.length !== 0) {
+              core.setFailed(failures.join('\n'));
+            }
+
+  release-qualified:
+    name: Release qualified
+    if: >-
+      always() &&
+      (github.event_name == 'workflow_dispatch' ||
+       github.event.label.name == 'ci:release')
+    needs: [metadata, qualify, required-ci]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce all release gates
+        env:
+          METADATA: ${{ needs.metadata.result }}
+          QUALIFY: ${{ needs.qualify.result }}
+          REQUIRED_CI: ${{ needs.required-ci.result }}
+        run: |
+          test "$METADATA" = success
+          test "$QUALIFY" = success
+          test "$REQUIRED_CI" = success

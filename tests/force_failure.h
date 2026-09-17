@@ -104,6 +104,9 @@ typedef enum {
     /* ECDH failures */
     WOLF_FAIL_ECDH_SHARED_SECRET,    /* wc_ecc_shared_secret */
 
+    /* HPKE failures */
+    WOLF_FAIL_HPKE_SERIALIZE,        /* wc_HpkeSerializePublicKey */
+
     /* Hash failures */
     WOLF_FAIL_HASH,                  /* wc_Hash */
 
