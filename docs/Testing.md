@@ -103,7 +103,7 @@ gate combinations. It also checks the 384, 521, and above-P-521
 structural floors. `psa-eat-lean-verify` runs the RFC Sign1 and Mac0 vectors
 against a verify-only, full-`#tfm` receiver build. `psa-eat-demo` runs a complete issue,
 challenge verification, and software-component appraisal workflow.
-See [[PSA-EAT]].
+See [PSA-EAT](PSA-EAT.md).
 
 ### Deprecated Algorithm ID Tests
 
@@ -172,7 +172,7 @@ also covers missing, duplicate, wrong-type, wrong-length, and wrongly placed
 `ek`, prohibited `psk_id`, detached ciphertext, and cleared outputs on failed
 decrypts and encrypts.
 GitHub Actions runs the same coverage in
-[Experimental COSE-HPKE](../.github/workflows/cose-hpke.yml).
+[Experimental COSE-HPKE](https://github.com/wolfSSL/wolfCOSE/blob/main/.github/workflows/cose-hpke.yml).
 
 ### Comprehensive Algorithm Tests
 
@@ -221,7 +221,7 @@ interoperability. t_cose verifies wolfCOSE's envelope bytes; wolfCOSE verifies
 the t_cose envelope and validates the RFC 9783 claims.
 
 t_cose and QCBOR are BSD-3-Clause and are not vendored; the
-[Interop CI job](../.github/workflows/interop.yml) fetches them at pinned
+[Interop CI job](https://github.com/wolfSSL/wolfCOSE/blob/main/.github/workflows/interop.yml) fetches them at pinned
 SHAs. See `tests/interop/t_cose/README.md` for the fixed test-key provenance.
 
 ### Complete upstream t_cose suite
@@ -397,7 +397,7 @@ wolfCOSE is zero-heap (no `malloc`/`XMALLOC` on any path) and bounded-stack, bot
 
 - **Bounded stack**: built with `-fstack-usage`, then `scripts/check_stack_usage.sh` fails the build if any wolfCOSE frame exceeds 6144 bytes or is `dynamic` (unbounded); `-Werror=vla` bans VLAs/`alloca`.
 - **Zero heap**: sources, tests, tools, and examples are grepped for allocator calls.
-- **`WOLFCOSE_MIN_BUFFERS`**: constrained-target profile that shrinks the caller working buffers (not the library frames) — see [[Macros]].
+- **`WOLFCOSE_MIN_BUFFERS`**: constrained-target profile that shrinks the caller working buffers (not the library frames) — see [Macros](Macros.md).
 - **Minimal Build matrix**: builds and tests against single-purpose minimal wolfCrypt configs (ECC-only, EdDSA-only, AEAD-only, MAC-only, …) plus a `WOLFCOSE_LEAN` core build.
 
 ### Lean and Post-Quantum Builds
@@ -424,8 +424,6 @@ on-device build profiles:
 ### Coverity Scan
 
 Nightly defect analysis via [Coverity Scan](https://scan.coverity.com/projects/wolfcose).
-
-[![Coverity Scan Build Status](https://scan.coverity.com/projects/32918/badge.svg)](https://scan.coverity.com/projects/wolfcose)
 
 ---
 
@@ -472,6 +470,6 @@ Vector format is typically CBOR diagnostic notation or hex dumps with expected o
 
 ## See Also
 
-- [[Getting Started]]: Build instructions
-- [[Macros]]: Test configuration macros
-- [[Project Structure]]: Source file layout
+- [Getting Started](Getting-Started.md): Build instructions
+- [Macros](Macros.md): Test configuration macros
+- [Project Structure](Project-Structure.md): Source file layout

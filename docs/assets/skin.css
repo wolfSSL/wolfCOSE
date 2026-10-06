@@ -1,0 +1,25 @@
+/* Match the public wolfSSL manual colors without depending on its build repo. */
+.md-header {
+  background-color: #fff;
+  color: #1fbeca;
+}
+
+.md-header__title,
+.md-nav__link--active {
+  color: #1fbeca;
+}
+
+.md-typeset a,
+.md-nav__link {
+  color: #c46715;
+}
+
+.md-typeset a:hover,
+.md-nav__link:hover {
+  color: #1fbeca;
+}
+
+.md-header__button.md-logo img {
+  height: 2.5rem;
+  width: auto;
+}

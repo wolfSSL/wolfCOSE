@@ -1,0 +1,63 @@
+site_name: wolfCOSE Manual
+site_description: Lightweight CBOR and COSE library for embedded systems
+site_url: https://www.wolfssl.com/documentation/manuals/wolfcose/
+repo_url: https://github.com/wolfSSL/wolfCOSE
+edit_uri: edit/main/docs/
+docs_dir: docs
+site_dir: build/docs-site
+copyright: Copyright © 2026 wolfSSL Inc.
+use_directory_urls: false
+
+# docs/dev/ holds maintainer notes (build process, etc.), not manual pages.
+# Keep non-manual docs under docs/dev/ so they never enter the published manual.
+exclude_docs: |
+  dev/
+
+nav:
+  - Overview:
+      - wolfCOSE: index.md
+  - Get started:
+      - Getting Started: Getting-Started.md
+      - Message Types: Message-Types.md
+      - Algorithms: Algorithms.md
+  - Reference:
+      - API Reference: API-Reference.md
+      - Build Options: Macros.md
+      - Project Structure: Project-Structure.md
+  - Attestation:
+      - PSA and EAT: PSA-EAT.md
+  - Compliance and size:
+      - MISRA Compliance: MISRA-Compliance.md
+      - Footprint: Footprint.md
+      - Testing: Testing.md
+  - Platforms:
+      - STM32Cube: STM32Cube.md
+  - Status:
+      - Experimental: Experimental.md
+      - Release Notes: Release-Notes.md
+
+theme:
+  name: material
+  logo: assets/logo.png
+  favicon: assets/logo.png
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+  palette:
+    primary: white
+    accent: deep orange
+
+extra_css:
+  - assets/skin.css
+
+markdown_extensions:
+  - tables
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - toc:
+      permalink: true
+
+plugins:
+  - search

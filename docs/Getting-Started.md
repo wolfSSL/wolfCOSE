@@ -482,7 +482,7 @@ Related strictness that surprises integrators for the same reason:
 
 - Trailing bytes after the encoded object are rejected. `inSz` must be exactly
   the object length, not the capacity of the buffer holding it. Use
-  [`wc_CBOR_SkipItem()`](API-Reference.md#wc_cbor_skipitem) to carve out the
+  [`wc_CBOR_SkipItem()`](API-Reference.md#decoding-functions) to carve out the
   exact byte range of an embedded item.
 - Two-byte simple values below 32 are malformed, per RFC 8949.
 - All encountered CBOR text strings are validated as UTF-8. This also applies
@@ -534,7 +534,7 @@ Per-function stack usage (from `-fstack-usage`, GCC, `-Os`, aarch64):
 
 ## Next Steps
 
-- [[Algorithms]]: See all supported algorithms
-- [[API Reference]]: Complete function documentation
-- [[Macros]]: Configure compile-time options
-- [[Testing]]: Run tests and measure coverage
+- [Algorithms](Algorithms.md): See all supported algorithms
+- [API Reference](API-Reference.md): Complete function documentation
+- [Macros](Macros.md): Configure compile-time options
+- [Testing](Testing.md): Run tests and measure coverage

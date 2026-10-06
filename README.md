@@ -23,12 +23,12 @@ wolfCOSE is a lightweight and fast C library implementing core CBOR and COSE sta
 * **Post-Quantum Cryptography:**
   * ML-DSA (FIPS 204 / RFC 9964) at all security levels.
   * HSS/LMS stateful hash-based signing (RFC 8778 / CNSA 2.0).
-* **Fast Performance:** On an Intel i9-11950H, end-to-end `COSE_Sign1` reaches 66,538 sign/s and 26,437 verify/s with ES256, and 21,986 sign/s and 53,686 verify/s with ML-DSA-44. See the [performance and footprint details](https://github.com/wolfSSL/wolfCOSE/wiki/Footprint) and [wolfCOSE vs. The Field](https://www.wolfssl.com/wolfcose-vs-the-field-the-smallest-and-fastest-cose-library-now-with-post-quantum-ml-dsa-at-the-same-cost/).
+* **Fast Performance:** On an Intel i9-11950H, end-to-end `COSE_Sign1` reaches 66,538 sign/s and 26,437 verify/s with ES256, and 21,986 sign/s and 53,686 verify/s with ML-DSA-44. See the [performance and footprint details](https://www.wolfssl.com/documentation/manuals/wolfcose/Footprint.html) and [wolfCOSE vs. The Field](https://www.wolfssl.com/wolfcose-vs-the-field-the-smallest-and-fastest-cose-library-now-with-post-quantum-ml-dsa-at-the-same-cost/).
 * **PSA Attestation:** EAT / PSA Token issuance and verification with delegated HSM signing support.
 * **41 Cryptographic Algorithms:** Broad algorithm coverage across signing, encryption, MAC, and key distribution.
 * **Embedded-First Design:** Zero dynamic memory allocation (no heap, zero `.data`/`.bss`). Operates on caller-supplied buffers with bounded stack usage.
 * **FIPS 140-3 Path:** Uses wolfCrypt (FIPS Certificate #4718) as its sole cryptographic dependency.
-* **STM32 Integrated:** Drop-in STM32Cube pack (`I-CUBE-wolfCOSE`) available for STM32CubeMX / IDE ([Details](https://github.com/wolfSSL/wolfCOSE/wiki/STM32Cube)).
+* **STM32 Integrated:** Drop-in STM32Cube pack (`I-CUBE-wolfCOSE`) available for STM32CubeMX / IDE ([Details](https://www.wolfssl.com/documentation/manuals/wolfcose/STM32Cube.html)).
 
 ## Supported Algorithms
 
@@ -71,7 +71,7 @@ the corresponding `wc_Cose_VerifyCounterSignature*()` API.
 
 wolfCOSE requires [wolfSSL](https://www.wolfssl.com/) as its crypto backend.
 **Minimum supported version: v5.8.0-stable**. Some optional algorithms require
-newer releases; see [Getting Started](docs/Getting-Started.md#prerequisites) for
+newer releases; see [Getting Started](https://www.wolfssl.com/documentation/manuals/wolfcose/Getting-Started.html#prerequisites) for
 feature-specific dependency floors and build instructions. HSS/LMS (RFC 8778)
 requires v5.9.2-stable or later.
 
@@ -104,7 +104,7 @@ stack and disable the algorithms a Sign1 + Encrypt0 build never uses:
             --disable-errorstrings
 ```
 
-See [Tuning for Size](docs/Macros.md#tuning-for-size) and [Tuning for Speed](docs/Macros.md#tuning-for-speed)
+See [Tuning for Size](https://www.wolfssl.com/documentation/manuals/wolfcose/Macros.html#tuning-for-size) and [Tuning for Speed](https://www.wolfssl.com/documentation/manuals/wolfcose/Macros.html#tuning-for-speed)
 for squeezing wolfCOSE and wolfCrypt further on MCUs.
 
 ### Minimal Build (Post-Quantum / ML-DSA only)
@@ -213,19 +213,25 @@ make coverage-force-failure    # Include crypto failure path testing
 
 ## Documentation
 
-Full documentation is available in the [Wiki](https://github.com/wolfSSL/wolfCOSE/wiki):
+The official wolfCOSE manual is published at
+[wolfssl.com/documentation/manuals/wolfcose](https://www.wolfssl.com/documentation/manuals/wolfcose/index.html):
 
-- [Getting Started](https://github.com/wolfSSL/wolfCOSE/wiki/Getting-Started): Build instructions and first steps
-- [Message Types](https://github.com/wolfSSL/wolfCOSE/wiki/Message-Types): All six RFC 9052 messages (Sign1, Sign, Encrypt0, Encrypt, Mac0, Mac) and RFC 9338 countersignatures with code samples
-- [Algorithms](https://github.com/wolfSSL/wolfCOSE/wiki/Algorithms): Complete list of 41 supported algorithms with COSE IDs
-- [API Reference](https://github.com/wolfSSL/wolfCOSE/wiki/API-Reference): Function signatures, data structures, error codes
-- [Macros](https://github.com/wolfSSL/wolfCOSE/wiki/Macros): Compile-time configuration, size tuning, and ECDSA nonce policy
-- [PSA-EAT](https://github.com/wolfSSL/wolfCOSE/wiki/PSA-EAT): RFC 9783 PSA token profiles, APIs, macros, and security guidance
-- [Footprint](https://github.com/wolfSSL/wolfCOSE/wiki/Footprint): Size and speed numbers, desktop and on-device
-- [Testing](https://github.com/wolfSSL/wolfCOSE/wiki/Testing): Test infrastructure, coverage, and failure injection
-- [MISRA Compliance](https://github.com/wolfSSL/wolfCOSE/wiki/MISRA-Compliance): MISRA C:2012 and C:2023 compliance status and deviation rationale
-- [Project Structure](https://github.com/wolfSSL/wolfCOSE/wiki/Project-Structure): Source file layout
-- [STM32Cube](https://github.com/wolfSSL/wolfCOSE/wiki/STM32Cube): Install and run wolfCOSE as an STM32Cube pack on device
+- [Getting Started](https://www.wolfssl.com/documentation/manuals/wolfcose/Getting-Started.html): Build instructions and first steps
+- [Message Types](https://www.wolfssl.com/documentation/manuals/wolfcose/Message-Types.html): All six RFC 9052 messages (Sign1, Sign, Encrypt0, Encrypt, Mac0, Mac) and RFC 9338 countersignatures with code samples
+- [Algorithms](https://www.wolfssl.com/documentation/manuals/wolfcose/Algorithms.html): Complete list of 41 supported algorithms with COSE IDs
+- [API Reference](https://www.wolfssl.com/documentation/manuals/wolfcose/API-Reference.html): Function signatures, data structures, error codes
+- [Macros](https://www.wolfssl.com/documentation/manuals/wolfcose/Macros.html): Compile-time configuration, size tuning, and ECDSA nonce policy
+- [PSA-EAT](https://www.wolfssl.com/documentation/manuals/wolfcose/PSA-EAT.html): RFC 9783 PSA token profiles, APIs, macros, and security guidance
+- [Footprint](https://www.wolfssl.com/documentation/manuals/wolfcose/Footprint.html): Size and speed numbers, desktop and on-device
+- [Testing](https://www.wolfssl.com/documentation/manuals/wolfcose/Testing.html): Test infrastructure, coverage, and failure injection
+- [MISRA Compliance](https://www.wolfssl.com/documentation/manuals/wolfcose/MISRA-Compliance.html): MISRA C:2012 and C:2023 compliance status and deviation rationale
+- [Project Structure](https://www.wolfssl.com/documentation/manuals/wolfcose/Project-Structure.html): Source file layout
+- [STM32Cube](https://www.wolfssl.com/documentation/manuals/wolfcose/STM32Cube.html): Install and run wolfCOSE as an STM32Cube pack on device
+
+The manual sources live in [`docs/`](docs/); `mkdocs.yml` defines the navigation
+and the shared [`wolfSSL/documentation`](https://github.com/wolfSSL/documentation)
+tooling builds the HTML and PDF. See [docs/dev/DOCS-BUILD.md](docs/dev/DOCS-BUILD.md)
+for local previews and how changes reach the website.
 
 ## Release Notes
 

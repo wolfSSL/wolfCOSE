@@ -206,8 +206,7 @@ jobs:
     - name: Run clang-tidy
       run: |
         export WOLFSSL_DIR=$HOME/wolfssl-install
-        # Deviations (documented at
-        # https://github.com/wolfSSL/wolfCOSE/wiki/MISRA-Compliance):
+        # Deviations (documented in docs/MISRA-Compliance.md):
         #
         # -bugprone-branch-clone: Different COSE algorithms intentionally
         #   map to the same wolfCrypt value (e.g. ES512 and EdDSA both

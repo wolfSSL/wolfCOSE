@@ -1,6 +1,6 @@
 # Supported Algorithms
 
-wolfCOSE supports 46 algorithms across signing, encryption, MAC, and key distribution. This page provides the complete list with COSE algorithm IDs and required wolfSSL compile-time guards. All algorithms are usable in both single-actor messages (Sign1/Encrypt0/Mac0) and multi-actor messages (Sign/Encrypt/Mac). See [[Message Types]] for details.
+wolfCOSE supports 46 algorithms across signing, encryption, MAC, and key distribution. This page provides the complete list with COSE algorithm IDs and required wolfSSL compile-time guards. All algorithms are usable in both single-actor messages (Sign1/Encrypt0/Mac0) and multi-actor messages (Sign/Encrypt/Mac). See [Message Types](Message-Types.md) for details.
 
 ## COSE_Sign1 (Digital Signatures)
 
@@ -224,6 +224,6 @@ Future algorithm support planned:
 
 ## See Also
 
-- [[Getting Started]]: Build instructions and examples
-- [[API Reference]]: Function documentation
-- [[Macros]]: Compile-time configuration
+- [Getting Started](Getting-Started.md): Build instructions and examples
+- [API Reference](API-Reference.md): Function documentation
+- [Macros](Macros.md): Compile-time configuration

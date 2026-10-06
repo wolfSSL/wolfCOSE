@@ -28,7 +28,7 @@ The verify-only profile is the common on-device case: a device verifies signed f
 
 ## Build-profile footprint
 
-The lean profiles (see [[Macros]] → Build Profiles). *Glue* is the wolfCOSE engine alone; *total* adds the minimal wolfCrypt backend.
+The lean profiles (see [Macros](Macros.md) -> Build Profiles). *Glue* is the wolfCOSE engine alone; *total* adds the minimal wolfCrypt backend.
 
 | Profile | Algorithm | wolfCOSE glue | Total + wolfCrypt |
 |---------|-----------|---------------|-------------------|
@@ -78,6 +78,6 @@ Desktop: x86_64 Intel i9-11950H, GCC 14.2. ES256 was measured in June 2026 using
 
 ## See Also
 
-- [[Macros]]: build profiles and configuration
-- [[Testing]]: memory and stack-bound enforcement in CI
-- [[Getting Started]]: building wolfCOSE
+- [Macros](Macros.md): build profiles and configuration
+- [Testing](Testing.md): memory and stack-bound enforcement in CI
+- [Getting Started](Getting-Started.md): building wolfCOSE

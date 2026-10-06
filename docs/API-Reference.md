@@ -1164,7 +1164,7 @@ pin the same algorithm.
 ## PSA/EAT API
 
 Available only when `WOLFCOSE_ENABLE_EAT_PSA` and the selected profile and
-envelope gates are defined. Include `<wolfcose/eat_psa.h>`. See [[PSA-EAT]]
+envelope gates are defined. Include `<wolfcose/eat_psa.h>`. See [PSA-EAT](PSA-EAT.md)
 for configuration and security requirements.
 
 ### wc_CoseEatPsaToken_Verify
@@ -1415,7 +1415,7 @@ numeric `crit` is rejected. `wc_CoseKey_Decode()` and
 
 ## See Also
 
-- [[Getting Started]]: Build instructions and examples
-- [[Algorithms]]: Supported algorithms
-- [[Macros]]: Compile-time configuration
-- [[PSA-EAT]]: RFC 9783 PSA attestation support
+- [Getting Started](Getting-Started.md): Build instructions and examples
+- [Algorithms](Algorithms.md): Supported algorithms
+- [Macros](Macros.md): Compile-time configuration
+- [PSA-EAT](PSA-EAT.md): RFC 9783 PSA attestation support

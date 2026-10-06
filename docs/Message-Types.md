@@ -12,7 +12,7 @@ wolfCOSE implements the complete RFC 9052 message set — all six COSE structure
 | `COSE_Mac` | Sec. 6.1 | 97 | `wc_CoseMac_Create` / `wc_CoseMac_Verify` |
 | `COSE_Key` / `COSE_KeySet` | Sec. 7 | (none) | `wc_CoseKey_Encode` / `wc_CoseKey_Decode` |
 
-Every message can be built attached or detached, with optional external AAD, and every algorithm in [[Algorithms]] is available to every message type that accepts it.
+Every message can be built attached or detached, with optional external AAD, and every algorithm in [Algorithms](Algorithms.md) is available to every message type that accepts it.
 
 ## COSE_Sign1 — single-signer signature (RFC 9052 Sec. 4.2)
 
@@ -238,7 +238,7 @@ You only pay for the message types you use. Strip whole message types with the m
 -DWOLFCOSE_NO_MAC0 -DWOLFCOSE_NO_MAC                         /* drop all MAC */
 ```
 
-For common minimal builds, use a build profile instead of hand-listing macros — these are the supported, CI-tested configurations (see [[Macros]] → Build Profiles):
+For common minimal builds, use a build profile instead of hand-listing macros — these are the supported, CI-tested configurations (see [Macros](Macros.md) -> Build Profiles):
 
 | Profile | Result |
 |---------|--------|
@@ -251,7 +251,7 @@ A minimal Sign1-verify-only build (`WOLFCOSE_LEAN_VERIFY`) is about **5.1 KB** o
 
 ## See also
 
-- [[Algorithms]] — full algorithm list with COSE IDs and wolfCrypt guards
-- [[API Reference]] — function signatures, structures, and error codes
-- [[Macros]] — every `WOLFCOSE_*` and `WOLFCOSE_NO_*` compile-time toggle
+- [Algorithms](Algorithms.md) — full algorithm list with COSE IDs and wolfCrypt guards
+- [API Reference](API-Reference.md) — function signatures, structures, and error codes
+- [Macros](Macros.md) — every `WOLFCOSE_*` and `WOLFCOSE_NO_*` compile-time toggle
 - [`examples/scenarios/`](https://github.com/wolfSSL/wolfCOSE/tree/main/examples/scenarios) — `multi_party_approval.c`, `iot_fleet_config.c`, `group_broadcast_mac.c` show real multi-actor flows
