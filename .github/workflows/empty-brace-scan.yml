@@ -2,7 +2,7 @@ name: Empty Brace Scope Scan
 
 on:
   push:
-    branches: [ 'main', 'release/**' ]
+    branches: [ 'main', 'release/**', 'ci/ghcr-ci-image' ]
   pull_request:
     branches: [ '*' ]
   workflow_dispatch:
@@ -11,10 +11,16 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   empty-brace-scan:
     name: Empty Brace Scope Scan
     runs-on: ubuntu-22.04
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4

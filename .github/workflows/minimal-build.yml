@@ -2,7 +2,7 @@ name: Minimal Build
 
 on:
   push:
-    branches: [ 'main', 'release/**' ]
+    branches: [ 'main', 'release/**', 'ci/ghcr-ci-image' ]
   pull_request:
     branches: [ '*' ]
   workflow_dispatch:
@@ -11,10 +11,16 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   minimal:
     name: ${{ matrix.name }}
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
     strategy:
       fail-fast: false
       matrix:
@@ -73,11 +79,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y autoconf automake libtool
-
     - name: Resolve wolfSSL master commit
       id: wolfssl-rev
       run: echo "sha=$(git ls-remote https://github.com/wolfSSL/wolfssl.git HEAD | cut -f1)" >> "$GITHUB_OUTPUT"
@@ -87,7 +88,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-minimal
-        key: ${{ matrix.cache_key }}-${{ steps.wolfssl-rev.outputs.sha }}
+        key: wolfcose-ci-v1-${{ matrix.cache_key }}-${{ steps.wolfssl-rev.outputs.sha }}
 
     - name: Build wolfSSL (${{ matrix.name }})
       if: steps.cache-wolfssl.outputs.cache-hit != 'true'

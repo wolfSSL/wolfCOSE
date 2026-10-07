@@ -2,7 +2,7 @@ name: Lean Build
 
 on:
   push:
-    branches: [ 'main', 'release/**' ]
+    branches: [ 'main', 'release/**', 'ci/ghcr-ci-image' ]
   pull_request:
     branches: [ '*' ]
   workflow_dispatch:
@@ -11,18 +11,19 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   lean-verify:
     name: Lean verify-only (WOLFCOSE_LEAN_VERIFY)
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
 
     steps:
     - uses: actions/checkout@v4
-
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y autoconf automake libtool
 
     - name: Resolve wolfSSL master commit
       id: wolfssl-rev
@@ -33,7 +34,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-lean
-        key: wolfssl-lean-tfm-verifyonly-v3-${{ steps.wolfssl-rev.outputs.sha }}
+        key: wolfcose-ci-v1-wolfssl-lean-tfm-verifyonly-v3-${{ steps.wolfssl-rev.outputs.sha }}
 
     # Verify-only full-#tfm backend: NO_ECC_SIGN compiles ECDSA signing out.
     # This catches a verification path that accidentally pulls in a signing
@@ -105,14 +106,11 @@ jobs:
   lean-compile-matrix:
     name: Lean configs compile clean (strict)
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
 
     steps:
     - uses: actions/checkout@v4
-
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y autoconf automake libtool
 
     - name: Resolve wolfSSL master commit
       id: wolfssl-rev
@@ -123,7 +121,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-install
-        key: wolfssl-ubuntu-latest-v3-${{ steps.wolfssl-rev.outputs.sha }}
+        key: wolfcose-ci-v1-wolfssl-ubuntu-latest-v3-${{ steps.wolfssl-rev.outputs.sha }}
 
     - name: Build wolfSSL (full features)
       if: steps.cache-wolfssl.outputs.cache-hit != 'true'
@@ -196,14 +194,11 @@ jobs:
   mldsa:
     name: Post-quantum ML-DSA lean sign+verify and verify-only
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
 
     steps:
     - uses: actions/checkout@v4
-
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y autoconf automake libtool
 
     - name: Resolve wolfSSL master commit
       id: wolfssl-rev
@@ -214,7 +209,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-mldsa
-        key: wolfssl-mldsa-v1-${{ steps.wolfssl-rev.outputs.sha }}
+        key: wolfcose-ci-v1-wolfssl-mldsa-v1-${{ steps.wolfssl-rev.outputs.sha }}
 
     # ML-DSA (FIPS 204) backend. Dilithium pulls in SHAKE/SHA-3; RNG stays for
     # key generation and signing in the sign+verify demo.

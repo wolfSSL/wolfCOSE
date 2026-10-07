@@ -20,6 +20,10 @@ permissions:
   checks: read
   pull-requests: read
 
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   metadata:
     name: Release metadata
@@ -27,6 +31,8 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       github.event.label.name == 'ci:release'
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
     outputs:
       version: ${{ steps.release.outputs.version }}
       commit: ${{ steps.release.outputs.commit }}
@@ -68,18 +74,14 @@ jobs:
     name: Release-specific qualification
     needs: metadata
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y autoconf automake g++ lcov libtool \
-            unzip valgrind zip
 
       - name: Resolve wolfSSL master commit
         id: wolfssl
@@ -91,7 +93,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/wolfssl-release
-          key: wolfssl-release-full-v1-${{ steps.wolfssl.outputs.commit }}
+          key: wolfcose-ci-v1-wolfssl-release-full-v1-${{ steps.wolfssl.outputs.commit }}
 
       - name: Build full wolfSSL backend
         if: steps.cache-wolfssl.outputs.cache-hit != 'true'
@@ -232,6 +234,8 @@ jobs:
     name: Required CI for candidate SHA
     needs: metadata
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
     timeout-minutes: 125
     steps:
       - name: Wait for required workflows
@@ -338,6 +342,8 @@ jobs:
        github.event.label.name == 'ci:release')
     needs: [metadata, qualify, required-ci]
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
     steps:
       - name: Enforce all release gates
         env:

@@ -2,7 +2,7 @@ name: Stack Bounds
 
 on:
   push:
-    branches: [ 'main', 'release/**' ]
+    branches: [ 'main', 'release/**', 'ci/ghcr-ci-image' ]
   pull_request:
     branches: [ '*' ]
   workflow_dispatch:
@@ -11,26 +11,27 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   frame-budget:
     name: Frame budget (full, worst case)
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
     env:
       FRAME_BUDGET: 6144
     steps:
     - uses: actions/checkout@v4
-
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y autoconf automake libtool
 
     - name: Cache wolfSSL (full)
       id: cache-wolfssl
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-full
-        key: wolfssl-full-stack-v1
+        key: wolfcose-ci-v1-wolfssl-full-stack-v1
 
     - name: Build wolfSSL (full)
       if: steps.cache-wolfssl.outputs.cache-hit != 'true'
@@ -71,20 +72,17 @@ jobs:
   small-footprint:
     name: SMALL_FOOTPRINT (ECC-only)
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
     steps:
     - uses: actions/checkout@v4
-
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y autoconf automake libtool
 
     - name: Cache wolfSSL (ECC-only)
       id: cache-wolfssl
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-ecc
-        key: wolfssl-ecc-smallfp-v2
+        key: wolfcose-ci-v1-wolfssl-ecc-smallfp-v2
 
     - name: Build wolfSSL (ECC-only, stripped)
       if: steps.cache-wolfssl.outputs.cache-hit != 'true'

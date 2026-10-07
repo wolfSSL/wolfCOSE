@@ -19,10 +19,16 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   resolve:
     name: Resolve wolfSSL version matrix
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       refs: ${{ steps.set-matrix.outputs.refs }}

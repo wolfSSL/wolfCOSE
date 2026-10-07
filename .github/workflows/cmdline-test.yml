@@ -11,6 +11,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   discover:
     uses: ./.github/workflows/_resolve-wolfssl.yml
@@ -19,6 +23,8 @@ jobs:
     name: Command-line tool (wolfSSL ${{ matrix.wolfssl-version }})
     needs: discover
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
@@ -26,18 +32,13 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y autoconf automake libtool
-
     - name: Cache wolfSSL (${{ matrix.wolfssl-version }})
       if: matrix.wolfssl-version != 'master'
       id: cache-wolfssl
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-install
-        key: wolfssl-clitest-${{ matrix.wolfssl-version }}-v3
+        key: wolfcose-ci-v1-wolfssl-clitest-${{ matrix.wolfssl-version }}-v3
 
     - name: Build wolfSSL (${{ matrix.wolfssl-version }})
       if: matrix.wolfssl-version == 'master' || steps.cache-wolfssl.outputs.cache-hit != 'true'

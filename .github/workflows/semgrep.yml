@@ -2,7 +2,7 @@ name: Semgrep
 
 on:
   push:
-    branches: [ 'main', 'release/**' ]
+    branches: [ 'main', 'release/**', 'ci/ghcr-ci-image' ]
   pull_request:
     branches: [ '*' ]
 
@@ -13,20 +13,19 @@ concurrency:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   semgrep:
     name: Semgrep (wolfCOSE security rules)
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
-      - name: Install Semgrep
-        run: pip install --quiet semgrep
 
       # --error makes the job fail on any finding. The rules self-scope via
       # their `paths:` blocks, so scanning the whole tree is fine.

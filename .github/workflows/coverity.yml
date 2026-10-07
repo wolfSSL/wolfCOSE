@@ -9,21 +9,22 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   coverity:
     name: Coverity Scan
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
 
     # Only run from the original repo, not forks
     if: github.repository == 'wolfSSL/wolfCOSE'
 
     steps:
     - uses: actions/checkout@v4
-
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y autoconf automake libtool
 
     - name: Resolve wolfSSL master commit
       id: wolfssl-rev
@@ -33,7 +34,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-install
-        key: wolfssl-coverity-v4-lms-${{ steps.wolfssl-rev.outputs.sha }}
+        key: wolfcose-ci-v1-wolfssl-coverity-v4-lms-${{ steps.wolfssl-rev.outputs.sha }}
 
     - name: Build wolfSSL (latest stable + master, PQC-gated)
       if: steps.cache-wolfssl.outputs.cache-hit != 'true'

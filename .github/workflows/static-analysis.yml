@@ -2,26 +2,27 @@ name: Static Analysis
 
 on:
   push:
-    branches: [ 'main', 'release/**' ]
+    branches: [ 'main', 'release/**', 'ci/ghcr-ci-image' ]
   pull_request:
     branches: [ '*' ]
   workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash -e {0}
 
 jobs:
   cppcheck:
     name: cppcheck
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
 
     steps:
     - uses: actions/checkout@v4
 
     - name: Enforce zero dynamic allocation
       run: make zero-alloc-check
-
-    - name: Install cppcheck
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y cppcheck autoconf automake libtool
 
     - name: Resolve wolfSSL master commit
       id: wolfssl-rev
@@ -31,7 +32,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-install
-        key: wolfssl-ubuntu-latest-v4-lms-${{ steps.wolfssl-rev.outputs.sha }}
+        key: wolfcose-ci-v1-wolfssl-ubuntu-latest-v4-lms-${{ steps.wolfssl-rev.outputs.sha }}
 
     - name: Build wolfSSL
       if: steps.cache-wolfssl.outputs.cache-hit != 'true'
@@ -94,14 +95,11 @@ jobs:
   clang-analyzer:
     name: Clang Static Analyzer
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
 
     steps:
     - uses: actions/checkout@v4
-
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y clang-tools autoconf automake libtool
 
     - name: Resolve wolfSSL master commit
       id: wolfssl-rev
@@ -111,7 +109,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-install
-        key: wolfssl-ubuntu-latest-v4-lms-${{ steps.wolfssl-rev.outputs.sha }}
+        key: wolfcose-ci-v1-wolfssl-ubuntu-latest-v4-lms-${{ steps.wolfssl-rev.outputs.sha }}
 
     - name: Build wolfSSL
       if: steps.cache-wolfssl.outputs.cache-hit != 'true'
@@ -149,14 +147,11 @@ jobs:
   gcc-analyzer:
     name: GCC -fanalyzer
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
 
     steps:
     - uses: actions/checkout@v4
-
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y autoconf automake libtool
 
     - name: Resolve wolfSSL master commit
       id: wolfssl-rev
@@ -166,7 +161,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-install
-        key: wolfssl-ubuntu-latest-v4-lms-${{ steps.wolfssl-rev.outputs.sha }}
+        key: wolfcose-ci-v1-wolfssl-ubuntu-latest-v4-lms-${{ steps.wolfssl-rev.outputs.sha }}
 
     - name: Build wolfSSL
       if: steps.cache-wolfssl.outputs.cache-hit != 'true'

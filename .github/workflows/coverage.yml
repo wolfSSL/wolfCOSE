@@ -2,7 +2,7 @@ name: Code Coverage
 
 on:
   push:
-    branches: [ 'main', 'release/**' ]
+    branches: [ 'main', 'release/**', 'ci/ghcr-ci-image' ]
   pull_request:
     branches: [ '*' ]
   workflow_dispatch:
@@ -11,17 +11,18 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   coverage:
     name: Line Coverage
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
     steps:
     - uses: actions/checkout@v4
-
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y autoconf automake libtool lcov
 
     - name: Resolve wolfSSL master commit
       id: wolfssl-rev
@@ -35,7 +36,7 @@ jobs:
         # ubuntu-latest key but configure wolfSSL without aeskeywrap, and a
         # cache hit on such a build silently skips the KEY_WRAP tests. The
         # -lms suffix distinguishes the LMS-enabled coverage build.
-        key: wolfssl-coverage-fullcfg-lms-v1-${{ steps.wolfssl-rev.outputs.sha }}
+        key: wolfcose-ci-v1-wolfssl-coverage-fullcfg-lms-v1-${{ steps.wolfssl-rev.outputs.sha }}
 
     - name: Build wolfSSL
       if: steps.cache-wolfssl.outputs.cache-hit != 'true'

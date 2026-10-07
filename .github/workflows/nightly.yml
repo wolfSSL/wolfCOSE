@@ -10,10 +10,16 @@ permissions:
   actions: write
   issues: write
 
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   trigger:
     name: Trigger All CI Workflows
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
     if: github.repository == 'wolfSSL/wolfCOSE'
 
     steps:

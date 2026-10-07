@@ -15,9 +15,15 @@ concurrency:
   group: wiki-sync
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   sync:
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
     steps:
       - uses: actions/checkout@v4
       - name: Publish docs/ to wiki

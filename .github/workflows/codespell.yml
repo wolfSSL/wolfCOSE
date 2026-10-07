@@ -2,7 +2,7 @@ name: Codespell
 
 on:
   push:
-    branches: [ 'main', 'release/**' ]
+    branches: [ 'main', 'release/**', 'ci/ghcr-ci-image' ]
   pull_request:
     branches: [ '*' ]
   workflow_dispatch:
@@ -11,18 +11,22 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   codespell:
     name: Check for spelling errors
     runs-on: ubuntu-22.04
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
 
       - name: Run codespell
-        uses: codespell-project/actions-codespell@v2.1
-        with:
-          check_filenames: true
-          check_hidden: true
-          ignore_words_list: adin,aNULL,cLen,dout,haveA,inOut,inout,parm,parms,ser,siz,te,Te,bstr,tstr,uint
-          skip: '.git'
+        run: |
+          codespell --check-filenames --check-hidden \
+            --ignore-words-list='adin,aNULL,cLen,dout,haveA,inOut,inout,parm,parms,ser,siz,te,Te,bstr,tstr,uint' \
+            --skip='.git' .

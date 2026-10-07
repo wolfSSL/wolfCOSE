@@ -5,7 +5,7 @@ name: MISRA C 2012
 
 on:
   push:
-    branches: [ 'main', 'release/**' ]
+    branches: [ 'main', 'release/**', 'ci/ghcr-ci-image' ]
   pull_request:
     branches: [ '*' ]
   workflow_dispatch:
@@ -14,10 +14,16 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   misra-cppcheck:
     name: MISRA C 2012 (cppcheck)
     runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
 
     env:
       WOLFSSL_REF: ac01707f552c611fbd135cc723b2682b3e7f80f2
@@ -28,10 +34,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install cppcheck
+    - name: Check cppcheck version
       run: |
-        sudo apt-get update
-        sudo apt-get install -y cppcheck autoconf automake libtool
         CPPCHECK_VERSION=$(cppcheck --version)
         if [ "$CPPCHECK_VERSION" != "Cppcheck 2.13.0" ]; then
           echo "::error::expected Cppcheck 2.13.0, got $CPPCHECK_VERSION"
@@ -43,7 +47,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-install
-        key: wolfssl-ubuntu-24.04-v6-lms-hpke-${{ env.WOLFSSL_REF }}
+        key: wolfcose-ci-v1-wolfssl-ubuntu-24.04-v6-lms-hpke-${{ env.WOLFSSL_REF }}
 
     - name: Build wolfSSL
       if: steps.cache-wolfssl.outputs.cache-hit != 'true'
