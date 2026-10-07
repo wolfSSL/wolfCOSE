@@ -79,6 +79,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Trust workspace
+      if: runner.os == 'Linux'
+      run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
     - name: Resolve wolfSSL master commit
       id: wolfssl-rev
       run: echo "sha=$(git ls-remote https://github.com/wolfSSL/wolfssl.git HEAD | cut -f1)" >> "$GITHUB_OUTPUT"

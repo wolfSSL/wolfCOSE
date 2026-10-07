@@ -26,6 +26,11 @@ jobs:
       image: ghcr.io/wolfssl/wolfcose-ci:latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Trust workspace
+        if: runner.os == 'Linux'
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Publish docs/ to wiki
         uses: Andrew-Chen-Wang/github-wiki-action@50650fccf3a10f741995523cf9708c53cec8912a # v4
         with:

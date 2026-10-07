@@ -86,6 +86,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Exercise installed tools
         run: wolfcose-ci-smoke
+      - name: Trust workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Check wiki publishing dependencies
         uses: Andrew-Chen-Wang/github-wiki-action@50650fccf3a10f741995523cf9708c53cec8912a # v4
         with:

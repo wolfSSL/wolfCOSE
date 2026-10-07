@@ -26,6 +26,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Trust workspace
+      if: runner.os == 'Linux'
+      run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
     - name: Cache wolfSSL (full)
       id: cache-wolfssl
       uses: actions/cache@v4
@@ -76,6 +80,10 @@ jobs:
       image: ghcr.io/wolfssl/wolfcose-ci:latest
     steps:
     - uses: actions/checkout@v4
+
+    - name: Trust workspace
+      if: runner.os == 'Linux'
+      run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
     - name: Cache wolfSSL (ECC-only)
       id: cache-wolfssl
