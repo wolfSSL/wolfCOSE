@@ -91,6 +91,9 @@ jobs:
         if: runner.os == 'Linux'
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
+      - name: Set wolfSSL install path
+        run: echo "WOLFSSL_RELEASE_DIR=$HOME/wolfssl-release" >> "$GITHUB_ENV"
+
       - name: Resolve wolfSSL master commit
         id: wolfssl
         run: |
@@ -132,9 +135,9 @@ jobs:
 
       - name: Run baseline release commands
         env:
-          WOLFSSL_CFLAGS: -isystem /home/runner/wolfssl-release/include
-          WOLFSSL_LIBS: -L/home/runner/wolfssl-release/lib -lwolfssl
-          LD_LIBRARY_PATH: /home/runner/wolfssl-release/lib
+          WOLFSSL_CFLAGS: -isystem ${{ env.WOLFSSL_RELEASE_DIR }}/include
+          WOLFSSL_LIBS: -L${{ env.WOLFSSL_RELEASE_DIR }}/lib -lwolfssl
+          LD_LIBRARY_PATH: ${{ env.WOLFSSL_RELEASE_DIR }}/lib
         run: |
           make clean
           make
@@ -147,38 +150,38 @@ jobs:
 
       - name: Run advanced feature scenarios
         env:
-          WOLFSSL_CFLAGS: -isystem /home/runner/wolfssl-release/include
-          WOLFSSL_LIBS: -L/home/runner/wolfssl-release/lib -lwolfssl
-          LD_LIBRARY_PATH: /home/runner/wolfssl-release/lib
+          WOLFSSL_CFLAGS: -isystem ${{ env.WOLFSSL_RELEASE_DIR }}/include
+          WOLFSSL_LIBS: -L${{ env.WOLFSSL_RELEASE_DIR }}/lib -lwolfssl
+          LD_LIBRARY_PATH: ${{ env.WOLFSSL_RELEASE_DIR }}/lib
         run: make release-scenarios
 
       - name: Compile as C++
         env:
-          WOLFSSL_CFLAGS: -isystem /home/runner/wolfssl-release/include
-          WOLFSSL_LIBS: -L/home/runner/wolfssl-release/lib -lwolfssl
-          LD_LIBRARY_PATH: /home/runner/wolfssl-release/lib
+          WOLFSSL_CFLAGS: -isystem ${{ env.WOLFSSL_RELEASE_DIR }}/include
+          WOLFSSL_LIBS: -L${{ env.WOLFSSL_RELEASE_DIR }}/lib -lwolfssl
+          LD_LIBRARY_PATH: ${{ env.WOLFSSL_RELEASE_DIR }}/lib
         run: make cxx-check
 
       - name: Run release scenarios under Valgrind
         env:
-          WOLFSSL_CFLAGS: -isystem /home/runner/wolfssl-release/include
-          WOLFSSL_LIBS: -L/home/runner/wolfssl-release/lib -lwolfssl
-          LD_LIBRARY_PATH: /home/runner/wolfssl-release/lib
+          WOLFSSL_CFLAGS: -isystem ${{ env.WOLFSSL_RELEASE_DIR }}/include
+          WOLFSSL_LIBS: -L${{ env.WOLFSSL_RELEASE_DIR }}/lib -lwolfssl
+          LD_LIBRARY_PATH: ${{ env.WOLFSSL_RELEASE_DIR }}/lib
         run: make valgrind-check
 
       - name: Merge release coverage profiles
         env:
-          WOLFSSL_CFLAGS: -isystem /home/runner/wolfssl-release/include
-          WOLFSSL_LIBS: -L/home/runner/wolfssl-release/lib -lwolfssl
-          WOLFSSL_LDFLAGS: -L/home/runner/wolfssl-release/lib -lwolfssl
-          LD_LIBRARY_PATH: /home/runner/wolfssl-release/lib
+          WOLFSSL_CFLAGS: -isystem ${{ env.WOLFSSL_RELEASE_DIR }}/include
+          WOLFSSL_LIBS: -L${{ env.WOLFSSL_RELEASE_DIR }}/lib -lwolfssl
+          WOLFSSL_LDFLAGS: -L${{ env.WOLFSSL_RELEASE_DIR }}/lib -lwolfssl
+          LD_LIBRARY_PATH: ${{ env.WOLFSSL_RELEASE_DIR }}/lib
         run: make release-coverage
 
       - name: Build and smoke-test source archives
         env:
-          WOLFSSL_CFLAGS: -isystem /home/runner/wolfssl-release/include
-          WOLFSSL_LIBS: -L/home/runner/wolfssl-release/lib -lwolfssl
-          LD_LIBRARY_PATH: /home/runner/wolfssl-release/lib
+          WOLFSSL_CFLAGS: -isystem ${{ env.WOLFSSL_RELEASE_DIR }}/include
+          WOLFSSL_LIBS: -L${{ env.WOLFSSL_RELEASE_DIR }}/lib -lwolfssl
+          LD_LIBRARY_PATH: ${{ env.WOLFSSL_RELEASE_DIR }}/lib
         run: |
           make release-artifacts \
             VERSION="${{ needs.metadata.outputs.version }}" \

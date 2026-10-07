@@ -5,7 +5,7 @@ name: MISRA C 2012
 
 on:
   push:
-    branches: [ 'main', 'release/**', 'ci/ghcr-ci-image' ]
+    branches: [ 'main', 'release/**' ]
   pull_request:
     branches: [ '*' ]
   workflow_dispatch:

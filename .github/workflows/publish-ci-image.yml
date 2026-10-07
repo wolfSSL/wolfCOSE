@@ -2,8 +2,7 @@ name: Publish CI image
 
 on:
   push:
-    # The CI branch bootstraps GHCR before this workflow reaches main.
-    branches: [main, ci/ghcr-ci-image]
+    branches: [main]
     paths:
       - '.github/docker/wolfcose-ci/**'
       - '.github/workflows/publish-ci-image.yml'

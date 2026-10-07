@@ -6,7 +6,7 @@ name: MISRA C 2023 Compliance
 
 on:
   push:
-    branches: [ 'main', 'release/**', 'ci/ghcr-ci-image' ]
+    branches: [ 'main', 'release/**' ]
   pull_request:
     branches: [ '*' ]
   workflow_dispatch:

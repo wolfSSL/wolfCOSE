@@ -30,9 +30,11 @@ After publishing, a container job repeats the smoke checks in the GitHub runner
 environment and exercises the wiki action in dry-run mode without publishing
 documentation.
 
-During first-time bootstrap, the upstream `ci/ghcr-ci-image` branch also
-publishes. Remove that trigger after the image is public and before merging.
 Consumers should never fall back to building the image or installing packages.
+
+Container jobs trust the mounted GitHub workspace after checkout so Git can
+read a repository owned by the host runner. Their explicit Bash command keeps
+the previous host shell's error behavior.
 
 Linux wolfSSL caches use the `wolfcose-ci-v1` prefix to separate them from
 previous host builds. Bump this prefix if an image change makes cached builds

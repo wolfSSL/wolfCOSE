@@ -2,7 +2,7 @@ name: Command-Line Tool Test
 
 on:
   push:
-    branches: [ 'master', 'main', 'release/**', 'ci/ghcr-ci-image' ]
+    branches: [ 'master', 'main', 'release/**' ]
   pull_request:
     branches: [ '*' ]
   workflow_dispatch:
