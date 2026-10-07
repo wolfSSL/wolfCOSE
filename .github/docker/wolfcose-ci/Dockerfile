@@ -21,7 +21,7 @@ RUN apt-get update \
         autoconf automake libtool libtool-bin pkg-config m4 \
         libssl-dev libffi-dev \
         lcov bc valgrind \
-        git curl ca-certificates jq \
+        git gh curl ca-certificates jq \
         python3 python3-dev python3-pip python3-venv \
         zip unzip xz-utils zstd file procps \
     && rm -rf /var/lib/apt/lists/*

@@ -21,7 +21,7 @@ done
 test "$(cppcheck --version)" = 'Cppcheck 2.13.0'
 cppcheck --addon=misra --error-exitcode=1 "$smoke_dir/main.c"
 for tool in autoconf automake libtool pkg-config clang-tidy scan-build \
-            lcov bc valgrind git curl jq zip unzip; do
+            lcov bc valgrind git gh curl jq zip unzip; do
     command -v "$tool"
 done
 pkg-config --exists openssl

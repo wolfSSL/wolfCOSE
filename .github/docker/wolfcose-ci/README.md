@@ -3,6 +3,7 @@
 Linux workflows use `ghcr.io/wolfssl/wolfcose-ci:latest`. Native macOS builds
 retain their Homebrew dependencies. The image contains the C compiler matrix,
 analysis and coverage tools, Go 1.24.x, stable Rust, and Python 3.12 peers.
+The GitHub CLI supports the existing wiki publishing action.
 Python interop requirements come from the existing pinned requirements file;
 Semgrep and Codespell use a separate environment.
 
@@ -24,6 +25,10 @@ Codespell are resolved when the image is rebuilt.
 `latest` and `sha-<commit>` tags. Publication is serialized and uses the
 repository's `GITHUB_TOKEN`. The GHCR package must be public so fork PRs can
 pull anonymously.
+
+After publishing, a container job repeats the smoke checks in the GitHub runner
+environment and exercises the wiki action in dry-run mode without publishing
+documentation.
 
 During first-time bootstrap, the upstream `ci/ghcr-ci-image` branch also
 publishes. Remove that trigger after the image is public and before merging.

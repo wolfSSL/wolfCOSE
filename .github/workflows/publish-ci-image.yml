@@ -71,3 +71,23 @@ jobs:
           labels: org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=registry,ref=ghcr.io/wolfssl/wolfcose-ci:latest
           cache-to: type=inline
+
+  smoke:
+    name: Test published CI image
+    needs: publish
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci:latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash -e {0}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Exercise installed tools
+        run: wolfcose-ci-smoke
+      - name: Check wiki publishing dependencies
+        uses: Andrew-Chen-Wang/github-wiki-action@50650fccf3a10f741995523cf9708c53cec8912a # v4
+        with:
+          path: docs/
+          dry-run: true
