@@ -32,7 +32,7 @@ jobs:
     name: Resolve wolfSSL version matrix
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/wolfssl/wolfcose-ci:latest
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       latest-stable: ${{ steps.set-matrix.outputs.latest-stable }}
@@ -84,7 +84,7 @@ jobs:
     needs: discover-versions
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/wolfssl/wolfcose-ci:latest
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
     timeout-minutes: 25
     strategy:
       fail-fast: false

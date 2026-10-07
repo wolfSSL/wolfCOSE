@@ -20,7 +20,7 @@ jobs:
     name: Lean verify-only (WOLFCOSE_LEAN_VERIFY)
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/wolfssl/wolfcose-ci:latest
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
 
     steps:
     - uses: actions/checkout@v4
@@ -111,7 +111,7 @@ jobs:
     name: Lean configs compile clean (strict)
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/wolfssl/wolfcose-ci:latest
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
 
     steps:
     - uses: actions/checkout@v4
@@ -203,7 +203,7 @@ jobs:
     name: Post-quantum ML-DSA lean sign+verify and verify-only
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/wolfssl/wolfcose-ci:latest
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
 
     steps:
     - uses: actions/checkout@v4

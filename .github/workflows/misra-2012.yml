@@ -23,7 +23,7 @@ jobs:
     name: MISRA C 2012 (cppcheck)
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/wolfssl/wolfcose-ci:latest
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
 
     env:
       WOLFSSL_REF: ac01707f552c611fbd135cc723b2682b3e7f80f2

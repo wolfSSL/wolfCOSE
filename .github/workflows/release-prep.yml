@@ -32,7 +32,7 @@ jobs:
       github.event.label.name == 'ci:release'
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/wolfssl/wolfcose-ci:latest
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
     outputs:
       version: ${{ steps.release.outputs.version }}
       commit: ${{ steps.release.outputs.commit }}
@@ -79,7 +79,7 @@ jobs:
     needs: metadata
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/wolfssl/wolfcose-ci:latest
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
@@ -246,7 +246,7 @@ jobs:
     needs: metadata
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/wolfssl/wolfcose-ci:latest
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
     timeout-minutes: 125
     steps:
       - name: Wait for required workflows
@@ -354,7 +354,7 @@ jobs:
     needs: [metadata, qualify, required-ci]
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/wolfssl/wolfcose-ci:latest
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
     steps:
       - name: Enforce all release gates
         env:

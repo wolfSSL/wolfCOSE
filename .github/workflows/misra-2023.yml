@@ -28,7 +28,7 @@ jobs:
     name: MISRA C 2023 Compiler Warnings
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/wolfssl/wolfcose-ci:latest
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
 
     steps:
     - uses: actions/checkout@v4
@@ -168,7 +168,7 @@ jobs:
     name: MISRA C 2023 (clang-tidy)
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/wolfssl/wolfcose-ci:latest
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
 
     steps:
     - uses: actions/checkout@v4

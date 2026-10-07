@@ -16,7 +16,7 @@ jobs:
     name: cppcheck
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/wolfssl/wolfcose-ci:latest
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
 
     steps:
     - uses: actions/checkout@v4
@@ -100,7 +100,7 @@ jobs:
     name: Clang Static Analyzer
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/wolfssl/wolfcose-ci:latest
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
 
     steps:
     - uses: actions/checkout@v4
@@ -156,7 +156,7 @@ jobs:
     name: GCC -fanalyzer
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/wolfssl/wolfcose-ci:latest
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
 
     steps:
     - uses: actions/checkout@v4
