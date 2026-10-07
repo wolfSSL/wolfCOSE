@@ -20,8 +20,8 @@ and Python interop requirements. Add shared dependencies here instead of
 installing them in workflow jobs. Go patch releases, stable Rust, Semgrep, and
 Codespell are resolved when the image is rebuilt.
 
-`publish-ci-image.yml` validates image changes in PRs without publishing. In
-`wolfSSL/wolfCOSE`, relevant pushes to `main` and manual dispatches publish
+In `wolfSSL/wolfCOSE`, `publish-ci-image.yml` runs on relevant pushes to
+`main` and manual dispatches. It builds and smoke-tests the image, then publishes
 `latest` and `sha-<commit>` tags. Publication is serialized and uses the
 repository's `GITHUB_TOKEN`. The GHCR package must be public so fork PRs can
 pull anonymously.

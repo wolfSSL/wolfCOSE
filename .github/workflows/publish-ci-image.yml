@@ -7,42 +7,19 @@ on:
       - '.github/docker/wolfcose-ci/**'
       - '.github/workflows/publish-ci-image.yml'
       - 'tests/interop/python_cwt/requirements.txt'
-  pull_request:
-    paths:
-      - '.github/docker/wolfcose-ci/**'
-      - '.github/workflows/publish-ci-image.yml'
-      - 'tests/interop/python_cwt/requirements.txt'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('ci-image-pr-{0}', github.event.pull_request.number) || 'publish-ci-image' }}
+  group: publish-ci-image
   cancel-in-progress: false
 
 jobs:
-  validate:
-    name: Build CI image
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - name: Build and smoke-test image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .github/docker/wolfcose-ci/Dockerfile
-          platforms: linux/amd64
-          pull: true
-          push: false
-          cache-from: type=registry,ref=ghcr.io/wolfssl/wolfcose-ci:latest
-
   publish:
     name: Publish CI image
-    if: github.repository == 'wolfSSL/wolfCOSE' && github.event_name != 'pull_request'
+    if: github.repository == 'wolfSSL/wolfCOSE'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
