@@ -20,6 +20,10 @@ permissions:
   checks: read
   pull-requests: read
 
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   metadata:
     name: Release metadata
@@ -27,6 +31,8 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       github.event.label.name == 'ci:release'
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
     outputs:
       version: ${{ steps.release.outputs.version }}
       commit: ${{ steps.release.outputs.commit }}
@@ -36,6 +42,10 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+      - name: Trust workspace
+        if: runner.os == 'Linux'
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Resolve release version and commit
         id: release
@@ -68,6 +78,8 @@ jobs:
     name: Release-specific qualification
     needs: metadata
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
@@ -75,11 +87,12 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y autoconf automake g++ lcov libtool \
-            unzip valgrind zip
+      - name: Trust workspace
+        if: runner.os == 'Linux'
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Set wolfSSL install path
+        run: echo "WOLFSSL_RELEASE_DIR=$HOME/wolfssl-release" >> "$GITHUB_ENV"
 
       - name: Resolve wolfSSL master commit
         id: wolfssl
@@ -91,7 +104,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/wolfssl-release
-          key: wolfssl-release-full-v1-${{ steps.wolfssl.outputs.commit }}
+          key: wolfcose-ci-v1-wolfssl-release-full-v1-${{ steps.wolfssl.outputs.commit }}
 
       - name: Build full wolfSSL backend
         if: steps.cache-wolfssl.outputs.cache-hit != 'true'
@@ -122,9 +135,9 @@ jobs:
 
       - name: Run baseline release commands
         env:
-          WOLFSSL_CFLAGS: -isystem /home/runner/wolfssl-release/include
-          WOLFSSL_LIBS: -L/home/runner/wolfssl-release/lib -lwolfssl
-          LD_LIBRARY_PATH: /home/runner/wolfssl-release/lib
+          WOLFSSL_CFLAGS: -isystem ${{ env.WOLFSSL_RELEASE_DIR }}/include
+          WOLFSSL_LIBS: -L${{ env.WOLFSSL_RELEASE_DIR }}/lib -lwolfssl
+          LD_LIBRARY_PATH: ${{ env.WOLFSSL_RELEASE_DIR }}/lib
         run: |
           make clean
           make
@@ -137,38 +150,38 @@ jobs:
 
       - name: Run advanced feature scenarios
         env:
-          WOLFSSL_CFLAGS: -isystem /home/runner/wolfssl-release/include
-          WOLFSSL_LIBS: -L/home/runner/wolfssl-release/lib -lwolfssl
-          LD_LIBRARY_PATH: /home/runner/wolfssl-release/lib
+          WOLFSSL_CFLAGS: -isystem ${{ env.WOLFSSL_RELEASE_DIR }}/include
+          WOLFSSL_LIBS: -L${{ env.WOLFSSL_RELEASE_DIR }}/lib -lwolfssl
+          LD_LIBRARY_PATH: ${{ env.WOLFSSL_RELEASE_DIR }}/lib
         run: make release-scenarios
 
       - name: Compile as C++
         env:
-          WOLFSSL_CFLAGS: -isystem /home/runner/wolfssl-release/include
-          WOLFSSL_LIBS: -L/home/runner/wolfssl-release/lib -lwolfssl
-          LD_LIBRARY_PATH: /home/runner/wolfssl-release/lib
+          WOLFSSL_CFLAGS: -isystem ${{ env.WOLFSSL_RELEASE_DIR }}/include
+          WOLFSSL_LIBS: -L${{ env.WOLFSSL_RELEASE_DIR }}/lib -lwolfssl
+          LD_LIBRARY_PATH: ${{ env.WOLFSSL_RELEASE_DIR }}/lib
         run: make cxx-check
 
       - name: Run release scenarios under Valgrind
         env:
-          WOLFSSL_CFLAGS: -isystem /home/runner/wolfssl-release/include
-          WOLFSSL_LIBS: -L/home/runner/wolfssl-release/lib -lwolfssl
-          LD_LIBRARY_PATH: /home/runner/wolfssl-release/lib
+          WOLFSSL_CFLAGS: -isystem ${{ env.WOLFSSL_RELEASE_DIR }}/include
+          WOLFSSL_LIBS: -L${{ env.WOLFSSL_RELEASE_DIR }}/lib -lwolfssl
+          LD_LIBRARY_PATH: ${{ env.WOLFSSL_RELEASE_DIR }}/lib
         run: make valgrind-check
 
       - name: Merge release coverage profiles
         env:
-          WOLFSSL_CFLAGS: -isystem /home/runner/wolfssl-release/include
-          WOLFSSL_LIBS: -L/home/runner/wolfssl-release/lib -lwolfssl
-          WOLFSSL_LDFLAGS: -L/home/runner/wolfssl-release/lib -lwolfssl
-          LD_LIBRARY_PATH: /home/runner/wolfssl-release/lib
+          WOLFSSL_CFLAGS: -isystem ${{ env.WOLFSSL_RELEASE_DIR }}/include
+          WOLFSSL_LIBS: -L${{ env.WOLFSSL_RELEASE_DIR }}/lib -lwolfssl
+          WOLFSSL_LDFLAGS: -L${{ env.WOLFSSL_RELEASE_DIR }}/lib -lwolfssl
+          LD_LIBRARY_PATH: ${{ env.WOLFSSL_RELEASE_DIR }}/lib
         run: make release-coverage
 
       - name: Build and smoke-test source archives
         env:
-          WOLFSSL_CFLAGS: -isystem /home/runner/wolfssl-release/include
-          WOLFSSL_LIBS: -L/home/runner/wolfssl-release/lib -lwolfssl
-          LD_LIBRARY_PATH: /home/runner/wolfssl-release/lib
+          WOLFSSL_CFLAGS: -isystem ${{ env.WOLFSSL_RELEASE_DIR }}/include
+          WOLFSSL_LIBS: -L${{ env.WOLFSSL_RELEASE_DIR }}/lib -lwolfssl
+          LD_LIBRARY_PATH: ${{ env.WOLFSSL_RELEASE_DIR }}/lib
         run: |
           make release-artifacts \
             VERSION="${{ needs.metadata.outputs.version }}" \
@@ -232,6 +245,8 @@ jobs:
     name: Required CI for candidate SHA
     needs: metadata
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
     timeout-minutes: 125
     steps:
       - name: Wait for required workflows
@@ -338,6 +353,8 @@ jobs:
        github.event.label.name == 'ci:release')
     needs: [metadata, qualify, required-ci]
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
     steps:
       - name: Enforce all release gates
         env:

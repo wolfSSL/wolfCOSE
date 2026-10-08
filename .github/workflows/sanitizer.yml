@@ -11,6 +11,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   discover:
     uses: ./.github/workflows/_resolve-wolfssl.yml
@@ -19,6 +23,8 @@ jobs:
     name: AddressSanitizer (wolfSSL ${{ matrix.wolfssl-version }})
     needs: discover
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
@@ -26,10 +32,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y autoconf automake libtool
+    - name: Trust workspace
+      if: runner.os == 'Linux'
+      run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
     - name: Cache wolfSSL (ASan, ${{ matrix.wolfssl-version }})
       if: matrix.wolfssl-version != 'master'
@@ -37,7 +42,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-asan
-        key: wolfssl-asan-${{ matrix.wolfssl-version }}-v1
+        key: wolfcose-ci-v1-wolfssl-asan-${{ matrix.wolfssl-version }}-v1
 
     - name: Build wolfSSL (ASan, ${{ matrix.wolfssl-version }})
       if: matrix.wolfssl-version == 'master' || steps.cache-wolfssl.outputs.cache-hit != 'true'

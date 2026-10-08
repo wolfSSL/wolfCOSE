@@ -15,6 +15,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   # ---------------------------------------------------------------------------
   # Job 1: Strict compiler warnings for MISRA C 2023 essential type &
@@ -23,14 +27,15 @@ jobs:
   misra-compiler-warnings:
     name: MISRA C 2023 Compiler Warnings
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y autoconf automake libtool
+    - name: Trust workspace
+      if: runner.os == 'Linux'
+      run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
     - name: Resolve wolfSSL master commit
       id: wolfssl-rev
@@ -40,7 +45,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-install
-        key: wolfssl-ubuntu-latest-v4-lms-${{ steps.wolfssl-rev.outputs.sha }}
+        key: wolfcose-ci-v1-wolfssl-ubuntu-latest-v4-lms-${{ steps.wolfssl-rev.outputs.sha }}
 
     - name: Build wolfSSL
       if: steps.cache-wolfssl.outputs.cache-hit != 'true'
@@ -162,14 +167,15 @@ jobs:
   misra-clang-tidy:
     name: MISRA C 2023 (clang-tidy)
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y clang-tidy autoconf automake libtool
+    - name: Trust workspace
+      if: runner.os == 'Linux'
+      run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
     - name: Resolve wolfSSL master commit
       id: wolfssl-rev
@@ -179,7 +185,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-install
-        key: wolfssl-ubuntu-latest-v4-lms-${{ steps.wolfssl-rev.outputs.sha }}
+        key: wolfcose-ci-v1-wolfssl-ubuntu-latest-v4-lms-${{ steps.wolfssl-rev.outputs.sha }}
 
     - name: Build wolfSSL
       if: steps.cache-wolfssl.outputs.cache-hit != 'true'

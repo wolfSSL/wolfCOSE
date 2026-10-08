@@ -1,0 +1,10 @@
+# Only send the image assets and pinned Python peer requirements to Docker.
+**
+!.github/
+!.github/docker/
+!.github/docker/wolfcose-ci/
+!.github/docker/wolfcose-ci/**
+!tests/
+!tests/interop/
+!tests/interop/python_cwt/
+!tests/interop/python_cwt/requirements.txt

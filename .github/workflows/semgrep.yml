@@ -13,20 +13,23 @@ concurrency:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   semgrep:
     name: Semgrep (wolfCOSE security rules)
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
-      - name: Install Semgrep
-        run: pip install --quiet semgrep
+      - name: Trust workspace
+        if: runner.os == 'Linux'
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       # --error makes the job fail on any finding. The rules self-scope via
       # their `paths:` blocks, so scanning the whole tree is fine.

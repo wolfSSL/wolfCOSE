@@ -11,6 +11,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   discover:
     uses: ./.github/workflows/_resolve-wolfssl.yml
@@ -19,20 +23,24 @@ jobs:
     name: ${{ matrix.os }} (wolfSSL ${{ matrix.wolfssl-ref }})
     needs: discover
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-22.04, macos-latest]
+        os: [ubuntu-latest, macos-latest]
         wolfssl-ref: ${{ fromJson(needs.discover.outputs.refs) }}
+        include:
+          - os: ubuntu-latest
+            container: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
+          - os: macos-latest
+            container: ''
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install dependencies (Linux)
+    - name: Trust workspace
       if: runner.os == 'Linux'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y autoconf automake libtool
+      run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
     - name: Install dependencies (macOS)
       if: runner.os == 'macOS'
@@ -44,7 +52,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-install
-        key: wolfssl-${{ matrix.os }}-${{ matrix.wolfssl-ref }}-v5-lms
+        key: ${{ runner.os == 'Linux' && 'wolfcose-ci-v1-' || '' }}wolfssl-${{ matrix.os }}-${{ matrix.wolfssl-ref }}-v5-lms
 
     - name: Build wolfSSL (${{ matrix.wolfssl-ref }})
       if: matrix.wolfssl-ref == 'master' || steps.cache-wolfssl.outputs.cache-hit != 'true'
@@ -208,6 +216,8 @@ jobs:
     name: LMS lean profiles (wolfSSL ${{ matrix.wolfssl-ref }})
     needs: discover
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
     strategy:
       fail-fast: false
       matrix:
@@ -216,10 +226,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y autoconf automake libtool
+    - name: Trust workspace
+      if: runner.os == 'Linux'
+      run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
     - name: Cache wolfSSL (${{ matrix.wolfssl-ref }})
       if: matrix.wolfssl-ref != 'master'
@@ -227,7 +236,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-install
-        key: wolfssl-ubuntu-latest-${{ matrix.wolfssl-ref }}-v5-lms
+        key: wolfcose-ci-v1-wolfssl-ubuntu-latest-${{ matrix.wolfssl-ref }}-v5-lms
 
     - name: Build wolfSSL (${{ matrix.wolfssl-ref }})
       if: matrix.wolfssl-ref == 'master' || steps.cache-wolfssl.outputs.cache-hit != 'true'
@@ -282,14 +291,15 @@ jobs:
   lms-verify-only:
     name: LMS verify-only wolfSSL profile
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y autoconf automake libtool
+    - name: Trust workspace
+      if: runner.os == 'Linux'
+      run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
     # Build wolfSSL with LMS support that cannot sign, mirroring a verifier
     # deployment. --enable-lms=verify-only records WOLFSSL_LMS_VERIFY_ONLY in
@@ -342,6 +352,8 @@ jobs:
     name: Code Coverage (wolfSSL ${{ matrix.wolfssl-version }})
     needs: discover
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
@@ -349,10 +361,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y autoconf automake libtool lcov
+    - name: Trust workspace
+      if: runner.os == 'Linux'
+      run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
     - name: Cache wolfSSL (${{ matrix.wolfssl-version }})
       if: matrix.wolfssl-version != 'master'
@@ -360,7 +371,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-install
-        key: wolfssl-coverage-${{ matrix.wolfssl-version }}-v5-lms
+        key: wolfcose-ci-v1-wolfssl-coverage-${{ matrix.wolfssl-version }}-v5-lms
 
     - name: Build wolfSSL (${{ matrix.wolfssl-version }})
       if: matrix.wolfssl-version == 'master' || steps.cache-wolfssl.outputs.cache-hit != 'true'

@@ -11,18 +11,26 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   codespell:
     name: Check for spelling errors
     runs-on: ubuntu-22.04
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
 
+      - name: Trust workspace
+        if: runner.os == 'Linux'
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Run codespell
-        uses: codespell-project/actions-codespell@v2.1
-        with:
-          check_filenames: true
-          check_hidden: true
-          ignore_words_list: adin,aNULL,cLen,dout,haveA,inOut,inout,parm,parms,ser,siz,te,Te,bstr,tstr,uint
-          skip: '.git'
+        run: |
+          codespell --check-filenames --check-hidden \
+            --ignore-words-list='adin,aNULL,cLen,dout,haveA,inOut,inout,parm,parms,ser,siz,te,Te,bstr,tstr,uint' \
+            --skip='.git' .

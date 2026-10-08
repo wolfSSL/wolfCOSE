@@ -11,26 +11,31 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   frame-budget:
     name: Frame budget (full, worst case)
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
     env:
       FRAME_BUDGET: 6144
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y autoconf automake libtool
+    - name: Trust workspace
+      if: runner.os == 'Linux'
+      run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
     - name: Cache wolfSSL (full)
       id: cache-wolfssl
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-full
-        key: wolfssl-full-stack-v1
+        key: wolfcose-ci-v1-wolfssl-full-stack-v1
 
     - name: Build wolfSSL (full)
       if: steps.cache-wolfssl.outputs.cache-hit != 'true'
@@ -71,20 +76,21 @@ jobs:
   small-footprint:
     name: SMALL_FOOTPRINT (ECC-only)
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y autoconf automake libtool
+    - name: Trust workspace
+      if: runner.os == 'Linux'
+      run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
     - name: Cache wolfSSL (ECC-only)
       id: cache-wolfssl
       uses: actions/cache@v4
       with:
         path: ~/wolfssl-ecc
-        key: wolfssl-ecc-smallfp-v2
+        key: wolfcose-ci-v1-wolfssl-ecc-smallfp-v2
 
     - name: Build wolfSSL (ECC-only, stripped)
       if: steps.cache-wolfssl.outputs.cache-hit != 'true'

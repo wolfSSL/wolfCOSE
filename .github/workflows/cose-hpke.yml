@@ -14,6 +14,10 @@ concurrency:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash -e {0}
+
 jobs:
   discover:
     uses: ./.github/workflows/_resolve-wolfssl.yml
@@ -22,6 +26,8 @@ jobs:
     name: HPKE P0 (${{ matrix.wolfssl-ref }})
     needs: discover
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
     strategy:
       fail-fast: false
       matrix:
@@ -30,10 +36,9 @@ jobs:
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y autoconf automake libtool
+    - name: Trust workspace
+      if: runner.os == 'Linux'
+      run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
     - name: Build HPKE-enabled wolfSSL
       run: |
