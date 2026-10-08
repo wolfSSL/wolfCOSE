@@ -41,5 +41,5 @@ wolfCOSE is configured through the wolfSSL `user_settings.h` (included before
 wolfCrypt features (`HAVE_ECC`, `WOLFSSL_SHA384/512`, `WOLFSSL_HAVE_MLDSA`).
 
 See the wolfCOSE `examples/` for sign1, mac0, and encrypt0 usage, and the
-[STM32Cube wiki page](https://github.com/wolfSSL/wolfCOSE/wiki/STM32Cube) for
+[STM32Cube manual page](https://www.wolfssl.com/documentation/manuals/wolfcose/STM32Cube.html) for
 the full walkthrough including a ready to run NUCLEO-H563ZI project.

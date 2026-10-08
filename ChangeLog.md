@@ -187,7 +187,7 @@ MAC, and key distribution, and standardized post-quantum ML-DSA signatures
 
 * Minimal footprint: an ES256 `COSE_Sign1` build is ~5.1 KB verify-only and
   ~6.8 KB sign + verify for the wolfCOSE COSE + CBOR engine; see the
-  [Footprint](https://github.com/wolfSSL/wolfCOSE/wiki/Footprint) page for
+  [Footprint](https://www.wolfssl.com/documentation/manuals/wolfcose/Footprint.html) page for
   total-flash numbers including wolfCrypt.
 * MISRA C:2012 and C:2023 checked.
 * API hardening: `COSE_Encrypt` and `wc_CoseMac_Create` direct mode now require

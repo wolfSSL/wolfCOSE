@@ -174,7 +174,7 @@ Test harness that:
 
 ### tests/force_failure.c / force_failure.h
 
-Failure injection system for coverage testing. See [[Testing]] for details.
+Failure injection system for coverage testing. See [Testing](Testing.md) for details.
 
 ---
 
@@ -269,6 +269,6 @@ Do NOT include in production firmware:
 
 ## See Also
 
-- [[Getting Started]]: Build instructions
-- [[API Reference]]: Function documentation
-- [[Testing]]: Test organization
+- [Getting Started](Getting-Started.md): Build instructions
+- [API Reference](API-Reference.md): Function documentation
+- [Testing](Testing.md): Test organization

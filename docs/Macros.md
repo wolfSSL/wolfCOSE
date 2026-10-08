@@ -122,7 +122,7 @@ and one RFC 9783 Sign1 or Mac0 creation path can issue a correctly labelled
 `#tfm` token. A selective current-profile verifier still rejects `#tfm` with
 `WOLFCOSE_E_EAT_PSA_PROFILE` and must not advertise full receiver conformance.
 
-See [[PSA-EAT]] for examples, profile boundaries, and security guidance.
+See [PSA-EAT](PSA-EAT.md) for examples, profile boundaries, and security guidance.
 
 ## Algorithm Gates
 
@@ -487,7 +487,7 @@ wolfSSL release.
 
 ### `WOLFCOSE_MIN_BUFFERS`
 
-One define that trims the caller working set to the minimum that still fits the enabled algorithms. It tightens the CBOR parsing limits (`WOLFCOSE_CBOR_MAX_DEPTH` 8→6, `WOLFCOSE_MAX_MAP_ITEMS` 16→8) and keeps the algorithm-driven signature/scratch floors, which track the largest enabled signature algorithm:
+One define that trims the caller working set to the minimum that still fits the enabled algorithms. It tightens the CBOR parsing limits (`WOLFCOSE_CBOR_MAX_DEPTH` 8->6, `WOLFCOSE_MAX_MAP_ITEMS` 16->8) and keeps the algorithm-driven signature/scratch floors, which track the largest enabled signature algorithm:
 
 | Enabled signature algorithm | `WOLFCOSE_MAX_SIG_SZ` | `WOLFCOSE_MAX_SCRATCH_SZ` |
 |---|---|---|
@@ -504,7 +504,7 @@ Because the floor follows the algorithm, `WOLFCOSE_MIN_BUFFERS` stays valid with
 
 ## Tuning for Size
 
-Four levers, smallest impact last. See the [[Footprint]] page for the resulting numbers.
+Four levers, smallest impact last. See the [Footprint](Footprint.md) page for the resulting numbers.
 
 1. **Pick a build profile.** `WOLFCOSE_LEAN` is the lean ES256 core (6.8 KB glue); `WOLFCOSE_LEAN_VERIFY` is verify-only (5.1 KB); the ML-DSA profiles are post-quantum (see [Build Profiles](#build-profiles)). One define selects a curated gate set.
 2. **Drop individual features** with `WOLFCOSE_NO_<X>` (e.g. `WOLFCOSE_NO_ENCRYPT0`, `WOLFCOSE_NO_SIGN`, `WOLFCOSE_NO_RECIPIENTS`), or in a lean build add only what you need with `WOLFCOSE_ENABLE_<X>`.
@@ -535,7 +535,7 @@ Convenience macros that select a curated set of feature gates for a common deplo
 
 ### Footprint
 
-What each profile costs (code + rodata, ES256/ML-DSA-44 `COSE_Sign1`, built from source with dead-code elimination). *Glue* is the wolfCOSE COSE + CBOR engine alone; *total* adds the minimal wolfCrypt backend. Full cross-library and on-device numbers are on the [[Footprint]] page.
+What each profile costs (code + rodata, ES256/ML-DSA-44 `COSE_Sign1`, built from source with dead-code elimination). *Glue* is the wolfCOSE COSE + CBOR engine alone; *total* adds the minimal wolfCrypt backend. Full cross-library and on-device numbers are on the [Footprint](Footprint.md) page.
 
 | Profile | Algorithm | wolfCOSE glue | Total + wolfCrypt |
 |---------|-----------|---------------|-------------------|
@@ -544,7 +544,7 @@ What each profile costs (code + rodata, ES256/ML-DSA-44 `COSE_Sign1`, built from
 | `WOLFCOSE_LEAN_MLDSA` | ML-DSA-44 sign + verify | 6.6 KB | 35.8 KB |
 | `WOLFCOSE_LEAN_VERIFY_MLDSA` | ML-DSA-44 verify-only | 4.6 KB | 20.8 KB |
 
-Post-quantum sign + verify is within ~1 KB of classical ES256 (35.8 vs 34.6 KB), and PQ verify-only is actually *smaller* than classical ES256 verify-only (20.8 vs 26.2 KB): ML-DSA skips the DER signature conversion ECDSA needs. Full numbers (desktop, on-device, and speed) are on the [[Footprint]] page.
+Post-quantum sign + verify is within ~1 KB of classical ES256 (35.8 vs 34.6 KB), and PQ verify-only is actually *smaller* than classical ES256 verify-only (20.8 vs 26.2 KB): ML-DSA skips the DER signature conversion ECDSA needs. Full numbers (desktop, on-device, and speed) are on the [Footprint](Footprint.md) page.
 
 ### `WOLFCOSE_LEAN_VERIFY` — minimal verify-only
 
@@ -681,6 +681,6 @@ Sub-gates within tests:
 
 ## See Also
 
-- [[Getting Started]]: Build instructions
-- [[Algorithms]]: Supported algorithms with guards
-- [[Testing]]: Test configuration
+- [Getting Started](Getting-Started.md): Build instructions
+- [Algorithms](Algorithms.md): Supported algorithms with guards
+- [Testing](Testing.md): Test configuration

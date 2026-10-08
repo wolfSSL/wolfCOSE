@@ -125,7 +125,7 @@ initializes keys with `wc_CoseKey_Init()` and attaches keys through the
   messages using `ES256`, `ES384`, `ES512`, or `EdDSA` require
   `WOLFCOSE_ENABLE_DEPRECATED_ALGS`; changing a protected algorithm ID also
   requires re-signing the message. See
-  [[Algorithms#Migrating from RFC 9053 Signature IDs]].
+  [Migrating from RFC 9053 Signature IDs](Algorithms.md#migrating-from-rfc-9053-signature-ids).
 - COSE-HPKE is experimental. Its wire format and API may change until the IETF
   specification is finalized.
 - `LIBWOLFCOSE_VERSION_STRING` is now `"2.0.0"` and
@@ -151,12 +151,12 @@ MAC, and key distribution, and standardized post-quantum ML-DSA signatures
   or trailing input on decode.
 - All six COSE message types (RFC 9052): `COSE_Sign1`, `COSE_Sign`,
   `COSE_Encrypt0`, `COSE_Encrypt`, `COSE_Mac0`, and `COSE_Mac`, including the
-  multi-signer and multi-recipient variants. See [[Message Types]].
+  multi-signer and multi-recipient variants. See [Message Types](Message-Types.md).
 - 40 algorithms across signing, encryption, MAC, and key distribution
   (RFC 9053): ES256/384/512, EdDSA (Ed25519/Ed448), PS256/384/512,
   ML-DSA-44/65/87, AES-GCM (128/192/256), ChaCha20-Poly1305, AES-CCM variants,
   HMAC-SHA256/384/512, AES-MAC, Direct, AES Key Wrap, and ECDH-ES+HKDF. See
-  [[Algorithms]].
+  [Algorithms](Algorithms.md).
 - Standardized post-quantum signatures: ML-DSA (FIPS 204) at all three security
   levels, conformant to RFC 9964 ("ML-DSA for JOSE and COSE"). COSE keys use the
   RFC 9964 AKP key type (`kty` 7) with a required `alg`, the public key in `pub`
@@ -173,7 +173,7 @@ MAC, and key distribution, and standardized post-quantum ML-DSA signatures
   against sign-disabled wolfCrypt (`NO_ECC_SIGN`, `NO_ASN`, no `mp_int`); the
   ECC signing helpers are gated out so a verify-only image never pulls in sign
   code, enforced in CI without `-ffunction-sections` garbage collection. See
-  [[Macros]].
+  [Macros](Macros.md).
 - `LIBWOLFCOSE_VERSION_STRING` / `LIBWOLFCOSE_VERSION_HEX` in
   `wolfcose/version.h` for compile-time version checks.
 
@@ -190,8 +190,8 @@ MAC, and key distribution, and standardized post-quantum ML-DSA signatures
 ### Improvements/Optimizations
 
 - Minimal footprint: an ES256 `COSE_Sign1` build is ~5.1 KB verify-only and
-  ~6.8 KB sign + verify for the wolfCOSE COSE + CBOR engine. See [[Footprint]].
-- MISRA C:2012 and C:2023 checked. See [[MISRA Compliance]].
+  ~6.8 KB sign + verify for the wolfCOSE COSE + CBOR engine. See [Footprint](Footprint.md).
+- MISRA C:2012 and C:2023 checked. See [MISRA Compliance](MISRA-Compliance.md).
 - API hardening: `COSE_Encrypt` and `wc_CoseMac_Create` direct mode now require
   an explicit `WOLFCOSE_ALG_DIRECT` and reject a zero-initialized algorithm id;
   `wc_CoseMac_Verify` classifies the recipient algorithm and enforces the algId
@@ -208,7 +208,7 @@ MAC, and key distribution, and standardized post-quantum ML-DSA signatures
   `-fanalyzer`, Coverity), security scanning (CodeQL, Semgrep) and house-style
   gates, sanitizers (ASan/UBSan), a wolfCOSE <-> t_cose wire-interop conformance
   suite, and a wolfSSL version matrix with explicit ML-DSA/PQC rows. See
-  [[Testing]].
+  [Testing](Testing.md).
 - Expanded negative and boundary coverage: 4 KB large-payload round-trips for
   `COSE_Encrypt0`/`COSE_Mac0`, empty-payload round-trips across
   AES-GCM/AES-CCM/ChaCha20-Poly1305, CBOR integer argument-width boundaries
@@ -224,4 +224,4 @@ Assurance](https://www.wolfssl.com/about/wolfssl-software-development-process-qu
 page) and successfully passed the quality criteria.
 
 Requires wolfSSL 5.8.0 or later as the crypto backend; ML-DSA support requires
-wolfSSL 5.9.2 or later. See [[Getting Started]] for build instructions.
+wolfSSL 5.9.2 or later. See [Getting Started](Getting-Started.md) for build instructions.

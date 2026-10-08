@@ -87,7 +87,7 @@ Current ES256 Sign1 issuer without the PSA/EAT verifier:
 
 Replace the last gate with `WOLFCOSE_ENABLE_EAT_PSA_MAC0_ISSUE` for an
 HMAC256 Mac0 issuer. The same decode opt-outs apply. The algorithm gates can
-then replace ES256 or HMAC256 independently as described in [[Macros]].
+then replace ES256 or HMAC256 independently as described in [Macros](Macros.md).
 
 These selective examples are useful COSE building blocks, but they are not
 RFC 9783 `#tfm` receivers: Section 5.2 requires a `#tfm` receiver to accept

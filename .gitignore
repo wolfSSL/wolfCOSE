@@ -8,6 +8,9 @@ experimental-check.err
 *.dSYM/
 .wolfcose-build-config
 
+# Docs manual build output (see DOCS-BUILD.md)
+/build/
+
 # Binaries
 tests/test_wolfcose
 tests/test_wolfcose_eat_psa
