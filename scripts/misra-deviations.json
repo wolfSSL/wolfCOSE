@@ -2,16 +2,6 @@
   "schema": 1,
   "deviations": [
     {
-      "id": "D-11.5-001",
-      "rule": "11.5",
-      "path": "src/wolfcose_util.c",
-      "symbol": "wolfCose_ForceZero",
-      "anchors": [
-        "volatile unsigned char* p = (volatile unsigned char*)mem;"
-      ],
-      "expected": 1
-    },
-    {
       "id": "D-11.4-001",
       "rule": "11.4",
       "path": "src/wolfcose_eat_psa.c",

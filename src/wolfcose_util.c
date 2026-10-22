@@ -51,8 +51,10 @@
 /* ----- Secure memory zero ----- */
 
 /**
- * Portable secure-zero. Volatile pointer prevents the compiler optimising
- * the writes away when the buffer is dead at function exit. Used in place
+ * Portable secure-zero. XMEMSET is followed by a call through a volatile
+ * function pointer the compiler cannot resolve, so it must assume the callee
+ * reads the buffer and cannot drop the stores as dead. With GNU asm the
+ * callee is also an asm memory barrier. Used in place
  * of wc_ForceZero so wolfCOSE links against the full wolfSSL 5.x range
  * (wc_ForceZero only became a public WOLFSSL_API symbol in v5.8.4).
  */
@@ -62,14 +64,25 @@
 extern void wolfCose_TestZeroizeRecord(const void* mem, size_t len);
 #endif
 
+static void wolfCose_ZeroBarrier(const void* mem)
+{
+#if defined(__GNUC__) && !defined(__CC_ARM) && !defined(WOLFSSL_NO_ASM)
+    /* Still a barrier if the optimizer resolves and inlines this call, e.g.
+     * profile-guided call promotion. Same guard as wolfSSL's WC_BARRIER_DATA,
+     * which only exists in newer releases. */
+    __asm__ __volatile__("" : : "r"(mem) : "memory");
+#else
+    (void)mem;
+#endif
+}
+
 WOLFCOSE_LOCAL void wolfCose_ForceZero(void* mem, size_t len)
 {
+    static void (*const volatile barrier)(const void*) = wolfCose_ZeroBarrier;
+
     if ((mem != NULL) && (len > 0u)) {
-        volatile unsigned char* p = (volatile unsigned char*)mem;
-        size_t i;
-        for (i = 0u; i < len; i++) {
-            p[i] = 0u;
-        }
+        (void)XMEMSET(mem, 0, len);
+        barrier(mem);
     }
 #ifdef WOLFCOSE_TEST_ZEROIZE_HOOK
     wolfCose_TestZeroizeRecord(mem, len);

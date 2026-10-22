@@ -166,7 +166,7 @@ SCEN_IOTFLEET    = examples/scenarios/iot_fleet_config
 SCEN_SENSOR      = examples/scenarios/sensor_attestation
 SCEN_BROADCAST   = examples/scenarios/group_broadcast_mac
 
-.PHONY: all shared test pkg-config-test ecdsa-policy-test rsapss-policy-test countersign-config-test zero-alloc-check zeroize-test deprecated-algs-test ecc-import-policy-test ext-sign-test ext-sign-demo ext-sign-force-failure coverage eat-psa-test eat-psa-float-test eat-psa-min-buffers-test eat-psa-claim-limits-test eat-psa-profile-test eat-psa-config-check eat-psa-ext-sign-test eat-psa-ext-sign-force-failure eat-psa-coverage eat-psa-coverage-force-failure hpke-coverage-force-failure generic-reduced-alg-test tool tool-test cmdline-test demo demos hpke-demo lean-verify psa-eat-lean-verify psa-eat-demo mldsa-demo mldsa-verify lms-demo lms-verify comprehensive scenarios release-scenarios release-coverage cxx-check valgrind-check release-validate release-artifacts interop-tcose tcose-upstream interop-go-cose interop-python-cwt interop-rust-coset c99-check c99-check-lms c99-hpke-check experimental-check clean FORCE
+.PHONY: all shared test pkg-config-test ecdsa-policy-test rsapss-policy-test countersign-config-test zero-alloc-check force-zero-check zeroize-test deprecated-algs-test ecc-import-policy-test ext-sign-test ext-sign-demo ext-sign-force-failure coverage eat-psa-test eat-psa-float-test eat-psa-min-buffers-test eat-psa-claim-limits-test eat-psa-profile-test eat-psa-config-check eat-psa-ext-sign-test eat-psa-ext-sign-force-failure eat-psa-coverage eat-psa-coverage-force-failure hpke-coverage-force-failure generic-reduced-alg-test tool tool-test cmdline-test demo demos hpke-demo lean-verify psa-eat-lean-verify psa-eat-demo mldsa-demo mldsa-verify lms-demo lms-verify comprehensive scenarios release-scenarios release-coverage cxx-check valgrind-check release-validate release-artifacts interop-tcose tcose-upstream interop-go-cose interop-python-cwt interop-rust-coset c99-check c99-check-lms c99-hpke-check experimental-check clean FORCE
 
 # --- Core library ---
 all: $(LIB_A)
@@ -356,7 +356,11 @@ countersign-config-test:
 zero-alloc-check:
 	sh scripts/check_zero_alloc.sh
 
-test: pkg-config-test ecdsa-policy-test rsapss-policy-test zero-alloc-check $(LIB_A)
+force-zero-check:
+	CC='$(CC)' CFLAGS='$(CFLAGS)' sh scripts/check_force_zero.sh
+
+test: pkg-config-test ecdsa-policy-test rsapss-policy-test zero-alloc-check \
+	force-zero-check $(LIB_A)
 	$(CC) $(CFLAGS) -o $(TEST_BIN) $(TEST_SRC) $(LIB_A) $(LDFLAGS) $(LDLIBS)
 	./$(TEST_BIN)
 

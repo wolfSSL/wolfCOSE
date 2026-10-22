@@ -521,6 +521,9 @@ static void test_wolfcose_force_zero(void)
     int allZero;
     int prefixZero;
     int suffixUntouched;
+    size_t off;
+    size_t len;
+    int exactRange;
 
     TEST_LOG("  [wolfCose_ForceZero]\n");
 
@@ -559,6 +562,25 @@ static void test_wolfcose_force_zero(void)
     }
     TEST_ASSERT(prefixZero == 1, "ForceZero prefix zeroed");
     TEST_ASSERT(suffixUntouched == 1, "ForceZero suffix untouched");
+
+    /* Every start offset and length: exactly [off, off + len) is zeroed,
+     * nothing outside it */
+    exactRange = 1;
+    for (off = 0; off < (2u * sizeof(size_t)); off++) {
+        for (len = 0; len <= (3u * sizeof(size_t)) + 1u; len++) {
+            for (i = 0; i < sizeof(buf); i++) {
+                buf[i] = 0xDDu;
+            }
+            wolfCose_ForceZero(&buf[off], len);
+            for (i = 0; i < sizeof(buf); i++) {
+                if (((i >= off) && (i < (off + len))) ?
+                        (buf[i] != 0u) : (buf[i] != 0xDDu)) {
+                    exactRange = 0;
+                }
+            }
+        }
+    }
+    TEST_ASSERT(exactRange == 1, "ForceZero exact range at every offset");
 
     /* len == 0: no-op, must not crash, must not modify buffer */
     for (i = 0; i < sizeof(buf); i++) {

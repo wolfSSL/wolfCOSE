@@ -62,10 +62,12 @@ extern "C" {
 #endif
 
 /* ----- Secure memory zero -----
- * Portable secure-zero using a volatile pointer so the compiler cannot
- * optimise the writes away. Used in place of wc_ForceZero so wolfCOSE
- * links against the full 5.x range (wc_ForceZero only became a public
- * WOLFSSL_API symbol in v5.8.4). Definition lives in wolfcose_util.c. */
+ * Portable secure-zero: XMEMSET, then a call through a volatile function
+ * pointer to an asm memory barrier (a no-op under WOLFSSL_NO_ASM), so the
+ * compiler cannot drop the stores as dead. Used in place of wc_ForceZero
+ * so wolfCOSE links against the full 5.x range (wc_ForceZero only became a
+ * public WOLFSSL_API symbol in v5.8.4). Definition lives in
+ * wolfcose_util.c; scripts/check_force_zero.sh checks it survives -O3. */
 WOLFCOSE_LOCAL void wolfCose_ForceZero(void* mem, size_t len);
 
 /* ----- Big-endian load/store helpers (bit-shift only, no platform dependencies) ----- */
