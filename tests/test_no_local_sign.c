@@ -119,6 +119,11 @@ int main(void)
 #if defined(WOLFCOSE_SIGN_SIGN)
     WOLFCOSE_SIGNATURE signer;
 #endif
+#if defined(WOLFCOSE_COUNTERSIGN_SIGN) && defined(WOLFCOSE_COUNTERSIGN_VERIFY)
+    WOLFCOSE_COUNTERSIGNATURE counterSigner;
+    uint8_t csOut[512];
+    size_t csOutLen = 0;
+#endif
 
     (void)printf("=== wolfCOSE WOLFCOSE_NO_LOCAL_SIGN Tests ===\n");
 
@@ -185,6 +190,31 @@ int main(void)
                     (memcmp(decPayload, payload, decPayloadLen) == 0)),
                    "Sign1 payload round-trips");
     }
+#if defined(WOLFCOSE_COUNTERSIGN_SIGN) && defined(WOLFCOSE_COUNTERSIGN_VERIFY)
+    if (ret == 0) {
+        (void)memset(&counterSigner, 0, sizeof(counterSigner));
+        counterSigner.algId = WOLFCOSE_ALG_ESP256;
+        counterSigner.key = &localKey;
+        ret = wc_Cose_AddCounterSignature(&counterSigner, out, outLen,
+            NULL, 0u, NULL, 0u, scratch, sizeof(scratch),
+            csOut, sizeof(csOut), &csOutLen, &rng);
+        NLS_ASSERT(ret == WOLFCOSE_E_COSE_KEY_TYPE,
+                   "countersign refuses a local private key");
+        ret = 0;
+    }
+    if (ret == 0) {
+        counterSigner.key = &extKey;
+        ret = wc_Cose_AddCounterSignature(&counterSigner, out, outLen,
+            NULL, 0u, NULL, 0u, scratch, sizeof(scratch),
+            csOut, sizeof(csOut), &csOutLen, NULL);
+        NLS_ASSERT(ret == 0, "countersignature through the external signer");
+    }
+    if (ret == 0) {
+        ret = wc_Cose_VerifyCounterSignature(&localKey, 0u, csOut, csOutLen,
+            NULL, 0u, NULL, 0u, scratch, sizeof(scratch), &hdr);
+        NLS_ASSERT(ret == 0, "countersignature verifies");
+    }
+#endif
 #if defined(WOLFCOSE_SIGN_SIGN) && defined(WOLFCOSE_SIGN_VERIFY)
     if (ret == 0) {
         signer.key = &extKey;
