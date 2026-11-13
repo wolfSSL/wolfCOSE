@@ -527,14 +527,6 @@ extern "C" {
     #error "wolfCOSE RSA-PSS key validation requires WOLFSSL_EXPORT_INT"
 #endif
 
-/* The local ECDSA signing path converts a wolfCrypt DER signature to the
- * fixed-width COSE representation. NO_ASN is supported for verification
- * builds only. */
-#if defined(NO_ASN) && defined(WOLFCOSE_HAVE_ECDSA) && \
-    (defined(WOLFCOSE_SIGN1_SIGN) || defined(WOLFCOSE_SIGN_SIGN))
-    #error "wolfCOSE ECDSA signing requires ASN support"
-#endif
-
 /* Optional RFC 6979 deterministic ECDSA signing. */
 #if defined(WOLFCOSE_ENABLE_DETERMINISTIC_ECDSA) && \
     defined(WOLFCOSE_HAVE_ECDSA) && \
@@ -1029,6 +1021,11 @@ extern "C" {
 #if defined(WOLFCOSE_EXT_SIGN) && !defined(WOLFCOSE_SIGN1_SIGN) && \
     !defined(WOLFCOSE_SIGN_SIGN) && !defined(WOLFCOSE_COUNTERSIGN_SIGN)
     #error "WOLFCOSE_ENABLE_EXT_SIGN needs a signing op, which needs at least one local signature algorithm; the LEAN_VERIFY profiles are incompatible"
+#endif
+
+/* WOLFCOSE_NO_LOCAL_SIGN: every signature comes from the external signer. */
+#if defined(WOLFCOSE_NO_LOCAL_SIGN) && !defined(WOLFCOSE_EXT_SIGN)
+    #error "WOLFCOSE_NO_LOCAL_SIGN requires WOLFCOSE_ENABLE_EXT_SIGN"
 #endif
 
 #ifdef __cplusplus

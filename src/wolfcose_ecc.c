@@ -49,8 +49,8 @@
 /* ----- Internal: ECC DER <-> raw r||s conversion ----- */
 
 #ifdef WOLFCOSE_HAVE_ECDSA
-#if defined(WOLFCOSE_SIGN1_SIGN) || defined(WOLFCOSE_SIGN_SIGN) || \
-    defined(WOLFCOSE_COUNTERSIGN_SIGN)
+#if (defined(WOLFCOSE_SIGN1_SIGN) || defined(WOLFCOSE_SIGN_SIGN) || \
+     defined(WOLFCOSE_COUNTERSIGN_SIGN)) && !defined(WOLFCOSE_NO_LOCAL_SIGN)
 int wolfCose_EccSignRaw(const uint8_t* hash, size_t hashLen,
                          uint8_t* sigBuf, size_t* sigLen,
                          size_t coordSz, enum wc_HashType hashType,
@@ -59,8 +59,10 @@ int wolfCose_EccSignRaw(const uint8_t* hash, size_t hashLen,
     int ret;
     uint8_t derSig[ECC_MAX_SIG_SIZE];
     word32 derSigLen = (word32)sizeof(derSig);
+#ifndef NO_ASN
     word32 rLen;
     word32 sLen;
+#endif
 #ifdef WOLFCOSE_HAVE_DETERMINISTIC_ECDSA
     byte savedDeterministic = 0u;
     enum wc_HashType savedHashType = WC_HASH_TYPE_NONE;
@@ -85,7 +87,7 @@ int wolfCose_EccSignRaw(const uint8_t* hash, size_t hashLen,
         (void)hashType;
         ret = WOLFCOSE_SUCCESS;
 #endif
-        /* Sign producing DER-encoded signature */
+        /* DER-encoded signature, or fixed-width r||s under NO_ASN */
         if (ret == WOLFCOSE_SUCCESS) {
             INJECT_FAILURE(WOLF_FAIL_ECC_SIGN, -1,
                 ret = wc_ecc_sign_hash(hash, (word32)hashLen, derSig,
@@ -94,6 +96,19 @@ int wolfCose_EccSignRaw(const uint8_t* hash, size_t hashLen,
                 ret = WOLFCOSE_E_CRYPTO;
             }
         }
+#ifdef NO_ASN
+        /* wolfCrypt writes 2 * curve size without checking outlen, so it
+         * signs into the local buffer and only an exact fit is copied out. */
+        if (ret == WOLFCOSE_SUCCESS) {
+            if ((size_t)derSigLen != (coordSz * 2u)) {
+                ret = WOLFCOSE_E_CRYPTO;
+            }
+            else {
+                (void)XMEMCPY(sigBuf, derSig, coordSz * 2u);
+                *sigLen = coordSz * 2u;
+            }
+        }
+#else
         if (ret == WOLFCOSE_SUCCESS) {
             /* Extract raw r and s from DER */
             rLen = (word32)coordSz;
@@ -127,6 +142,7 @@ int wolfCose_EccSignRaw(const uint8_t* hash, size_t hashLen,
                 *sigLen = coordSz * 2u;
             }
         }
+#endif /* NO_ASN */
         (void)wolfCose_ForceZero(derSig, sizeof(derSig));
 #ifdef WOLFCOSE_HAVE_DETERMINISTIC_ECDSA
         (void)wc_ecc_set_deterministic_ex(eccKey, savedDeterministic,
@@ -135,7 +151,7 @@ int wolfCose_EccSignRaw(const uint8_t* hash, size_t hashLen,
     }
     return ret;
 }
-#endif /* signature creation */
+#endif /* signature creation && !WOLFCOSE_NO_LOCAL_SIGN */
 
 int wolfCose_EccVerifyRaw(const uint8_t* sigBuf, size_t sigLen,
                            const uint8_t* hash, size_t hashLen,

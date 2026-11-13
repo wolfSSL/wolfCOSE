@@ -1140,6 +1140,116 @@ static void test_cose_sign1_ecc(const char* label, int32_t alg, int32_t crv,
 }
 #endif /* WOLFCOSE_HAVE_ES256 */
 
+#if defined(WOLFCOSE_HAVE_ES256) && defined(WOLFCOSE_SIGN1_VERIFY)
+/* RFC 6979 A.2.5 P-256 key. The expected message was produced by an
+ * independent RFC 6979 implementation, so ASN and NO_ASN wolfCrypt builds must
+ * both verify it and, with deterministic signing, reproduce it byte for byte. */
+static const uint8_t kKatEs256Priv[32] = {
+    0xC9u, 0xAFu, 0xA9u, 0xD8u, 0x45u, 0xBAu, 0x75u, 0x16u,
+    0x6Bu, 0x5Cu, 0x21u, 0x57u, 0x67u, 0xB1u, 0xD6u, 0x93u,
+    0x4Eu, 0x50u, 0xC3u, 0xDBu, 0x36u, 0xE8u, 0x9Bu, 0x12u,
+    0x7Bu, 0x8Au, 0x62u, 0x2Bu, 0x12u, 0x0Fu, 0x67u, 0x21u
+};
+static const uint8_t kKatEs256Pub[65] = {
+    0x04u,
+    0x60u, 0xFEu, 0xD4u, 0xBAu, 0x25u, 0x5Au, 0x9Du, 0x31u,
+    0xC9u, 0x61u, 0xEBu, 0x74u, 0xC6u, 0x35u, 0x6Du, 0x68u,
+    0xC0u, 0x49u, 0xB8u, 0x92u, 0x3Bu, 0x61u, 0xFAu, 0x6Cu,
+    0xE6u, 0x69u, 0x62u, 0x2Eu, 0x60u, 0xF2u, 0x9Fu, 0xB6u,
+    0x79u, 0x03u, 0xFEu, 0x10u, 0x08u, 0xB8u, 0xBCu, 0x99u,
+    0xA4u, 0x1Au, 0xE9u, 0xE9u, 0x56u, 0x28u, 0xBCu, 0x64u,
+    0xF2u, 0xF1u, 0xB2u, 0x0Cu, 0x2Du, 0x7Eu, 0x9Fu, 0x51u,
+    0x77u, 0xA3u, 0xC2u, 0x94u, 0xD4u, 0x46u, 0x22u, 0x99u
+};
+static const uint8_t kKatEs256Msg[] = {
+    0xD2u, 0x84u, 0x43u, 0xA1u, 0x01u, 0x28u, 0xA0u, 0x54u,
+    0x54u, 0x68u, 0x69u, 0x73u, 0x20u, 0x69u, 0x73u, 0x20u,
+    0x74u, 0x68u, 0x65u, 0x20u, 0x63u, 0x6Fu, 0x6Eu, 0x74u,
+    0x65u, 0x6Eu, 0x74u, 0x2Eu, 0x58u, 0x40u, 0x06u, 0x24u,
+    0xFEu, 0x60u, 0x11u, 0x44u, 0x8Au, 0xE3u, 0x91u, 0xA0u,
+    0x35u, 0x5Eu, 0x76u, 0x56u, 0xF0u, 0xB7u, 0xE6u, 0x02u,
+    0xA5u, 0x9Bu, 0x0Cu, 0xAAu, 0x3Au, 0xFAu, 0x3Au, 0x42u,
+    0x2Bu, 0xE9u, 0x54u, 0x25u, 0x90u, 0x4Eu, 0x25u, 0xE9u,
+    0x10u, 0xE6u, 0x55u, 0x2Au, 0xCFu, 0x59u, 0xC6u, 0xE2u,
+    0x59u, 0x8Du, 0x6Au, 0xF3u, 0x35u, 0x88u, 0xC3u, 0xECu,
+    0xD8u, 0x2Bu, 0x80u, 0x8Au, 0x56u, 0x34u, 0xC3u, 0x47u,
+    0x06u, 0xD1u, 0x4Fu, 0x3Du, 0x02u, 0xC2u
+};
+
+#if defined(WOLFCOSE_SIGN1_SIGN) && \
+    defined(WOLFCOSE_HAVE_DETERMINISTIC_ECDSA) && \
+    defined(WOLFSSL_ECDSA_DETERMINISTIC_K) && \
+    !defined(WOLFSSL_ECDSA_DETERMINISTIC_K_VARIANT)
+    #define WOLFCOSE_TEST_ES256_KAT_SIGN
+#endif
+
+static void test_cose_sign1_es256_kat(void)
+{
+    static const uint8_t payload[] = "This is the content.";
+    WOLFCOSE_KEY coseKey;
+    ecc_key eccKey;
+    WOLFCOSE_HDR hdr;
+    uint8_t scratch[WOLFCOSE_MAX_SCRATCH_SZ];
+    const uint8_t* decPayload = NULL;
+    size_t decPayloadLen = 0;
+    int eccInited = 0;
+    int ret;
+#ifdef WOLFCOSE_TEST_ES256_KAT_SIGN
+    WC_RNG rng;
+    uint8_t out[sizeof(kKatEs256Msg)];
+    size_t outLen = 0;
+#endif
+
+    TEST_LOG("  [Sign1 ESP256 known answer]\n");
+
+    ret = wc_ecc_init(&eccKey);
+    TEST_ASSERT(ret == 0, "kat ecc init");
+    if (ret == 0) {
+        eccInited = 1;
+        /* import_unsigned, as a NO_ASN wolfCrypt cannot import a private
+         * key together with its x963 public point. */
+        ret = wc_ecc_import_unsigned(&eccKey, &kKatEs256Pub[1],
+            &kKatEs256Pub[33], kKatEs256Priv, ECC_SECP256R1);
+        TEST_ASSERT(ret == 0, "kat ecc import");
+    }
+    if (ret == 0) {
+        (void)wc_CoseKey_Init(&coseKey);
+        ret = wc_CoseKey_SetEcc(&coseKey, WOLFCOSE_CRV_P256, &eccKey);
+        TEST_ASSERT(ret == 0, "kat cose key set");
+    }
+    if (ret == 0) {
+        ret = wc_CoseSign1_Verify(&coseKey, kKatEs256Msg,
+            sizeof(kKatEs256Msg), NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), &hdr, &decPayload, &decPayloadLen);
+        TEST_ASSERT(ret == 0, "kat verify");
+        TEST_ASSERT((ret != 0) ||
+                    ((decPayloadLen == (sizeof(payload) - 1u)) &&
+                     (memcmp(decPayload, payload, decPayloadLen) == 0)),
+                    "kat payload");
+    }
+#ifdef WOLFCOSE_TEST_ES256_KAT_SIGN
+    if (ret == 0) {
+        ret = wc_InitRng(&rng);
+        TEST_ASSERT(ret == 0, "kat rng init");
+        if (ret == 0) {
+            ret = wc_CoseSign1_Sign(&coseKey, WOLFCOSE_ALG_ESP256, NULL, 0,
+                payload, sizeof(payload) - 1u, NULL, 0, NULL, 0,
+                scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
+            TEST_ASSERT(ret == 0, "kat deterministic sign");
+            TEST_ASSERT((ret != 0) ||
+                        ((outLen == sizeof(kKatEs256Msg)) &&
+                         (memcmp(out, kKatEs256Msg, outLen) == 0)),
+                        "kat deterministic output matches vector");
+            (void)wc_FreeRng(&rng);
+        }
+    }
+#endif
+    if (eccInited != 0) {
+        (void)wc_ecc_free(&eccKey);
+    }
+}
+#endif /* WOLFCOSE_HAVE_ES256 && WOLFCOSE_SIGN1_VERIFY */
+
 #if defined(WOLFCOSE_EXT_SIGN) && defined(WOLFCOSE_HAVE_ES256)
 typedef struct {
     WC_RNG*  rng;
@@ -24601,7 +24711,8 @@ static void test_force_failure_crypto(void)
                 coseMsg, sizeof(coseMsg), &coseMsgLen, &rng);
             TEST_ASSERT(ret == WOLFCOSE_E_CRYPTO, "ECC sign forced failure");
 
-            /* Test ECC sig_to_rs failure */
+#ifndef NO_ASN
+            /* Test ECC sig_to_rs failure (DER path only) */
             coseMsgLen = sizeof(coseMsg);
             wolfForceFailure_Set(WOLF_FAIL_ECC_SIG_TO_RS);
             ret = wc_CoseSign1_Sign(&key, WOLFCOSE_ALG_ESP256,
@@ -24612,6 +24723,7 @@ static void test_force_failure_crypto(void)
                 scratch, sizeof(scratch),
                 coseMsg, sizeof(coseMsg), &coseMsgLen, &rng);
             TEST_ASSERT(ret == WOLFCOSE_E_CRYPTO, "ECC sig_to_rs forced failure");
+#endif
 
             /* Create a valid signature for verify tests */
             coseMsgLen = sizeof(coseMsg);
@@ -24627,7 +24739,8 @@ static void test_force_failure_crypto(void)
                 size_t decodedPayloadLen;
                 WOLFCOSE_HDR hdr;
 
-                /* Test ECC rs_to_sig failure */
+#ifndef NO_ASN
+                /* Test ECC rs_to_sig failure (DER path only) */
                 wolfForceFailure_Set(WOLF_FAIL_ECC_RS_TO_SIG);
                 ret = wc_CoseSign1_Verify(&key, coseMsg, coseMsgLen,
                     NULL, 0,               /* detached */
@@ -24635,6 +24748,7 @@ static void test_force_failure_crypto(void)
                     scratch, sizeof(scratch),
                     &hdr, &decodedPayload, &decodedPayloadLen);
                 TEST_ASSERT(ret == WOLFCOSE_E_CRYPTO, "ECC rs_to_sig forced failure");
+#endif
 
                 /* Test ECC verify failure */
                 wolfForceFailure_Set(WOLF_FAIL_ECC_VERIFY);
@@ -30199,6 +30313,9 @@ int test_cose(void)
     /* Sign1 basic tests */
 #ifdef WOLFCOSE_HAVE_ES256
     test_cose_sign1_ecc("ESP256", WOLFCOSE_ALG_ESP256, WOLFCOSE_CRV_P256, 32);
+#ifdef WOLFCOSE_SIGN1_VERIFY
+    test_cose_sign1_es256_kat();
+#endif
     test_cose_sign1_with_aad();
     test_cose_sign1_detached();
 #if defined(WOLFCOSE_EXT_SIGN)

@@ -305,9 +305,11 @@ int wolfCose_KeyCanSign(const WOLFCOSE_KEY* key)
 {
     int can = 0;
 
+#ifndef WOLFCOSE_NO_LOCAL_SIGN
     if (key->hasPrivate == 1u) {
         can = 1;
     }
+#endif
 #if defined(WOLFCOSE_EXT_SIGN)
     if (key->signCb != NULL) {
         can = 1;

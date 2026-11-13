@@ -189,7 +189,17 @@ jobs:
             -DWOLFCOSE_ENABLE_DEPRECATED_ALGS
         build_cfg "deprecated RFC 9053 alg IDs, Ed448 only" \
             -DWOLFCOSE_ENABLE_DEPRECATED_ALGS -DWOLFCOSE_NO_EDDSA
+        build_cfg "WOLFCOSE_NO_LOCAL_SIGN (external signer only)" \
+            -DWOLFCOSE_ENABLE_EXT_SIGN -DWOLFCOSE_NO_LOCAL_SIGN
+        build_cfg "WOLFCOSE_LEAN + WOLFCOSE_NO_LOCAL_SIGN" -DWOLFCOSE_LEAN \
+            -DWOLFCOSE_ENABLE_EXT_SIGN -DWOLFCOSE_NO_LOCAL_SIGN
         echo "All lean configurations compiled clean."
+
+    - name: External signer only (WOLFCOSE_NO_LOCAL_SIGN)
+      run: |
+        export WOLFSSL_DIR=$HOME/wolfssl-install
+        export LD_LIBRARY_PATH=$WOLFSSL_DIR/lib
+        make no-local-sign-test WOLFSSL_PREFIX=$WOLFSSL_DIR PKG_CONFIG=false
 
     - name: Check PSA/EAT opt-in feature matrix
       run: |
@@ -268,3 +278,67 @@ jobs:
       run: |
         size examples/sign1_mldsa || true
         size examples/sign1_verify_mldsa || true
+
+  no-asn:
+    name: ECDSA sign + verify against NO_ASN wolfSSL
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/wolfssl/wolfcose-ci@sha256:c073c7afb4cd3f296b8c1a305db2f718530b7a8aca899482629aee3a5cf8bfbc
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Trust workspace
+      if: runner.os == 'Linux'
+      run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+    - name: Resolve wolfSSL master commit
+      id: wolfssl-rev
+      run: echo "sha=$(git ls-remote https://github.com/wolfSSL/wolfssl.git HEAD | cut -f1)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache wolfSSL (NO_ASN)
+      id: cache-wolfssl
+      uses: actions/cache@v4
+      with:
+        path: ~/wolfssl-noasn
+        key: wolfcose-ci-v1-wolfssl-noasn-v1-${{ steps.wolfssl-rev.outputs.sha }}
+
+    # Deterministic k lets the suite reproduce the ES256 known-answer vector,
+    # proving NO_ASN signing is byte-identical to the DER path.
+    - name: Build NO_ASN wolfSSL
+      if: steps.cache-wolfssl.outputs.cache-hit != 'true'
+      run: |
+        cd ~
+        git clone --depth 1 https://github.com/wolfSSL/wolfssl.git wolfssl-noasn-src
+        cd wolfssl-noasn-src
+        ./autogen.sh
+        ./configure --enable-cryptonly --enable-ecc --enable-sha384 --enable-sha512 \
+                    --enable-keygen --enable-asn=no --disable-rsa --disable-dh \
+                    CPPFLAGS="-DWOLFSSL_ECDSA_DETERMINISTIC_K -DWOLFSSL_NO_MALLOC" \
+                    --prefix=$HOME/wolfssl-noasn
+        make -j$(nproc)
+        make install
+
+    - name: Test suite (local ECDSA sign + verify, known-answer vector)
+      run: |
+        export LD_LIBRARY_PATH=$HOME/wolfssl-noasn/lib
+        make test WOLFSSL_PREFIX=$HOME/wolfssl-noasn PKG_CONFIG=false \
+          EXTRA_CFLAGS="-DWOLFCOSE_ENABLE_DETERMINISTIC_ECDSA"
+
+    - name: Assert no DER signature conversion is referenced
+      run: |
+        if nm -u src/*.o | grep -E "wc_ecc_(sig_to_rs|rs_raw_to_sig)$"; then
+          echo "FAIL: DER conversion referenced in a NO_ASN build"; exit 1
+        fi
+        echo "OK: raw r||s used directly"
+
+    - name: Delegated signing suite
+      run: |
+        export LD_LIBRARY_PATH=$HOME/wolfssl-noasn/lib
+        make clean
+        make ext-sign-test WOLFSSL_PREFIX=$HOME/wolfssl-noasn PKG_CONFIG=false
+
+    - name: External signer only (WOLFCOSE_NO_LOCAL_SIGN)
+      run: |
+        export LD_LIBRARY_PATH=$HOME/wolfssl-noasn/lib
+        make no-local-sign-test WOLFSSL_PREFIX=$HOME/wolfssl-noasn PKG_CONFIG=false

@@ -763,6 +763,22 @@ ext-sign-test:
 	    -o $(TEST_BIN) $(SRC) $(TEST_SRC) $(LDFLAGS) $(LDLIBS)
 	./$(TEST_BIN)
 
+# --- External signer only: local signing compiled out ---
+# The nm check proves the library references no wolfCrypt signing primitive,
+# which a --gc-sections link would otherwise hide.
+NO_LOCAL_SIGN_FLAGS = -DWOLFCOSE_ENABLE_EXT_SIGN -DWOLFCOSE_NO_LOCAL_SIGN
+NO_LOCAL_SIGN_TEST_BIN = tests/test_no_local_sign
+no-local-sign-test:
+	$(MAKE) clean
+	$(MAKE) $(LIB_A) EXTRA_CFLAGS='$(EXTRA_CFLAGS) $(NO_LOCAL_SIGN_FLAGS)'
+	$(CC) $(CFLAGS) $(NO_LOCAL_SIGN_FLAGS) -o $(NO_LOCAL_SIGN_TEST_BIN) \
+	    tests/test_no_local_sign.c $(LIB_A) $(LDFLAGS) $(LDLIBS)
+	./$(NO_LOCAL_SIGN_TEST_BIN)
+	@if nm -u $(OBJ) | grep -E 'wc_(ecc_sign_hash|ed25519_sign_msg|ed448_sign_msg|RsaPSS_Sign_ex|MlDsaKey_SignCtx|LmsKey_Sign)$$'; then \
+	    echo "FAIL: local signing primitive referenced"; exit 1; \
+	fi
+	@echo "PASS: no local signing primitive referenced"
+
 eat-psa-ext-sign-test:
 	$(CC) $(CFLAGS) $(EAT_PSA_FULL_FLAGS) -DWOLFCOSE_ENABLE_EXT_SIGN \
 	    -o $(TEST_BIN) $(SRC) $(TEST_SRC) $(LDFLAGS) $(LDLIBS)
@@ -1333,7 +1349,7 @@ c99-hpke-check:
 # --- Cleanup ---
 clean:
 	rm -f $(OBJ) $(TEST_BIN) $(TOOL_BIN) $(DEMO_BIN) $(ENC_DEMO) $(HPKE_DEMO) $(MAC_DEMO) \
-	    $(EAT_PSA_TEST_BIN) $(EAT_PSA_LIMITS_TEST_BIN) \
+	    $(EAT_PSA_TEST_BIN) $(EAT_PSA_LIMITS_TEST_BIN) $(NO_LOCAL_SIGN_TEST_BIN) \
 	    $(EXTSIGN_DEMO) $(SIGN1_DEMO) $(LEANV_DEMO) $(EAT_LEANV_DEMO) \
 	    $(EAT_DEMO) $(MLDSA_DEMO) $(MLDSAV_DEMO) $(LMS_DEMO) $(LMSV_DEMO) $(CXX_SMOKE) \
 	    $(COMP_SIGN) $(COMP_ENCRYPT) $(COMP_MAC) $(COMP_ERRORS) \

@@ -577,6 +577,7 @@ int wc_CoseSign_Sign(const WOLFCOSE_SIGNATURE* signers, size_t signerCount,
         }
         else
 #endif
+#ifndef WOLFCOSE_NO_LOCAL_SIGN
 #ifdef WOLFCOSE_HAVE_ECDSA
         if ((ret == WOLFCOSE_SUCCESS) &&
             (wolfCose_AlgIsEcdsa(signer->algId) != 0)) {
@@ -762,6 +763,7 @@ int wc_CoseSign_Sign(const WOLFCOSE_SIGNATURE* signers, size_t signerCount,
         }
         else
 #endif /* WOLFCOSE_HAVE_LMS && !WOLFSSL_LMS_VERIFY_ONLY */
+#endif /* !WOLFCOSE_NO_LOCAL_SIGN */
         if (ret == WOLFCOSE_SUCCESS) {
             ret = WOLFCOSE_E_COSE_BAD_ALG;
         }
