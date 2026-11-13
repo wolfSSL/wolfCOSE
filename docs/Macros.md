@@ -440,7 +440,11 @@ make EXTRA_CFLAGS="-DWOLFCOSE_ENABLE_EXT_SIGN -DWOLFCOSE_NO_LOCAL_SIGN"
 ```
 
 `WOLFCOSE_ENABLE_DETERMINISTIC_ECDSA` does not apply to such a build, so the
-wolfSSL backend need not support deterministic signing.
+wolfSSL backend need not support deterministic signing. `make
+no-local-sign-test` covers the option: Sign1, Sign and countersignatures
+through the callback, the refusal of local private keys, and a check that no
+signing primitive is linked. The main test suites sign with local keys, so
+they stop with an error under it.
 
 Pass a NULL callback to detach. Attaching local key material with `wc_CoseKey_SetEcc()` and friends detaches implicitly, so always call `wc_CoseKey_SetExtSigner()` last. `wc_CoseKey_Decode()` is rejected on a key that has a signer attached, rather than silently importing private material and signing locally with it.
 

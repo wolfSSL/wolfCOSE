@@ -40,6 +40,10 @@
 
 #include <wolfcose/wolfcose.h>
 #include "../src/wolfcose_internal.h"  /* For testing internal helpers */
+
+#ifdef WOLFCOSE_NO_LOCAL_SIGN
+    #error "this suite signs with local keys; test WOLFCOSE_NO_LOCAL_SIGN with make no-local-sign-test"
+#endif
 #include "test_suite.h"
 #include <wolfssl/wolfcrypt/random.h>
 #if defined(WOLFCOSE_HAVE_ES256) || defined(WOLFCOSE_HAVE_HPKE_0)
