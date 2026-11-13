@@ -676,9 +676,11 @@ static int wolfCose_CounterSignTbs(WOLFCOSE_KEY* key, int32_t alg,
         *sigLen = 0u;
     }
 #if defined(WOLFCOSE_EXT_SIGN)
+#if !defined(WOLFCOSE_NO_LOCAL_SIGN)
     if ((ret == WOLFCOSE_SUCCESS) && (key->signCb == NULL) && (rng == NULL)) {
         ret = WOLFCOSE_E_INVALID_ARG;
     }
+#endif
 #else
     if ((ret == WOLFCOSE_SUCCESS) && (rng == NULL)) {
         ret = WOLFCOSE_E_INVALID_ARG;

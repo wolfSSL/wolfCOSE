@@ -601,9 +601,11 @@ int wc_CoseSign1_Sign_ex(WOLFCOSE_KEY* key, int32_t alg,
     }
     /* An external signer owns its own randomness, so rng is required only when
      * wolfCrypt does the signing. */
+#if !defined(WOLFCOSE_NO_LOCAL_SIGN)
     if ((ret == WOLFCOSE_SUCCESS) && (key->signCb == NULL) && (rng == NULL)) {
         ret = WOLFCOSE_E_INVALID_ARG;
     }
+#endif
 #else
     if ((key == NULL) || (sigPayload == NULL) || (scratch == NULL) ||
         (out == NULL) || (outLen == NULL) || (rng == NULL)) {

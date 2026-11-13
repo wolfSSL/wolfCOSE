@@ -150,6 +150,11 @@ int main(void)
             scratch, sizeof(scratch), out, sizeof(out), &outLen, &rng);
         NLS_ASSERT(ret == WOLFCOSE_E_COSE_KEY_TYPE,
                    "Sign1 refuses a local private key");
+        ret = wc_CoseSign1_Sign(&localKey, WOLFCOSE_ALG_ESP256, NULL, 0,
+            payload, sizeof(payload) - 1u, NULL, 0, NULL, 0,
+            scratch, sizeof(scratch), out, sizeof(out), &outLen, NULL);
+        NLS_ASSERT(ret == WOLFCOSE_E_COSE_KEY_TYPE,
+                   "Sign1 refuses a local private key without an RNG");
         ret = 0;
     }
 #if defined(WOLFCOSE_SIGN_SIGN)
@@ -162,6 +167,11 @@ int main(void)
             out, sizeof(out), &outLen, &rng);
         NLS_ASSERT(ret == WOLFCOSE_E_COSE_KEY_TYPE,
                    "Sign refuses a local private key");
+        ret = wc_CoseSign_Sign(&signer, 1u, payload, sizeof(payload) - 1u,
+            NULL, 0, NULL, 0, scratch, sizeof(scratch),
+            out, sizeof(out), &outLen, NULL);
+        NLS_ASSERT(ret == WOLFCOSE_E_COSE_KEY_TYPE,
+                   "Sign refuses a local private key without an RNG");
         ret = 0;
     }
 #endif
@@ -200,6 +210,11 @@ int main(void)
             csOut, sizeof(csOut), &csOutLen, &rng);
         NLS_ASSERT(ret == WOLFCOSE_E_COSE_KEY_TYPE,
                    "countersign refuses a local private key");
+        ret = wc_Cose_AddCounterSignature(&counterSigner, out, outLen,
+            NULL, 0u, NULL, 0u, scratch, sizeof(scratch),
+            csOut, sizeof(csOut), &csOutLen, NULL);
+        NLS_ASSERT(ret == WOLFCOSE_E_COSE_KEY_TYPE,
+                   "countersign refuses a local private key without an RNG");
         ret = 0;
     }
     if (ret == 0) {
