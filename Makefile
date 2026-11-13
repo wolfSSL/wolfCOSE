@@ -222,7 +222,8 @@ ECDSA_POLICY_NO_SUPPORT_FLAGS = $(CFLAGS) $(WOLFCOSE_POLICY_DISABLE_HPKE_FLAGS) 
                                 -UWOLFCOSE_LEAN_VERIFY_MLDSA \
                                 -UWOLFCOSE_LEAN_MLDSA \
                                 -UWOLFCOSE_LEAN_VERIFY_LMS \
-                                -UWOLFCOSE_LEAN_LMS
+                                -UWOLFCOSE_LEAN_LMS \
+                                -UWOLFCOSE_NO_LOCAL_SIGN
 ECDSA_POLICY_FLAGS = $(ECDSA_POLICY_BASE_FLAGS) \
                      -DWOLFSSL_ECDSA_DETERMINISTIC_K \
                      -DWOLFCOSE_ENABLE_DETERMINISTIC_ECDSA
@@ -249,6 +250,14 @@ ecdsa-policy-test:
 	        "$$log_file"; then \
 	    cat "$$log_file"; \
 	    echo "FAIL: deterministic ECDSA probe failed unexpectedly"; \
+	    exit 1; \
+	fi; \
+	if ! $(CC) $(ECDSA_POLICY_NO_SUPPORT_FLAGS) \
+	        -DWOLFCOSE_ENABLE_DETERMINISTIC_ECDSA \
+	        -DWOLFCOSE_ENABLE_EXT_SIGN -DWOLFCOSE_NO_LOCAL_SIGN \
+	        $(ECDSA_POLICY_HEADER) >"$$log_file" 2>&1; then \
+	    cat "$$log_file"; \
+	    echo "FAIL: external-signer-only build rejected for deterministic ECDSA"; \
 	    exit 1; \
 	fi; \
 	if ! $(CC) $(ECDSA_POLICY_FLAGS) $(ECDSA_POLICY_HEADER) \

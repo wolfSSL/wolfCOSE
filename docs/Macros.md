@@ -439,6 +439,9 @@ With `WOLFCOSE_NO_LOCAL_SIGN`, a key without a signer is rejected with `WOLFCOSE
 make EXTRA_CFLAGS="-DWOLFCOSE_ENABLE_EXT_SIGN -DWOLFCOSE_NO_LOCAL_SIGN"
 ```
 
+`WOLFCOSE_ENABLE_DETERMINISTIC_ECDSA` does not apply to such a build, so the
+wolfSSL backend need not support deterministic signing.
+
 Pass a NULL callback to detach. Attaching local key material with `wc_CoseKey_SetEcc()` and friends detaches implicitly, so always call `wc_CoseKey_SetExtSigner()` last. `wc_CoseKey_Decode()` is rejected on a key that has a signer attached, rather than silently importing private material and signing locally with it.
 
 For a key that has no local wolfCrypt object at all, set `kty` (and `crv` for EdDSA) on the `WOLFCOSE_KEY` directly before attaching the signer — there is no setter for declaring a key type without attaching one.

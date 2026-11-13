@@ -527,9 +527,10 @@ extern "C" {
     #error "wolfCOSE RSA-PSS key validation requires WOLFSSL_EXPORT_INT"
 #endif
 
-/* Optional RFC 6979 deterministic ECDSA signing. */
+/* Optional RFC 6979 deterministic ECDSA signing; an external-signer-only
+ * build never signs locally, so the backend need not support it. */
 #if defined(WOLFCOSE_ENABLE_DETERMINISTIC_ECDSA) && \
-    defined(WOLFCOSE_HAVE_ECDSA) && \
+    defined(WOLFCOSE_HAVE_ECDSA) && !defined(WOLFCOSE_NO_LOCAL_SIGN) && \
     (defined(WOLFCOSE_SIGN1_SIGN) || defined(WOLFCOSE_SIGN_SIGN) || \
      defined(WOLFCOSE_COUNTERSIGN_SIGN)) && \
     !defined(WOLFCOSE_HAVE_DETERMINISTIC_ECDSA)
