@@ -680,6 +680,8 @@ static int wolfCose_CounterSignTbs(WOLFCOSE_KEY* key, int32_t alg,
     if ((ret == WOLFCOSE_SUCCESS) && (key->signCb == NULL) && (rng == NULL)) {
         ret = WOLFCOSE_E_INVALID_ARG;
     }
+#else
+    (void)rng;
 #endif
 #else
     if ((ret == WOLFCOSE_SUCCESS) && (rng == NULL)) {
