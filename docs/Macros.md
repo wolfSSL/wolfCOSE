@@ -655,8 +655,9 @@ wolfCOSE requires these wolfSSL features for full functionality:
 wolfSSL built with `NO_ASN` (`--enable-asn=no`) is supported for ECDSA signing
 and verification: `wc_ecc_sign_hash` and `wc_ecc_verify_hash` then use the
 fixed-width `r || s` form COSE needs, so wolfCOSE skips the DER conversion and
-does not link `wc_ecc_sig_to_rs` or `wc_ecc_rs_raw_to_sig`. Signatures are
-identical to an ASN build.
+does not link `wc_ecc_sig_to_rs` or `wc_ecc_rs_raw_to_sig`. The COSE signature
+encoding is the same as in an ASN build; signatures are byte-for-byte
+identical only with deterministic ECDSA, since a random nonce differs per run.
 
 ---
 
