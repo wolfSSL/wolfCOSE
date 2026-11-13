@@ -1263,6 +1263,8 @@ c99-check:
 		-DWOLFCOSE_EAT_PSA_MAX_CLAIMS=10u \
 		-DWOLFCOSE_EAT_PSA_MAX_COMPONENT_CLAIMS=5u -fsyntax-only \
 		tests/test_eat_psa_limits.c
+	$(CC) $(C99_FLAGS) $(NO_LOCAL_SIGN_FLAGS) -fsyntax-only $(SRC) \
+		tests/test_no_local_sign.c
 	@echo "PASS: all sources conform to ISO C99 (-pedantic-errors)"
 
 # Strict C99 gate for the LMS-gated branches and profiles. Needs an
