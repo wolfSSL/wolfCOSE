@@ -15,6 +15,7 @@ experimental-check.err
 tests/test_wolfcose
 tests/test_wolfcose_eat_psa
 tests/test_wolfcose_eat_psa_limits
+tests/test_no_local_sign
 tools/wolfcose_tool
 examples/lifecycle_demo
 tests/interop/t_cose/interop_tcose

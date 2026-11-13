@@ -415,6 +415,7 @@ encryption.
 | Define | Description | Default |
 |--------|-------------|---------|
 | `WOLFCOSE_ENABLE_EXT_SIGN` | Opt in `wc_CoseKey_SetExtSigner()`, which delegates signing to a caller-supplied callback | off |
+| `WOLFCOSE_NO_LOCAL_SIGN` | Compile out every local wolfCrypt signing call (`wc_ecc_sign_hash`, `wc_ed25519_sign_msg`, RSA-PSS, ML-DSA, HSS-LMS) so only the callback signs. Requires `WOLFCOSE_ENABLE_EXT_SIGN` | off |
 
 Off in every build unless explicitly enabled, lean or not. Resolved internally as the read-only `WOLFCOSE_EXT_SIGN` gate.
 
@@ -431,6 +432,19 @@ What the callback receives depends on the algorithm, and getting this wrong prod
 It returns the raw COSE signature; wolfCOSE checks the returned length against the algorithm but performs no key operation itself. No RNG is needed. HSS-LMS is stateful: the callback's own signing operation advances one-time-signature state, and the caller owns its persistence.
 
 A delegated key needs no local *private* key, but it must declare enough for wolfCOSE to know the expected signature length: ES* and ML-DSA need nothing beyond `alg`; EdDSA needs `kty`/`crv`; PS* needs `kty` plus a local `RsaKey` attached via `wc_CoseKey_SetRsa()` for its modulus size; HSS-LMS needs an initialized `LmsKey` attached via `wc_CoseKey_SetLms()`, because its length follows the key's parameter set.
+
+With `WOLFCOSE_NO_LOCAL_SIGN`, a key without a signer is rejected with `WOLFCOSE_E_COSE_KEY_TYPE` even if it holds private material, and the signing primitives are not linked. Use it when every key lives behind the callback:
+
+```bash
+make EXTRA_CFLAGS="-DWOLFCOSE_ENABLE_EXT_SIGN -DWOLFCOSE_NO_LOCAL_SIGN"
+```
+
+`WOLFCOSE_ENABLE_DETERMINISTIC_ECDSA` does not apply to such a build, so the
+wolfSSL backend need not support deterministic signing. `make
+no-local-sign-test` covers the option: Sign1, Sign and countersignatures
+through the callback, the refusal of local private keys, and a check that no
+signing primitive is linked. The main test suites sign with local keys, so
+they stop with an error under it.
 
 Pass a NULL callback to detach. Attaching local key material with `wc_CoseKey_SetEcc()` and friends detaches implicitly, so always call `wc_CoseKey_SetExtSigner()` last. `wc_CoseKey_Decode()` is rejected on a key that has a signer attached, rather than silently importing private material and signing locally with it.
 
@@ -637,6 +651,13 @@ wolfCOSE requires these wolfSSL features for full functionality:
 | `HAVE_AES_KEYWRAP` | AES Key Wrap distribution |
 | `HAVE_HKDF` | ECDH-ES key derivation |
 | `HAVE_HPKE` + `HAVE_ECC` P-256 + SHA-256 + `HAVE_AESGCM` | Experimental COSE-HPKE P0 |
+
+wolfSSL built with `NO_ASN` (`--enable-asn=no`) is supported for ECDSA signing
+and verification: `wc_ecc_sign_hash` and `wc_ecc_verify_hash` then use the
+fixed-width `r || s` form COSE needs, so wolfCOSE skips the DER conversion and
+does not link `wc_ecc_sig_to_rs` or `wc_ecc_rs_raw_to_sig`. The COSE signature
+encoding is the same as in an ASN build; signatures are byte-for-byte
+identical only with deterministic ECDSA, since a random nonce differs per run.
 
 ---
 

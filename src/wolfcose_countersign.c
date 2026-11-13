@@ -676,9 +676,13 @@ static int wolfCose_CounterSignTbs(WOLFCOSE_KEY* key, int32_t alg,
         *sigLen = 0u;
     }
 #if defined(WOLFCOSE_EXT_SIGN)
+#if !defined(WOLFCOSE_NO_LOCAL_SIGN)
     if ((ret == WOLFCOSE_SUCCESS) && (key->signCb == NULL) && (rng == NULL)) {
         ret = WOLFCOSE_E_INVALID_ARG;
     }
+#else
+    (void)rng;
+#endif
 #else
     if ((ret == WOLFCOSE_SUCCESS) && (rng == NULL)) {
         ret = WOLFCOSE_E_INVALID_ARG;
@@ -707,6 +711,7 @@ static int wolfCose_CounterSignTbs(WOLFCOSE_KEY* key, int32_t alg,
     }
     else
 #endif
+#ifndef WOLFCOSE_NO_LOCAL_SIGN
 #ifdef WOLFCOSE_HAVE_ECDSA
     if ((ret == WOLFCOSE_SUCCESS) && (wolfCose_AlgIsEcdsa(alg) != 0)) {
         enum wc_HashType hashType = WC_HASH_TYPE_NONE;
@@ -878,6 +883,7 @@ static int wolfCose_CounterSignTbs(WOLFCOSE_KEY* key, int32_t alg,
     }
     else
 #endif
+#endif /* !WOLFCOSE_NO_LOCAL_SIGN */
     if (ret == WOLFCOSE_SUCCESS) {
         ret = WOLFCOSE_E_COSE_BAD_ALG;
     }

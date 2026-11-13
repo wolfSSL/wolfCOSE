@@ -209,6 +209,7 @@ int wc_CoseSign_Sign(const WOLFCOSE_SIGNATURE* signers, size_t signerCount,
 
     /* rng is required only when a signer signs locally; a delegated signer owns
      * its randomness. */
+#if !defined(WOLFCOSE_NO_LOCAL_SIGN)
     if ((ret == WOLFCOSE_SUCCESS) && (rng == NULL)) {
 #if defined(WOLFCOSE_EXT_SIGN)
         size_t s;
@@ -225,6 +226,9 @@ int wc_CoseSign_Sign(const WOLFCOSE_SIGNATURE* signers, size_t signerCount,
         ret = WOLFCOSE_E_INVALID_ARG;
 #endif
     }
+#else
+    (void)rng;
+#endif /* !WOLFCOSE_NO_LOCAL_SIGN */
 #ifdef WOLFCOSE_CHECK_WORD32_LEN
     if ((ret == WOLFCOSE_SUCCESS) &&
         ((wolfCose_LenFitsWord32(payloadLen) == 0) ||
@@ -577,6 +581,7 @@ int wc_CoseSign_Sign(const WOLFCOSE_SIGNATURE* signers, size_t signerCount,
         }
         else
 #endif
+#ifndef WOLFCOSE_NO_LOCAL_SIGN
 #ifdef WOLFCOSE_HAVE_ECDSA
         if ((ret == WOLFCOSE_SUCCESS) &&
             (wolfCose_AlgIsEcdsa(signer->algId) != 0)) {
@@ -762,6 +767,7 @@ int wc_CoseSign_Sign(const WOLFCOSE_SIGNATURE* signers, size_t signerCount,
         }
         else
 #endif /* WOLFCOSE_HAVE_LMS && !WOLFSSL_LMS_VERIFY_ONLY */
+#endif /* !WOLFCOSE_NO_LOCAL_SIGN */
         if (ret == WOLFCOSE_SUCCESS) {
             ret = WOLFCOSE_E_COSE_BAD_ALG;
         }
