@@ -451,7 +451,8 @@ WOLFCOSE_LOCAL int wolfCose_HmacType(int32_t alg,
 #ifdef WOLFCOSE_HAVE_ECDSA
 /**
  * \brief Sign a hash with ECC, producing raw r||s output.
- *        Wraps wolfCrypt DER signature -> fixed-width r||s conversion.
+ *        Converts the wolfCrypt DER signature to fixed-width r||s; a
+ *        NO_ASN wolfCrypt already returns r||s.
  * \param hash     Hash to sign.
  * \param hashLen  Hash length.
  * \param sigBuf   Output: raw r||s signature.
@@ -462,14 +463,14 @@ WOLFCOSE_LOCAL int wolfCose_HmacType(int32_t alg,
  * \param eccKey   Caller-owned ECC key with private key.
  * \return WOLFCOSE_SUCCESS or negative error code.
  */
-#if defined(WOLFCOSE_SIGN1_SIGN) || defined(WOLFCOSE_SIGN_SIGN) || \
-    defined(WOLFCOSE_COUNTERSIGN_SIGN)
+#if (defined(WOLFCOSE_SIGN1_SIGN) || defined(WOLFCOSE_SIGN_SIGN) || \
+     defined(WOLFCOSE_COUNTERSIGN_SIGN)) && !defined(WOLFCOSE_NO_LOCAL_SIGN)
 WOLFCOSE_LOCAL int wolfCose_EccSignRaw(const uint8_t* hash, size_t hashLen,
                                         uint8_t* sigBuf, size_t* sigLen,
                                         size_t coordSz,
                                         enum wc_HashType hashType,
                                         WC_RNG* rng, ecc_key* eccKey);
-#endif /* WOLFCOSE_SIGN1_SIGN || WOLFCOSE_SIGN_SIGN || COUNTERSIGN_SIGN */
+#endif /* signature creation && !WOLFCOSE_NO_LOCAL_SIGN */
 
 
 /**

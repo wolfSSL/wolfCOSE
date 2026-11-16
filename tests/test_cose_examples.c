@@ -673,9 +673,9 @@ static void test_example_encrypt_ecdh(void)
     TEST_ASSERT(ret == 0, "Examples ECDH-ES ECC init");
     if (ret == 0) {
         ecc_key_inited = 1;
-        ret = wc_ecc_import_private_key_ex(example_ecdh_private,
-            (word32)sizeof(example_ecdh_private), example_ecdh_public,
-            (word32)sizeof(example_ecdh_public), &ecc_key, ECC_SECP256R1);
+        /* NO_ASN wolfCrypt rejects a private import with an x963 point. */
+        ret = wc_ecc_import_unsigned(&ecc_key, &example_ecdh_public[1],
+            &example_ecdh_public[33], example_ecdh_private, ECC_SECP256R1);
         TEST_ASSERT(ret == 0, "Examples ECDH-ES private key import");
     }
     if (ret == 0) {

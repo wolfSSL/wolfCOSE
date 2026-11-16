@@ -8,6 +8,10 @@
 #include <stdio.h>
 
 #include <wolfcose/eat_psa.h>
+
+#ifdef WOLFCOSE_NO_LOCAL_SIGN
+    #error "this suite signs with local keys; test WOLFCOSE_NO_LOCAL_SIGN with make no-local-sign-test"
+#endif
 #include <wolfssl/wolfcrypt/memory.h>
 #include <wolfssl/wolfcrypt/random.h>
 #ifdef HAVE_ECC
