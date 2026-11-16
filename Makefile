@@ -166,7 +166,7 @@ SCEN_IOTFLEET    = examples/scenarios/iot_fleet_config
 SCEN_SENSOR      = examples/scenarios/sensor_attestation
 SCEN_BROADCAST   = examples/scenarios/group_broadcast_mac
 
-.PHONY: all shared test pkg-config-test ecdsa-policy-test rsapss-policy-test countersign-config-test zero-alloc-check force-zero-check zeroize-test deprecated-algs-test ecc-import-policy-test ext-sign-test ext-sign-demo ext-sign-force-failure coverage eat-psa-test eat-psa-float-test eat-psa-min-buffers-test eat-psa-claim-limits-test eat-psa-profile-test eat-psa-config-check eat-psa-ext-sign-test eat-psa-ext-sign-force-failure eat-psa-coverage eat-psa-coverage-force-failure hpke-coverage-force-failure generic-reduced-alg-test tool tool-test cmdline-test demo demos hpke-demo lean-verify psa-eat-lean-verify psa-eat-demo mldsa-demo mldsa-verify lms-demo lms-verify comprehensive scenarios release-scenarios release-coverage cxx-check valgrind-check release-validate release-artifacts interop-tcose tcose-upstream interop-go-cose interop-python-cwt interop-rust-coset c99-check c99-check-lms c99-hpke-check experimental-check clean FORCE
+.PHONY: all shared test pkg-config-test ecdsa-policy-test rsapss-policy-test countersign-config-test zero-alloc-check force-zero-check zeroize-test deprecated-algs-test ecc-import-policy-test ext-sign-test no-local-sign-test ext-sign-demo ext-sign-force-failure coverage eat-psa-test eat-psa-float-test eat-psa-min-buffers-test eat-psa-claim-limits-test eat-psa-profile-test eat-psa-config-check eat-psa-ext-sign-test eat-psa-ext-sign-force-failure eat-psa-coverage eat-psa-coverage-force-failure hpke-coverage-force-failure generic-reduced-alg-test tool tool-test cmdline-test demo demos hpke-demo lean-verify psa-eat-lean-verify psa-eat-demo mldsa-demo mldsa-verify lms-demo lms-verify comprehensive scenarios release-scenarios release-coverage cxx-check valgrind-check release-validate release-artifacts interop-tcose tcose-upstream interop-go-cose interop-python-cwt interop-rust-coset c99-check c99-check-lms c99-hpke-check experimental-check clean FORCE
 
 # --- Core library ---
 all: $(LIB_A)
@@ -222,7 +222,8 @@ ECDSA_POLICY_NO_SUPPORT_FLAGS = $(CFLAGS) $(WOLFCOSE_POLICY_DISABLE_HPKE_FLAGS) 
                                 -UWOLFCOSE_LEAN_VERIFY_MLDSA \
                                 -UWOLFCOSE_LEAN_MLDSA \
                                 -UWOLFCOSE_LEAN_VERIFY_LMS \
-                                -UWOLFCOSE_LEAN_LMS
+                                -UWOLFCOSE_LEAN_LMS \
+                                -UWOLFCOSE_NO_LOCAL_SIGN
 ECDSA_POLICY_FLAGS = $(ECDSA_POLICY_BASE_FLAGS) \
                      -DWOLFSSL_ECDSA_DETERMINISTIC_K \
                      -DWOLFCOSE_ENABLE_DETERMINISTIC_ECDSA
@@ -249,6 +250,14 @@ ecdsa-policy-test:
 	        "$$log_file"; then \
 	    cat "$$log_file"; \
 	    echo "FAIL: deterministic ECDSA probe failed unexpectedly"; \
+	    exit 1; \
+	fi; \
+	if ! $(CC) $(ECDSA_POLICY_NO_SUPPORT_FLAGS) \
+	        -DWOLFCOSE_ENABLE_DETERMINISTIC_ECDSA \
+	        -DWOLFCOSE_ENABLE_EXT_SIGN -DWOLFCOSE_NO_LOCAL_SIGN \
+	        $(ECDSA_POLICY_HEADER) >"$$log_file" 2>&1; then \
+	    cat "$$log_file"; \
+	    echo "FAIL: external-signer-only build rejected for deterministic ECDSA"; \
 	    exit 1; \
 	fi; \
 	if ! $(CC) $(ECDSA_POLICY_FLAGS) $(ECDSA_POLICY_HEADER) \
@@ -763,6 +772,22 @@ ext-sign-test:
 	    -o $(TEST_BIN) $(SRC) $(TEST_SRC) $(LDFLAGS) $(LDLIBS)
 	./$(TEST_BIN)
 
+# --- External signer only: local signing compiled out ---
+# The nm check proves the library references no wolfCrypt signing primitive,
+# which a --gc-sections link would otherwise hide.
+NO_LOCAL_SIGN_FLAGS = -DWOLFCOSE_ENABLE_EXT_SIGN -DWOLFCOSE_NO_LOCAL_SIGN
+NO_LOCAL_SIGN_TEST_BIN = tests/test_no_local_sign
+no-local-sign-test:
+	$(MAKE) clean
+	$(MAKE) $(LIB_A) EXTRA_CFLAGS='$(EXTRA_CFLAGS) $(NO_LOCAL_SIGN_FLAGS)'
+	$(CC) $(CFLAGS) $(NO_LOCAL_SIGN_FLAGS) -o $(NO_LOCAL_SIGN_TEST_BIN) \
+	    tests/test_no_local_sign.c $(LIB_A) $(LDFLAGS) $(LDLIBS)
+	./$(NO_LOCAL_SIGN_TEST_BIN)
+	@if nm -u $(OBJ) | grep -E 'wc_(ecc_sign_hash|ed25519_sign_msg|ed448_sign_msg|RsaPSS_Sign_ex|MlDsaKey_SignCtx|LmsKey_Sign)$$'; then \
+	    echo "FAIL: local signing primitive referenced"; exit 1; \
+	fi
+	@echo "PASS: no local signing primitive referenced"
+
 eat-psa-ext-sign-test:
 	$(CC) $(CFLAGS) $(EAT_PSA_FULL_FLAGS) -DWOLFCOSE_ENABLE_EXT_SIGN \
 	    -o $(TEST_BIN) $(SRC) $(TEST_SRC) $(LDFLAGS) $(LDLIBS)
@@ -1238,6 +1263,8 @@ c99-check:
 		-DWOLFCOSE_EAT_PSA_MAX_CLAIMS=10u \
 		-DWOLFCOSE_EAT_PSA_MAX_COMPONENT_CLAIMS=5u -fsyntax-only \
 		tests/test_eat_psa_limits.c
+	$(CC) $(C99_FLAGS) $(NO_LOCAL_SIGN_FLAGS) -fsyntax-only $(SRC) \
+		tests/test_no_local_sign.c
 	@echo "PASS: all sources conform to ISO C99 (-pedantic-errors)"
 
 # Strict C99 gate for the LMS-gated branches and profiles. Needs an
@@ -1333,7 +1360,7 @@ c99-hpke-check:
 # --- Cleanup ---
 clean:
 	rm -f $(OBJ) $(TEST_BIN) $(TOOL_BIN) $(DEMO_BIN) $(ENC_DEMO) $(HPKE_DEMO) $(MAC_DEMO) \
-	    $(EAT_PSA_TEST_BIN) $(EAT_PSA_LIMITS_TEST_BIN) \
+	    $(EAT_PSA_TEST_BIN) $(EAT_PSA_LIMITS_TEST_BIN) $(NO_LOCAL_SIGN_TEST_BIN) \
 	    $(EXTSIGN_DEMO) $(SIGN1_DEMO) $(LEANV_DEMO) $(EAT_LEANV_DEMO) \
 	    $(EAT_DEMO) $(MLDSA_DEMO) $(MLDSAV_DEMO) $(LMS_DEMO) $(LMSV_DEMO) $(CXX_SMOKE) \
 	    $(COMP_SIGN) $(COMP_ENCRYPT) $(COMP_MAC) $(COMP_ERRORS) \
