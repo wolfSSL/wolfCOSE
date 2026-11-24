@@ -2600,8 +2600,13 @@ static void test_eat_psa_issue_boundaries(WOLFCOSE_KEY* key, WC_RNG* rng)
     outLen = 17u;
     ret = wc_CoseEatPsaToken_EncodeClaims(&claims, claimsBuf,
         sizeof(claimsBuf), &outLen);
+#if !defined(WOLFCOSE_NO_CBOR_ENCODE_UTF8_CHECK)
     TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED && outLen == 0u,
         "reject invalid UTF-8 issuer text claim");
+#else
+    TEST_ASSERT(ret == WOLFCOSE_SUCCESS && outLen > 0u,
+        "unchecked issuer encodes caller-trusted text claim");
+#endif
 
     test_eat_psa_claims(&claims, &component);
     (void)XMEMSET(out, 0xA5, sizeof(out));

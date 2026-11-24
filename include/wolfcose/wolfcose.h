@@ -552,7 +552,8 @@ WOLFCOSE_API int wc_CBOR_EncodeBstr(WOLFCOSE_CBOR_CTX* ctx,
  * \param str   UTF-8 text (not null-terminated requirement).
  * \param len   Length in bytes.
  * \return WOLFCOSE_SUCCESS, WOLFCOSE_E_CBOR_MALFORMED for invalid UTF-8,
- *         or another negative error code.
+ *         or another negative error code. With
+ *         WOLFCOSE_NO_CBOR_ENCODE_UTF8_CHECK the caller guarantees UTF-8.
  */
 WOLFCOSE_API int wc_CBOR_EncodeTstr(WOLFCOSE_CBOR_CTX* ctx,
                                      const uint8_t* str, size_t len);

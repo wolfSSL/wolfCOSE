@@ -53,7 +53,9 @@ static int wolfCose_CBOR_IsEncodeContext(const WOLFCOSE_CBOR_CTX* ctx)
 }
 #endif
 
-#if defined(WOLFCOSE_CBOR_ENCODE) || defined(WOLFCOSE_CBOR_DECODE)
+#if defined(WOLFCOSE_CBOR_DECODE) || \
+    (defined(WOLFCOSE_CBOR_ENCODE) && \
+     !defined(WOLFCOSE_NO_CBOR_ENCODE_UTF8_CHECK))
 /* RFC 8949 Section 3.3 defines a text string as a sequence of Unicode code
  * points encoded in UTF-8. Keep this bounded and allocation-free so it is
  * usable for ordinary text values, labels, and values skipped by a profile
@@ -457,9 +459,11 @@ int wc_CBOR_EncodeTstr(WOLFCOSE_CBOR_CTX* ctx, const uint8_t* str,
         ((str == NULL) && (len > 0u))) {
         ret = WOLFCOSE_E_INVALID_ARG;
     }
+#if !defined(WOLFCOSE_NO_CBOR_ENCODE_UTF8_CHECK)
     else if (wolfCose_CBOR_IsUtf8(str, len) == 0) {
         ret = WOLFCOSE_E_CBOR_MALFORMED;
     }
+#endif
     else {
         ret = wolfCose_CBOR_EncodeBytes(ctx, WOLFCOSE_CBOR_TSTR, str, len);
     }
