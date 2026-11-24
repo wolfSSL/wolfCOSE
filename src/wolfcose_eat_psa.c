@@ -435,55 +435,58 @@ static int wolfCose_EatPsaValidateClaims(
     return ret;
 }
 
+/* Writes one label and its span. An absent optional span writes nothing;
+ * required spans were proven present by the claim validators. */
+static int wolfCose_EatPsaEncodeSpan(WOLFCOSE_CBOR_CTX* ctx, uint64_t label,
+    const WOLFCOSE_EAT_PSA_SPAN* span, uint8_t majorType)
+{
+    int ret = WOLFCOSE_SUCCESS;
+
+    if (span->data != NULL) {
+        ret = wc_CBOR_EncodeUint(ctx, label);
+        if (ret == WOLFCOSE_SUCCESS) {
+            if (majorType == WOLFCOSE_CBOR_TSTR) {
+                ret = wc_CBOR_EncodeTstr(ctx, span->data, span->len);
+            }
+            else {
+                ret = wc_CBOR_EncodeBstr(ctx, span->data, span->len);
+            }
+        }
+    }
+
+    return ret;
+}
+
 static int wolfCose_EatPsaEncodeComponent(WOLFCOSE_CBOR_CTX* ctx,
     const WOLFCOSE_EAT_PSA_COMPONENT* component)
 {
-    int ret = WOLFCOSE_SUCCESS;
+    int ret;
     size_t count = 2u;
 
-    if ((component->measurementType.data != NULL) ||
-        (component->version.data != NULL) ||
-        (component->measurementDesc.data != NULL)) {
-        count += (component->measurementType.data != NULL) ? 1u : 0u;
-        count += (component->version.data != NULL) ? 1u : 0u;
-        count += (component->measurementDesc.data != NULL) ? 1u : 0u;
-    }
+    count += (component->measurementType.data != NULL) ? 1u : 0u;
+    count += (component->version.data != NULL) ? 1u : 0u;
+    count += (component->measurementDesc.data != NULL) ? 1u : 0u;
 
     ret = wc_CBOR_EncodeMapStart(ctx, count);
-    if ((ret == WOLFCOSE_SUCCESS) && (component->measurementType.data != NULL)) {
-        ret = wc_CBOR_EncodeUint(ctx, WOLFCOSE_EAT_PSA_COMPONENT_TYPE);
-        if (ret == WOLFCOSE_SUCCESS) {
-            ret = wc_CBOR_EncodeTstr(ctx, component->measurementType.data,
-                                     component->measurementType.len);
-        }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wolfCose_EatPsaEncodeSpan(ctx, WOLFCOSE_EAT_PSA_COMPONENT_TYPE,
+            &component->measurementType, WOLFCOSE_CBOR_TSTR);
     }
     if (ret == WOLFCOSE_SUCCESS) {
-        ret = wc_CBOR_EncodeUint(ctx, WOLFCOSE_EAT_PSA_COMPONENT_VALUE);
+        ret = wolfCose_EatPsaEncodeSpan(ctx, WOLFCOSE_EAT_PSA_COMPONENT_VALUE,
+            &component->measurementValue, WOLFCOSE_CBOR_BSTR);
     }
     if (ret == WOLFCOSE_SUCCESS) {
-        ret = wc_CBOR_EncodeBstr(ctx, component->measurementValue.data,
-                                 component->measurementValue.len);
-    }
-    if ((ret == WOLFCOSE_SUCCESS) && (component->version.data != NULL)) {
-        ret = wc_CBOR_EncodeUint(ctx, WOLFCOSE_EAT_PSA_COMPONENT_VER);
-        if (ret == WOLFCOSE_SUCCESS) {
-            ret = wc_CBOR_EncodeTstr(ctx, component->version.data,
-                                     component->version.len);
-        }
+        ret = wolfCose_EatPsaEncodeSpan(ctx, WOLFCOSE_EAT_PSA_COMPONENT_VER,
+            &component->version, WOLFCOSE_CBOR_TSTR);
     }
     if (ret == WOLFCOSE_SUCCESS) {
-        ret = wc_CBOR_EncodeUint(ctx, WOLFCOSE_EAT_PSA_COMPONENT_SIGNER);
+        ret = wolfCose_EatPsaEncodeSpan(ctx, WOLFCOSE_EAT_PSA_COMPONENT_SIGNER,
+            &component->signerId, WOLFCOSE_CBOR_BSTR);
     }
     if (ret == WOLFCOSE_SUCCESS) {
-        ret = wc_CBOR_EncodeBstr(ctx, component->signerId.data,
-                                 component->signerId.len);
-    }
-    if ((ret == WOLFCOSE_SUCCESS) && (component->measurementDesc.data != NULL)) {
-        ret = wc_CBOR_EncodeUint(ctx, WOLFCOSE_EAT_PSA_COMPONENT_DESC);
-        if (ret == WOLFCOSE_SUCCESS) {
-            ret = wc_CBOR_EncodeTstr(ctx, component->measurementDesc.data,
-                                     component->measurementDesc.len);
-        }
+        ret = wolfCose_EatPsaEncodeSpan(ctx, WOLFCOSE_EAT_PSA_COMPONENT_DESC,
+            &component->measurementDesc, WOLFCOSE_CBOR_TSTR);
     }
 
     return ret;
@@ -523,16 +526,12 @@ int wc_CoseEatPsaToken_EncodeClaims(const WOLFCOSE_EAT_PSA_CLAIMS* claims,
         ret = wc_CBOR_EncodeMapStart(&ctx, count);
     }
     if (ret == WOLFCOSE_SUCCESS) {
-        ret = wc_CBOR_EncodeUint(&ctx, WOLFCOSE_EAT_PSA_LABEL_NONCE);
+        ret = wolfCose_EatPsaEncodeSpan(&ctx, WOLFCOSE_EAT_PSA_LABEL_NONCE,
+            &claims->nonce, WOLFCOSE_CBOR_BSTR);
     }
     if (ret == WOLFCOSE_SUCCESS) {
-        ret = wc_CBOR_EncodeBstr(&ctx, claims->nonce.data, claims->nonce.len);
-    }
-    if (ret == WOLFCOSE_SUCCESS) {
-        ret = wc_CBOR_EncodeUint(&ctx, WOLFCOSE_EAT_PSA_LABEL_UEID);
-    }
-    if (ret == WOLFCOSE_SUCCESS) {
-        ret = wc_CBOR_EncodeBstr(&ctx, claims->ueid.data, claims->ueid.len);
+        ret = wolfCose_EatPsaEncodeSpan(&ctx, WOLFCOSE_EAT_PSA_LABEL_UEID,
+            &claims->ueid, WOLFCOSE_CBOR_BSTR);
     }
     if (ret == WOLFCOSE_SUCCESS) {
         ret = wc_CBOR_EncodeUint(&ctx, WOLFCOSE_EAT_PSA_LABEL_PROFILE);
@@ -541,12 +540,9 @@ int wc_CoseEatPsaToken_EncodeClaims(const WOLFCOSE_EAT_PSA_CLAIMS* claims,
         ret = wc_CBOR_EncodeTstr(&ctx, kEatPsaTfmProfile,
                                  sizeof(kEatPsaTfmProfile) - 1u);
     }
-    if ((ret == WOLFCOSE_SUCCESS) && (claims->bootSeed.data != NULL)) {
-        ret = wc_CBOR_EncodeUint(&ctx, WOLFCOSE_EAT_PSA_LABEL_BOOT_SEED);
-        if (ret == WOLFCOSE_SUCCESS) {
-            ret = wc_CBOR_EncodeBstr(&ctx, claims->bootSeed.data,
-                                     claims->bootSeed.len);
-        }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wolfCose_EatPsaEncodeSpan(&ctx, WOLFCOSE_EAT_PSA_LABEL_BOOT_SEED,
+            &claims->bootSeed, WOLFCOSE_CBOR_BSTR);
     }
     if (ret == WOLFCOSE_SUCCESS) {
         ret = wc_CBOR_EncodeUint(&ctx, WOLFCOSE_EAT_PSA_LABEL_CLIENT_ID);
@@ -561,19 +557,13 @@ int wc_CoseEatPsaToken_EncodeClaims(const WOLFCOSE_EAT_PSA_CLAIMS* claims,
         ret = wc_CBOR_EncodeUint(&ctx, (uint64_t)claims->lifecycle);
     }
     if (ret == WOLFCOSE_SUCCESS) {
-        ret = wc_CBOR_EncodeUint(&ctx, WOLFCOSE_EAT_PSA_LABEL_IMPLEMENTATION);
+        ret = wolfCose_EatPsaEncodeSpan(&ctx,
+            WOLFCOSE_EAT_PSA_LABEL_IMPLEMENTATION, &claims->implementationId,
+            WOLFCOSE_CBOR_BSTR);
     }
     if (ret == WOLFCOSE_SUCCESS) {
-        ret = wc_CBOR_EncodeBstr(&ctx, claims->implementationId.data,
-                                 claims->implementationId.len);
-    }
-    if ((ret == WOLFCOSE_SUCCESS) &&
-        (claims->certificationReference.data != NULL)) {
-        ret = wc_CBOR_EncodeUint(&ctx, WOLFCOSE_EAT_PSA_LABEL_CERT_REF);
-        if (ret == WOLFCOSE_SUCCESS) {
-            ret = wc_CBOR_EncodeTstr(&ctx, claims->certificationReference.data,
-                                     claims->certificationReference.len);
-        }
+        ret = wolfCose_EatPsaEncodeSpan(&ctx, WOLFCOSE_EAT_PSA_LABEL_CERT_REF,
+            &claims->certificationReference, WOLFCOSE_CBOR_TSTR);
     }
     if (ret == WOLFCOSE_SUCCESS) {
         ret = wc_CBOR_EncodeUint(&ctx, WOLFCOSE_EAT_PSA_LABEL_COMPONENTS);
@@ -585,14 +575,9 @@ int wc_CoseEatPsaToken_EncodeClaims(const WOLFCOSE_EAT_PSA_CLAIMS* claims,
          i++) {
         ret = wolfCose_EatPsaEncodeComponent(&ctx, &claims->components[i]);
     }
-    if ((ret == WOLFCOSE_SUCCESS) &&
-        (claims->verificationServiceIndicator.data != NULL)) {
-        ret = wc_CBOR_EncodeUint(&ctx, WOLFCOSE_EAT_PSA_LABEL_VSI);
-        if (ret == WOLFCOSE_SUCCESS) {
-            ret = wc_CBOR_EncodeTstr(&ctx,
-                claims->verificationServiceIndicator.data,
-                claims->verificationServiceIndicator.len);
-        }
+    if (ret == WOLFCOSE_SUCCESS) {
+        ret = wolfCose_EatPsaEncodeSpan(&ctx, WOLFCOSE_EAT_PSA_LABEL_VSI,
+            &claims->verificationServiceIndicator, WOLFCOSE_CBOR_TSTR);
     }
     if (ret == WOLFCOSE_SUCCESS) {
         *outLen = ctx.idx;
