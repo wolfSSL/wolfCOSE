@@ -462,6 +462,7 @@ Two limits worth knowing before designing around this:
 | `WOLFCOSE_NO_CBOR_ENCODE` | Disable CBOR encoding | - |
 | `WOLFCOSE_CBOR_DECODE` | Enable CBOR decoding | Enabled |
 | `WOLFCOSE_NO_CBOR_DECODE` | Disable CBOR decoding | - |
+| `WOLFCOSE_NO_CBOR_ENCODE_UTF8_CHECK` | `wc_CBOR_EncodeTstr` skips UTF-8 validation; the caller guarantees every text string is UTF-8. The decoder always validates | - |
 
 ---
 

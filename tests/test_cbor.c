@@ -859,6 +859,7 @@ static void test_cbor_utf8_boundaries(void)
     size_t decodedLen = 0u;
     size_t idx;
     size_t i;
+    int encodeValid;
     int ret;
 
     printf("  [UTF-8 boundaries]\n");
@@ -867,7 +868,12 @@ static void test_cbor_utf8_boundaries(void)
         if (ret == WOLFCOSE_SUCCESS) {
             ret = wc_CBOR_EncodeTstr(&ctx, cases[i].bytes, cases[i].len);
         }
-        if (cases[i].valid != 0) {
+#if !defined(WOLFCOSE_NO_CBOR_ENCODE_UTF8_CHECK)
+        encodeValid = cases[i].valid;
+#else
+        encodeValid = 1;
+#endif
+        if (encodeValid != 0) {
             TEST_ASSERT(ret == WOLFCOSE_SUCCESS &&
                         ctx.idx == (cases[i].len + 1u) &&
                         encoded[0] == (uint8_t)(0x60u + cases[i].len) &&
@@ -906,8 +912,13 @@ static void test_cbor_utf8_boundaries(void)
     if (ret == WOLFCOSE_SUCCESS) {
         ret = wc_CBOR_EncodeTstr(&ctx, invalidLead, sizeof(invalidLead));
     }
+#if !defined(WOLFCOSE_NO_CBOR_ENCODE_UTF8_CHECK)
     TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED && ctx.idx == idx,
         "tstr encoder validates UTF-8 before writing");
+#else
+    TEST_ASSERT(ret == WOLFCOSE_SUCCESS && ctx.idx > idx,
+        "unchecked tstr encoder writes the caller's bytes");
+#endif
 }
 
 #ifdef WOLFCOSE_FLOAT
@@ -1053,8 +1064,14 @@ static void test_cbor_errors(void)
                   "skip rejects invalid UTF-8 text");
       ctx.buf = buf; ctx.cbuf = NULL; ctx.bufSz = sizeof(buf); ctx.idx = 0u;
       ret = wc_CBOR_EncodeTstr(&ctx, &in[1], 1u);
+#if !defined(WOLFCOSE_NO_CBOR_ENCODE_UTF8_CHECK)
       TEST_ASSERT(ret == WOLFCOSE_E_CBOR_MALFORMED,
-                  "encode rejects invalid UTF-8 text"); }
+                  "encode rejects invalid UTF-8 text");
+#else
+      TEST_ASSERT(ret == WOLFCOSE_SUCCESS,
+                  "unchecked encode writes invalid UTF-8 text");
+#endif
+    }
 
     /* Wrong type: expect array, get uint */
     { uint8_t in[] = {0x00};

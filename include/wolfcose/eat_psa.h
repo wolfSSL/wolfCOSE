@@ -159,7 +159,8 @@ typedef int (*WOLFCOSE_EAT_PSA_COMPONENT_CB)(void* ctx,
  * of the complete standardized receiver profile.
  *
  * \return WOLFCOSE_SUCCESS, WOLFCOSE_E_EAT_PSA_CLAIM,
- *         WOLFCOSE_E_CBOR_MALFORMED for invalid UTF-8,
+ *         WOLFCOSE_E_CBOR_MALFORMED for invalid UTF-8 (unchecked with
+ *         WOLFCOSE_NO_CBOR_ENCODE_UTF8_CHECK),
  *         WOLFCOSE_E_BUFFER_TOO_SMALL, or WOLFCOSE_E_INVALID_ARG.
  */
 #if defined(WOLFCOSE_EAT_PSA_ISSUE)
